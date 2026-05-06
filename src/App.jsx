@@ -8,9 +8,11 @@ import { AboutSection } from './sections/AboutSection'
 import { PartnershipsSection } from './sections/PartnershipsSection'
 import { TeamSection } from './sections/TeamSection'
 import { GoalsSection } from './sections/GoalsSection'
+import { MapSection } from './sections/MapSection'
 import { GlobalMascots } from './components/GlobalMascots'
 import { MascotTicTacToe } from './components/MascotTicTacToe'
 import { CursorGlow } from './components/CursorGlow'
+import { Analytics } from '@vercel/analytics/react'
 
 
 export default function App() {
@@ -61,11 +63,14 @@ export default function App() {
           <div className="section-divider mx-8" />
           <TeamSection />
           <div className="section-divider mx-8" />
+          <MapSection />
+          <div className="section-divider mx-8" />
           <GoalsSection />
         </div>
       </main>
 
       <Footer />
+      <Analytics />
     </div>
   )
 }

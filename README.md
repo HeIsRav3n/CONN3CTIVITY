@@ -1,16 +1,41 @@
-# React + Vite
+# CONN3CTIVITY
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Welcome to the **CONN3CTIVITY** frontend application. This is a high-performance, cinematic Web3 landing page built with React, Vite, Framer Motion, and Force-Graph.
 
-Currently, two official plugins are available:
+## Prerequisites
+- Node.js (v20+ recommended)
+- npm or pnpm
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Getting Started
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-## React Compiler
+## Managing the Conn3ctor Map
+The interactive "Conn3ction Map" visualizes live Discord server members who hold the "Conn3ctor" role.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+To update the map data:
+1. Ensure your `.env` file contains your Discord bot credentials:
+   ```
+   DISCORD_BOT_TOKEN=your_token_here
+   DISCORD_GUILD_ID=your_server_id_here
+   ```
+2. Run the extraction script:
+   ```bash
+   node fetchDiscordMap.cjs
+   ```
+3. This will query the Discord API and overwrite `src/data/conn3ctors.json`. Commit the changes and push to automatically update the live site.
 
-## Expanding the ESLint configuration
+## Architecture
+- **Framework**: React 18 + Vite
+- **Animations**: Framer Motion
+- **Map Visualization**: react-force-graph-2d
+- **Analytics**: Vercel Analytics
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Deployment
+This project is configured for seamless deployment on Vercel. Any push to the `main` branch will automatically trigger a production build.
