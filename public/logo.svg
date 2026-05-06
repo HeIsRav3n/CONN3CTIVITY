@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 260" fill="none">
+  <!-- Left circle -->
+  <circle cx="170" cy="130" r="118" stroke="currentColor" stroke-width="2.5" fill="none"/>
+  <!-- Right circle -->
+  <circle cx="350" cy="130" r="118" stroke="currentColor" stroke-width="2.5" fill="none"/>
+  <!-- Text: CONN -->
+  <text x="95" y="136" font-family="'Josefin Sans', 'Raleway', sans-serif" font-size="28" font-weight="300" letter-spacing="8" fill="currentColor" text-anchor="middle">CONN</text>
+  <!-- Text: 3 (in intersection) -->
+  <text x="260" y="138" font-family="'Josefin Sans', 'Raleway', sans-serif" font-size="32" font-weight="300" letter-spacing="2" fill="currentColor" text-anchor="middle">3</text>
+  <!-- Text: CTIVITY -->
+  <text x="428" y="136" font-family="'Josefin Sans', 'Raleway', sans-serif" font-size="28" font-weight="300" letter-spacing="8" fill="currentColor" text-anchor="middle">CTIVITY</text>
+</svg>
