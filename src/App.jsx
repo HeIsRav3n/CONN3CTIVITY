@@ -18,8 +18,53 @@ import { Analytics } from '@vercel/analytics/react'
 export default function App() {
   const [navVisible, setNavVisible] = useState(true)
   const [gameOpen, setGameOpen] = useState(false)
+  const [discordUser, setDiscordUser] = useState(null)
   const device = useDeviceCapability()
   const lenisRef = useRef(null)
+
+  // Discord OAuth2 Implicit Flow Handler
+  useEffect(() => {
+    const fetchDiscordUser = async (token) => {
+      try {
+        const res = await fetch('https://discord.com/api/users/@me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const user = await res.json();
+          setDiscordUser(user);
+        } else {
+          // Token invalid or expired
+          localStorage.removeItem('discord_token');
+        }
+      } catch (err) {
+        console.error("Failed to fetch Discord user", err);
+      }
+    };
+
+    // 1. Check URL for token (Redirected from Discord)
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const token = params.get('access_token');
+      if (token) {
+        localStorage.setItem('discord_token', token);
+        // Clear the hash securely without refreshing
+        window.history.replaceState(null, null, window.location.pathname + window.location.search);
+        fetchDiscordUser(token);
+      }
+    } else {
+      // 2. Check local storage for existing session
+      const storedToken = localStorage.getItem('discord_token');
+      if (storedToken) {
+        fetchDiscordUser(storedToken);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('discord_token');
+    setDiscordUser(null);
+  };
 
   useEffect(() => {
     // Initialize Lenis smooth scroll
@@ -48,7 +93,12 @@ export default function App() {
   return (
     <div className="relative min-h-screen" style={{ background: 'var(--void)' }}>
       <CursorGlow />
-      <Navbar visible={navVisible} onThreeClick={() => setGameOpen(true)} />
+      <Navbar 
+        visible={navVisible} 
+        onThreeClick={() => setGameOpen(true)} 
+        user={discordUser}
+        onLogout={handleLogout}
+      />
 
       <GlobalMascots />
 
