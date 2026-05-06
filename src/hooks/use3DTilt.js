@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
+import { useRef } from 'react'
+import { useMotionValue, useSpring, useTransform } from 'framer-motion'
 
 export function use3DTilt(springConfig = { damping: 20, stiffness: 200, mass: 0.5 }, maxTilt = 15) {
   const ref = useRef(null)

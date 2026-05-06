@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import { motion } from 'framer-motion'
 import { use3DTilt } from '../hooks/use3DTilt'
 

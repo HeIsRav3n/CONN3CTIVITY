@@ -36,12 +36,20 @@ export function MapSection() {
   }, [])
 
   const handleNodeClick = useCallback((node) => {
+    if (!node) {
+      setSelectedNode(null)
+      return
+    }
+
     if (node.id === 'main') {
       // Clicking the center logo retracts all nodes by clearing their fixed positions
       MOCK_DATA.nodes.forEach(n => {
         n.fx = undefined
         n.fy = undefined
       })
+      if (fgRef.current) {
+        fgRef.current.d3ReheatSimulation()
+      }
       setSelectedNode(null)
       return
     }
@@ -226,13 +234,13 @@ export function MapSection() {
                       <div className="flex gap-6">
                         <div className="flex flex-col">
                           <span className="font-bold text-white text-lg drop-shadow-sm">
-                            {(selectedNode.id.charCodeAt(0) % 40) + 2}
+                            {(String(selectedNode.id).charCodeAt(0) % 40) + 2}
                           </span>
                           <span className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Mutual Servers</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="font-bold text-white text-lg drop-shadow-sm">
-                            {(selectedNode.id.charCodeAt(selectedNode.id.length-1) % 150) + 10}
+                            {(String(selectedNode.id).charCodeAt(String(selectedNode.id).length-1) % 150) + 10}
                           </span>
                           <span className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Friends</span>
                         </div>
