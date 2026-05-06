@@ -36,7 +36,16 @@ export function MapSection() {
   }, [])
 
   const handleNodeClick = useCallback((node) => {
-    if (node.id === 'main') return
+    if (node.id === 'main') {
+      // Clicking the center logo retracts all nodes by clearing their fixed positions
+      MOCK_DATA.nodes.forEach(n => {
+        n.fx = undefined
+        n.fy = undefined
+      })
+      setSelectedNode(null)
+      return
+    }
+    
     setSelectedNode(node)
     
     // Smoothly center the camera on the clicked node
@@ -44,6 +53,12 @@ export function MapSection() {
       fgRef.current.centerAt(node.x, node.y, 1000)
       fgRef.current.zoom(2.5, 1000)
     }
+  }, [])
+
+  const handleNodeDragEnd = useCallback(node => {
+    // When a user drags a node, freeze it in place
+    node.fx = node.x
+    node.fy = node.y
   }, [])
 
   // Custom Canvas Rendering for Nodes
@@ -153,52 +168,110 @@ export function MapSection() {
             enableNodeDrag={true}
             enableZoomPanInteraction={true}
             onNodeClick={handleNodeClick}
+            onNodeDragEnd={handleNodeDragEnd}
           />
 
-          {/* Node Profile Overlay Modal */}
+          {/* Hyper-Realistic 3D Glass Profile ID Card Overlay */}
           <AnimatePresence>
             {selectedNode && (
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-void/90 backdrop-blur-xl border border-gold/30 p-6 rounded-2xl flex flex-col items-center gap-4 z-50 min-w-[300px] shadow-2xl"
-                style={{ boxShadow: '0 0 40px rgba(0,0,0,0.8), 0 0 15px rgba(201,169,110,0.2)' }}
+                initial={{ opacity: 0, scale: 0.9, rotateX: 20, y: 50 }}
+                animate={{ opacity: 1, scale: 1, rotateX: 10, rotateY: -5, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, rotateX: 20, y: 50 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                className="absolute bottom-12 right-6 md:bottom-24 md:right-24 z-50 pointer-events-auto"
+                style={{ perspective: 1200 }}
               >
-                <button 
-                  onClick={() => setSelectedNode(null)}
-                  className="absolute top-4 right-4 text-cream-muted hover:text-cream transition-colors"
+                {/* ID Badge Container */}
+                <div 
+                  className="relative w-[340px] rounded-[24px] overflow-hidden backdrop-blur-3xl"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.01) 100%)',
+                    boxShadow: '0 30px 60px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.3), inset 0 -1px 2px rgba(255,255,255,0.1)',
+                  }}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-                
-                <img 
-                  src={selectedNode.avatar} 
-                  alt={selectedNode.name} 
-                  className="w-20 h-20 rounded-full border-2 border-gold object-cover"
-                />
-                <div className="text-center w-full">
-                  <h3 className="font-orbitron font-bold text-lg text-cream">{selectedNode.name}</h3>
-                  <p className="text-cream-muted text-sm font-space mt-1">
-                    {selectedNode.discordHandle || 'Discord User'}
-                  </p>
-                  <div className="flex items-center justify-center gap-2 mt-4">
-                    <div className="inline-block px-3 py-1 rounded-full text-xs font-bold font-space border" style={{ borderColor: selectedNode.color, color: selectedNode.color, backgroundColor: `${selectedNode.color}15` }}>
-                      CONN3CTOR
+                  {/* Neon Glowing Edge Gradient Background */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-pink-500 via-purple-500 to-orange-500 opacity-20" style={{ padding: 1 }} />
+                  
+                  {/* Glossy Reflection overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent h-[40%] pointer-events-none" />
+
+                  {/* Card Content */}
+                  <div className="relative bg-black/40 m-[1px] rounded-[23px] p-6 h-full border border-white/10">
+                    <button 
+                      onClick={() => setSelectedNode(null)}
+                      className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-20"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+
+                    {/* Top Row: Avatar & Text */}
+                    <div className="flex gap-4 items-center relative z-10">
+                      <div className="relative">
+                        <img 
+                          src={selectedNode.avatar} 
+                          alt={selectedNode.name} 
+                          className="w-16 h-16 rounded-xl object-cover shadow-lg border border-white/20"
+                        />
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#121215]"></div>
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <h3 className="font-orbitron font-bold text-lg text-white truncate drop-shadow-md">{selectedNode.name}</h3>
+                        <p className="text-white/60 font-space text-sm truncate">{selectedNode.discordHandle}</p>
+                      </div>
                     </div>
+
+                    {/* Data Row: Mutuals & Role */}
+                    <div className="flex justify-between items-center mt-6 pt-5 border-t border-white/10 font-space relative z-10">
+                      <div className="flex gap-6">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-white text-lg drop-shadow-sm">
+                            {(selectedNode.id.charCodeAt(0) % 40) + 2}
+                          </span>
+                          <span className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Mutual Servers</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-white text-lg drop-shadow-sm">
+                            {(selectedNode.id.charCodeAt(selectedNode.id.length-1) % 150) + 10}
+                          </span>
+                          <span className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Friends</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <div 
+                          className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border"
+                          style={{ borderColor: selectedNode.color, color: selectedNode.color, backgroundColor: `${selectedNode.color}20` }}
+                        >
+                          CONN3CTOR
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* X Integration Row */}
                     {selectedNode.xHandle && (
-                      <a 
-                        href={`https://x.com/${selectedNode.xHandle}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-space border border-white/20 bg-white/5 text-cream hover:bg-white/10 transition-colors"
-                      >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                        </svg>
-                        @{selectedNode.xHandle}
-                      </a>
+                      <div className="mt-5 pt-5 border-t border-white/10 relative z-10">
+                        <a 
+                          href={`https://x.com/${selectedNode.xHandle}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white border border-white/20 shadow-md">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                              </svg>
+                            </div>
+                            <span className="text-white text-sm font-space group-hover:text-gold transition-colors">@{selectedNode.xHandle}</span>
+                          </div>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40 group-hover:text-gold group-hover:translate-x-1 transition-all"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                        </a>
+                      </div>
                     )}
+                    
+                    {/* Simulated Finger Shadows to represent "held" */}
+                    <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-black/60 blur-2xl rounded-full pointer-events-none" />
+                    <div className="absolute -bottom-4 -right-12 w-20 h-20 bg-black/40 blur-xl rounded-full pointer-events-none" />
                   </div>
                 </div>
               </motion.div>
