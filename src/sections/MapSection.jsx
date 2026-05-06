@@ -1,5 +1,5 @@
-import { useRef, useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useRef, useEffect, useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import ForceGraph2D from 'react-force-graph-2d'
 
 import REAL_DATA from '../data/conn3ctors.json'
@@ -8,7 +8,9 @@ import REAL_DATA from '../data/conn3ctors.json'
 const MOCK_DATA = REAL_DATA && REAL_DATA.nodes ? REAL_DATA : { nodes: [], links: [] }
 export function MapSection() {
   const containerRef = useRef(null)
+  const fgRef = useRef(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [selectedNode, setSelectedNode] = useState(null)
 
   // Auto-resize graph to container
   useEffect(() => {
@@ -21,6 +23,27 @@ export function MapSection() {
     })
     observer.observe(containerRef.current)
     return () => observer.disconnect()
+  }, [])
+
+  // Spread nodes out using custom physics forces
+  useEffect(() => {
+    if (fgRef.current) {
+      // Negative charge repels nodes away from each other
+      fgRef.current.d3Force('charge').strength(-300)
+      // Increase distance of links to space out the central cluster
+      fgRef.current.d3Force('link').distance(80)
+    }
+  }, [])
+
+  const handleNodeClick = useCallback((node) => {
+    if (node.id === 'main') return
+    setSelectedNode(node)
+    
+    // Smoothly center the camera on the clicked node
+    if (fgRef.current) {
+      fgRef.current.centerAt(node.x, node.y, 1000)
+      fgRef.current.zoom(2.5, 1000)
+    }
   }, [])
 
   // Custom Canvas Rendering for Nodes
@@ -119,6 +142,7 @@ export function MapSection() {
           }}
         >
           <ForceGraph2D
+            ref={fgRef}
             width={dimensions.width}
             height={dimensions.height}
             graphData={MOCK_DATA}
@@ -128,7 +152,43 @@ export function MapSection() {
             backgroundColor="transparent"
             enableNodeDrag={true}
             enableZoomPanInteraction={true}
+            onNodeClick={handleNodeClick}
           />
+
+          {/* Node Profile Overlay Modal */}
+          <AnimatePresence>
+            {selectedNode && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-void/90 backdrop-blur-xl border border-gold/30 p-6 rounded-2xl flex flex-col items-center gap-4 z-50 min-w-[300px] shadow-2xl"
+                style={{ boxShadow: '0 0 40px rgba(0,0,0,0.8), 0 0 15px rgba(201,169,110,0.2)' }}
+              >
+                <button 
+                  onClick={() => setSelectedNode(null)}
+                  className="absolute top-4 right-4 text-cream-muted hover:text-cream transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                
+                <img 
+                  src={selectedNode.avatar} 
+                  alt={selectedNode.name} 
+                  className="w-20 h-20 rounded-full border-2 border-gold object-cover"
+                />
+                <div className="text-center">
+                  <h3 className="font-orbitron font-bold text-lg text-cream">{selectedNode.name}</h3>
+                  <p className="text-cream-muted text-sm font-space mt-1">
+                    {selectedNode.discordHandle || 'Discord User'}
+                  </p>
+                  <div className="mt-4 inline-block px-3 py-1 rounded-full text-xs font-bold font-space border" style={{ borderColor: selectedNode.color, color: selectedNode.color, backgroundColor: `${selectedNode.color}15` }}>
+                    CONN3CTOR
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
     </section>

@@ -122,6 +122,7 @@ export function Navbar({ visible = false, onThreeClick }) {
     { label: 'About',        href: '#about',         id: 'about' },
     { label: 'Partnerships', href: '#partnerships',  id: 'partnerships' },
     { label: 'Team',         href: '#team',          id: 'team' },
+    { label: 'Map',          href: '#map',           id: 'map' },
     { label: 'Connect',      href: '#connect',       id: 'connect' },
   ]
 
