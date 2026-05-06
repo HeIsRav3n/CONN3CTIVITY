@@ -53,7 +53,7 @@ const fetchMembers = () => {
       // Format data for the Connection Map
       const graphData = {
         nodes: [
-          { id: 'main', name: 'CONN3CTIVITY', group: 0, color: '#C9A96E' }
+          { id: 'main', name: 'CONN3CTIVITY', group: 0, color: '#C9A96E', avatar: '/map-logo.png' }
         ],
         links: []
       };
@@ -69,15 +69,25 @@ const fetchMembers = () => {
           ? `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.png?size=128`
           : `https://cdn.discordapp.com/embed/avatars/${parseInt(member.user.discriminator) % 5}.png`;
 
-        // Format username (handle new Discord usernames vs old discriminator format)
+        // Format username
         const username = member.user.discriminator === '0' 
           ? `@${member.user.username}` 
           : `${member.user.username}#${member.user.discriminator}`;
 
+        const nickname = member.nick || member.user.username;
+
+        // Try to extract an X (Twitter) handle if they put it in their nickname (e.g., "Name | @Handle")
+        let xHandle = null;
+        const xMatch = nickname.match(/@([a-zA-Z0-9_]{1,15})/);
+        if (xMatch) {
+          xHandle = xMatch[1];
+        }
+
         graphData.nodes.push({
           id: userId,
-          name: member.nick || username, // Prefer server nickname
+          name: nickname,
           discordHandle: username,
+          xHandle: xHandle,
           group: isLeft ? 1 : 2,
           color,
           avatar: avatarUrl

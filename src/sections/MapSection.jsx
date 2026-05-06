@@ -177,13 +177,28 @@ export function MapSection() {
                   alt={selectedNode.name} 
                   className="w-20 h-20 rounded-full border-2 border-gold object-cover"
                 />
-                <div className="text-center">
+                <div className="text-center w-full">
                   <h3 className="font-orbitron font-bold text-lg text-cream">{selectedNode.name}</h3>
                   <p className="text-cream-muted text-sm font-space mt-1">
                     {selectedNode.discordHandle || 'Discord User'}
                   </p>
-                  <div className="mt-4 inline-block px-3 py-1 rounded-full text-xs font-bold font-space border" style={{ borderColor: selectedNode.color, color: selectedNode.color, backgroundColor: `${selectedNode.color}15` }}>
-                    CONN3CTOR
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <div className="inline-block px-3 py-1 rounded-full text-xs font-bold font-space border" style={{ borderColor: selectedNode.color, color: selectedNode.color, backgroundColor: `${selectedNode.color}15` }}>
+                      CONN3CTOR
+                    </div>
+                    {selectedNode.xHandle && (
+                      <a 
+                        href={`https://x.com/${selectedNode.xHandle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-space border border-white/20 bg-white/5 text-cream hover:bg-white/10 transition-colors"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                        </svg>
+                        @{selectedNode.xHandle}
+                      </a>
+                    )}
                   </div>
                 </div>
               </motion.div>
