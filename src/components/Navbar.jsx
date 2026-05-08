@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { SITE_DATA } from '../data/siteData'
+import { supabase } from '../lib/supabase'
 
-// Mini Venn logo for navbar — 3D tilt on hover + clickable "3"
-function NavLogo({ onThreeClick }) {
+// Mini Venn logo for navbar — 3D tilt on hover
+function NavLogo() {
   const x = useMotionValue(0)
   const y = useMotionValue(0)
   const rotateX = useSpring(useTransform(y, [-0.5, 0.5], [8, -8]), { damping: 20, stiffness: 200 })
@@ -20,7 +21,6 @@ function NavLogo({ onThreeClick }) {
   const handleThreeClick = () => {
     setClicked(true)
     setTimeout(() => setClicked(false), 600)
-    if (onThreeClick) onThreeClick()
   }
 
   return (
@@ -90,7 +90,7 @@ function NavLogo({ onThreeClick }) {
   )
 }
 
-export function Navbar({ visible = false, onThreeClick, user, onLogout }) {
+export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState('home')
@@ -166,7 +166,7 @@ export function Navbar({ visible = false, onThreeClick, user, onLogout }) {
               whileHover={{ opacity: 0.85 }}
               style={{ display: 'flex', alignItems: 'center' }}
             >
-              <NavLogo onThreeClick={onThreeClick} />
+              <NavLogo />
             </motion.a>
 
             {/* Desktop nav links */}
@@ -246,11 +246,14 @@ export function Navbar({ visible = false, onThreeClick, user, onLogout }) {
               {/* Discord Auth UI */}
               {user ? (
                 <div className="hidden md:flex items-center gap-3 ml-2">
-                  <div className="flex items-center gap-2 px-2 py-1 bg-white/5 border border-white/10 rounded-full">
+                  <div 
+                    onClick={onProfileClick}
+                    className="flex items-center gap-2 px-2 py-1 bg-white/5 border border-white/10 rounded-full cursor-pointer hover:bg-white/10 hover:border-[#C9A96E]/50 transition-colors"
+                  >
                     <img 
-                      src={`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`} 
+                      src={user.avatar_url || `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`} 
                       alt={user.username}
-                      className="w-6 h-6 rounded-full border border-gold/50"
+                      className="w-6 h-6 rounded-full border border-gold/50 object-cover"
                     />
                     <span className="text-[0.65rem] font-space text-cream/80 pr-2">{user.username}</span>
                   </div>
@@ -263,10 +266,17 @@ export function Navbar({ visible = false, onThreeClick, user, onLogout }) {
                 </div>
               ) : (
                 <motion.button
-                  onClick={() => {
-                    const clientId = '1462687769594826774';
-                    const redirectUri = encodeURIComponent(window.location.origin);
-                    window.location.href = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirectUri}&scope=identify%20guilds`;
+                  onClick={async () => {
+                    if (supabase) {
+                      await supabase.auth.signInWithOAuth({
+                        provider: 'discord',
+                        options: { redirectTo: window.location.origin }
+                      });
+                    } else {
+                      const clientId = '1462687769594826774';
+                      const redirectUri = encodeURIComponent(window.location.origin);
+                      window.location.href = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirectUri}&scope=identify%20guilds`;
+                    }
                   }}
                   className="hidden md:flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs px-4 py-2.5 rounded-sm transition-colors"
                   style={{ fontSize: '0.65rem', letterSpacing: '0.18em', fontFamily: "'Josefin Sans', sans-serif", fontWeight: 600 }}

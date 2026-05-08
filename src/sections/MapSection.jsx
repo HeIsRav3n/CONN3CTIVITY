@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ForceGraph2D from 'react-force-graph-2d'
 
 import REAL_DATA from '../data/conn3ctors.json'
+import { supabase } from '../lib/supabase'
 
 // If REAL_DATA is empty or fails to load, we can provide an empty fallback
 const MOCK_DATA = REAL_DATA && REAL_DATA.nodes ? REAL_DATA : { nodes: [], links: [] }
@@ -11,6 +12,41 @@ export function MapSection() {
   const fgRef = useRef(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [selectedNode, setSelectedNode] = useState(null)
+  const [selectedProfile, setSelectedProfile] = useState(null)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false)
+
+  // Fetch real profile data from Supabase when a node is selected
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!selectedNode || !selectedNode.id) {
+        setSelectedProfile(null)
+        return
+      }
+      
+      if (!supabase) return
+
+      setIsLoadingProfile(true)
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', selectedNode.id)
+          .single()
+
+        if (data && !error) {
+          setSelectedProfile(data)
+        } else {
+          setSelectedProfile(null)
+        }
+      } catch (err) {
+        console.error("Failed to fetch profile", err)
+        setSelectedProfile(null)
+      }
+      setIsLoadingProfile(false)
+    }
+
+    fetchProfile()
+  }, [selectedNode])
 
   // Auto-resize graph to container
   useEffect(() => {
@@ -255,11 +291,57 @@ export function MapSection() {
                       </div>
                     </div>
 
+                    {/* Supabase Dynamic Profile Data */}
+                    {isLoadingProfile ? (
+                      <div className="mt-4 flex items-center justify-center py-4 relative z-10">
+                        <div className="w-4 h-4 border-2 border-[#C9A96E] border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    ) : selectedProfile && (
+                      <div className="mt-4 flex flex-col gap-3 relative z-10 font-space bg-white/5 p-3 rounded-xl border border-white/5">
+                        <div className="flex gap-2 items-center flex-wrap">
+                          {selectedProfile.cm_type && (
+                            <span className="px-2 py-1 bg-[#C9A96E]/20 text-[#C9A96E] rounded text-[9px] uppercase font-bold tracking-widest border border-[#C9A96E]/30">
+                              {selectedProfile.cm_type} CM
+                            </span>
+                          )}
+                          {selectedProfile.role && (
+                            <span className="px-2 py-1 bg-white/10 text-white/80 rounded text-[9px] uppercase font-bold tracking-widest border border-white/20">
+                              {selectedProfile.role}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {selectedProfile.experience && (
+                          <div className="text-white/80 text-xs line-clamp-1">
+                            <span className="text-[#C9A96E] font-bold text-[10px] uppercase mr-2">Exp:</span>
+                            {selectedProfile.experience}
+                          </div>
+                        )}
+
+                        {selectedProfile.services && (
+                          <div className="text-white/80 text-xs line-clamp-2">
+                            <span className="text-[#C9A96E] font-bold text-[10px] uppercase mr-2">Services:</span>
+                            {selectedProfile.services}
+                          </div>
+                        )}
+
+                        {selectedProfile.communities && Array.isArray(selectedProfile.communities) && selectedProfile.communities.filter(c => c).length > 0 && (
+                          <div className="flex gap-1 flex-wrap mt-1">
+                            {selectedProfile.communities.filter(c => c).map((comm, idx) => (
+                              <span key={idx} className="text-[9px] px-1.5 py-0.5 bg-white/5 border border-white/10 text-white/60 rounded">
+                                {comm}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* X Integration Row */}
-                    {selectedNode.xHandle && (
+                    {(selectedProfile?.twitter || selectedNode.xHandle) && (
                       <div className="mt-5 pt-5 border-t border-white/10 relative z-10">
                         <a 
-                          href={`https://x.com/${selectedNode.xHandle}`}
+                          href={`https://x.com/${(selectedProfile?.twitter || selectedNode.xHandle).replace('@', '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
@@ -270,7 +352,9 @@ export function MapSection() {
                                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                               </svg>
                             </div>
-                            <span className="text-white text-sm font-space group-hover:text-gold transition-colors">@{selectedNode.xHandle}</span>
+                            <span className="text-white text-sm font-space group-hover:text-gold transition-colors">
+                              {(selectedProfile?.twitter || selectedNode.xHandle).startsWith('@') ? (selectedProfile?.twitter || selectedNode.xHandle) : `@${(selectedProfile?.twitter || selectedNode.xHandle)}`}
+                            </span>
                           </div>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40 group-hover:text-gold group-hover:translate-x-1 transition-all"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                         </a>

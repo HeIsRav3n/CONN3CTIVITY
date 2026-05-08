@@ -1,3 +1,5 @@
+import MVC_DATA from './mvc.json';
+
 export const SITE_DATA = {
   name: 'CONN3CTIVITY',
   motto: 'SEARCH FIND CONN3CT',
@@ -5,6 +7,14 @@ export const SITE_DATA = {
   twitterUrl: 'https://x.com/conn3ctivity_',
   discordLabel: 'Private Discord',
   tagline: 'GM GM I\'M A CM CYDM',
+  mvcId: MVC_DATA.id || '1350853857701269534',
+  fallbackMVC: {
+    ...MVC_DATA,
+    cm_type: "Spotlight",
+    experience: "Rising Star",
+    services: "Community Building, Engagement",
+    communities: ["CONN3CTIVITY"]
+  }
 }
 
 export const PARTNERSHIPS = [

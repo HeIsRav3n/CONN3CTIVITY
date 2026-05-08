@@ -18,7 +18,9 @@ require('dotenv').config();
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
 const ROLE_ID = '1266023149359599617';
+const MVC_ROLE_ID = '1350853857701269534';
 const OUTPUT_PATH = './src/data/conn3ctors.json';
+const MVC_OUTPUT_PATH = './src/data/mvc.json';
 
 const API_URL = `https://discord.com/api/v10/guilds/${GUILD_ID}/members?limit=1000`;
 
@@ -104,6 +106,33 @@ const fetchMembers = () => {
       fs.writeFileSync(OUTPUT_PATH, JSON.stringify(graphData, null, 2));
       console.log(`Successfully saved mapped network data to ${OUTPUT_PATH}`);
       console.log(`To use this live on the site, import this JSON inside MapSection.jsx and set graphData={realData}`);
+
+      // Extract MVC
+      const mvcMember = members.find(member => member.roles.includes(MVC_ROLE_ID));
+      if (mvcMember) {
+        const mvcAvatarHash = mvcMember.user.avatar;
+        const mvcUserId = mvcMember.user.id;
+        const mvcAvatarUrl = mvcAvatarHash 
+          ? `https://cdn.discordapp.com/avatars/${mvcUserId}/${mvcAvatarHash}.png?size=256`
+          : `https://cdn.discordapp.com/embed/avatars/${parseInt(mvcMember.user.discriminator) % 5}.png`;
+        
+        const nickname = mvcMember.nick || mvcMember.user.username;
+        let xHandle = null;
+        const xMatch = nickname.match(/@([a-zA-Z0-9_]{1,15})/);
+        if (xMatch) xHandle = xMatch[1];
+
+        const mvcData = {
+          id: mvcUserId,
+          username: nickname,
+          avatar_url: mvcAvatarUrl,
+          twitter: xHandle || "conn3ctivity_"
+        };
+
+        fs.writeFileSync(MVC_OUTPUT_PATH, JSON.stringify(mvcData, null, 2));
+        console.log(`Successfully saved MVC data to ${MVC_OUTPUT_PATH}`);
+      } else {
+        console.log("No member found with the MVC role.");
+      }
     });
   });
 

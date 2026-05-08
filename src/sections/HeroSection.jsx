@@ -1,6 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
 import { VennAtmosphere } from '../components/VennAtmosphere'
+import { DiscordPrism } from '../components/DiscordPrism'
+import { CryptoRadar } from '../components/CryptoRadar'
 import { SITE_DATA } from '../data/siteData'
 
 // ─── Scroll Progress Bar ──────────────────────────────────────────────────────
@@ -17,7 +19,7 @@ function ScrollProgressBar({ progress }) {
 }
 
 // ─── Animated Letter ──────────────────────────────────────────────────────────
-function AnimatedLetter({ char, index, total }) {
+function AnimatedLetter({ char, index, total, onThreeClick }) {
   return (
     <motion.span
       initial={{ opacity: 0, y: 60, rotateX: -90 }}
@@ -30,7 +32,17 @@ function AnimatedLetter({ char, index, total }) {
       style={{ display: 'inline-block', transformOrigin: '50% 100%' }}
     >
       {char === '3' ? (
-        <span style={{ color: '#C9A96E', textShadow: '0 0 40px rgba(201,169,110,0.7)' }}>{char}</span>
+        <span 
+          onClick={onThreeClick}
+          style={{ 
+            color: '#C9A96E', 
+            textShadow: '0 0 40px rgba(201,169,110,0.7)',
+            cursor: 'pointer' 
+          }}
+          className="hover:text-white transition-colors"
+        >
+          {char}
+        </span>
       ) : char === ' ' ? '\u00A0' : char}
     </motion.span>
   )
@@ -107,7 +119,7 @@ function ScrollCue() {
 }
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
-export function HeroSection() {
+export function HeroSection({ onThreeClick }) {
   const scrollY = useRef(0)
   const containerRef = useRef(null)
 
@@ -259,7 +271,7 @@ export function HeroSection() {
             }}
           >
             {brand.split('').map((char, i) => (
-              <AnimatedLetter key={i} char={char} index={i} total={brand.length} />
+              <AnimatedLetter key={i} char={char} index={i} total={brand.length} onThreeClick={char === '3' ? onThreeClick : undefined} />
             ))}
           </div>
 
@@ -377,38 +389,11 @@ export function HeroSection() {
           </motion.div>
         </motion.div>
 
-        {/* ── Stats strip ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.9, duration: 0.8 }}
-          className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 hidden md:flex items-center gap-10"
-        >
-          {[
-            { val: '9+', label: 'Partners' },
-            { val: '10', label: 'Team' },
-            { val: '∞', label: 'Connections' },
-          ].map(({ val, label }) => (
-            <div key={label} className="flex flex-col items-center gap-1">
-              <span style={{
-                fontFamily: "'Josefin Sans', sans-serif",
-                fontWeight: 200,
-                fontSize: '1.6rem',
-                letterSpacing: '0.08em',
-                color: '#C9A96E',
-                lineHeight: 1,
-              }}>{val}</span>
-              <span style={{
-                fontFamily: "'Josefin Sans', sans-serif",
-                fontWeight: 300,
-                fontSize: '0.55rem',
-                letterSpacing: '0.35em',
-                color: 'rgba(237,232,220,0.3)',
-                textTransform: 'uppercase',
-              }}>{label}</span>
-            </div>
-          ))}
-        </motion.div>
+        {/* ── 3D Market Radar (BTC, ETH, SOL) ── */}
+        <CryptoRadar />
+
+        {/* ── 3D Discord Server Insights Prism ── */}
+        <DiscordPrism />
 
         <ScrollCue />
       </section>

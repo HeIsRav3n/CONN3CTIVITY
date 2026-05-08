@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { supabase } from '../lib/supabase'
 
 // ── Game Logic ───────────────────────────────────────────
 const WINNING_LINES = [
@@ -19,7 +20,6 @@ function checkWinner(board) {
   return null
 }
 
-// Minimax AI for CM
 function minimax(board, isMaximizing, depth = 0) {
   const result = checkWinner(board)
   if (result) {
@@ -154,25 +154,15 @@ function GameCell({ value, index, onClick, isWinning, disabled }) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Hover ghost mascot hint */}
-      {canClick && (
-        <div
-          className="cell-ghost"
-          style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            opacity: 0, transition: 'opacity 0.2s',
-          }}
-        >
-        </div>
-      )}
     </motion.button>
   )
 }
 
 // ── Score Display ────────────────────────────────────────
-function ScoreBoard({ scores, currentPlayer, vsAI }) {
+function ScoreBoard({ scores, currentPlayer, isMultiplayer, mySymbol }) {
+  const gmLabel = isMultiplayer ? (mySymbol === 'GM' ? 'YOU' : 'P2') : 'YOU'
+  const cmLabel = isMultiplayer ? (mySymbol === 'CM' ? 'YOU' : 'P2') : 'AI'
+
   return (
     <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center' }}>
       {/* GM Score */}
@@ -191,7 +181,7 @@ function ScoreBoard({ scores, currentPlayer, vsAI }) {
       >
         <img src="/mascot-gm-transparent.png" alt="GM" style={{ width: 44, height: 44, objectFit: 'contain' }} />
         <div style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: 'rgba(237,232,220,0.6)', textTransform: 'uppercase' }}>
-          {vsAI ? 'YOU' : 'GM'}
+          {gmLabel}
         </div>
         <div style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 200, fontSize: '1.6rem', color: '#EDE8DC', lineHeight: 1 }}>
           {scores.GM}
@@ -222,7 +212,7 @@ function ScoreBoard({ scores, currentPlayer, vsAI }) {
       >
         <img src="/mascot-cm-transparent.png" alt="CM" style={{ width: 44, height: 44, objectFit: 'contain' }} />
         <div style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.2em', color: 'rgba(201,169,110,0.6)', textTransform: 'uppercase' }}>
-          {vsAI ? 'AI' : 'CM'}
+          {cmLabel}
         </div>
         <div style={{ fontFamily: "'Josefin Sans', sans-serif", fontWeight: 200, fontSize: '1.6rem', color: '#C9A96E', lineHeight: 1 }}>
           {scores.CM}
@@ -233,17 +223,141 @@ function ScoreBoard({ scores, currentPlayer, vsAI }) {
 }
 
 // ── Main Game Modal ──────────────────────────────────────
-export function MascotTicTacToe({ isOpen, onClose }) {
+export function MascotTicTacToe({ isOpen, onClose, user }) {
   const [board, setBoard] = useState(Array(9).fill(null))
   const [currentPlayer, setCurrentPlayer] = useState('GM')
-  const [gameResult, setGameResult] = useState(null) // { winner, line }
+  const [gameResult, setGameResult] = useState(null)
   const [scores, setScores] = useState({ GM: 0, CM: 0, draws: 0 })
-  const [vsAI, setVsAI] = useState(true)
+  
+  // Single Player AI mode vs Multiplayer Mode
+  const [isMultiplayer, setIsMultiplayer] = useState(false)
+  const [mySymbol, setMySymbol] = useState('GM') // GM starts
+  const [opponent, setOpponent] = useState(null)
+  const [roomId, setRoomId] = useState(null)
+  
+  // Realtime Lobby States
+  const [onlineUsers, setOnlineUsers] = useState([])
+  const [incomingRequests, setIncomingRequests] = useState([])
+  const lobbyChannelRef = useRef(null)
+  const gameChannelRef = useRef(null)
+
   const [showConfetti, setShowConfetti] = useState(false)
   const [aiThinking, setAiThinking] = useState(false)
   const aiTimerRef = useRef(null)
 
-  // Check result whenever board changes
+  // -- Supabase Realtime Setup --
+  useEffect(() => {
+    if (!isOpen || !user || !supabase) return;
+
+    // Join Global Lobby
+    const lobby = supabase.channel('ttt-lobby', {
+      config: { presence: { key: user.id } }
+    })
+
+    lobby
+      .on('presence', { event: 'sync' }, () => {
+        const newState = lobby.presenceState()
+        const users = []
+        for (const [id, stateArray] of Object.entries(newState)) {
+          if (id !== user.id && stateArray.length > 0) {
+            users.push(stateArray[0].user)
+          }
+        }
+        // Deduplicate and filter out self
+        const uniqueUsers = Array.from(new Map(users.map(u => [u.id, u])).values())
+        setOnlineUsers(uniqueUsers)
+      })
+      .on('broadcast', { event: 'game-request' }, ({ payload }) => {
+        if (payload.targetId === user.id) {
+          setIncomingRequests(prev => [...prev, payload.requester])
+        }
+      })
+      .on('broadcast', { event: 'request-accepted' }, ({ payload }) => {
+        if (payload.targetId === user.id) {
+          joinGameRoom(payload.roomId, payload.acceptor, 'GM')
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await lobby.track({ user: { id: user.id, username: user.username, avatar_url: user.avatar_url, avatar: user.avatar } })
+        }
+      })
+
+    lobbyChannelRef.current = lobby
+
+    return () => {
+      supabase.removeChannel(lobby)
+      if (gameChannelRef.current) supabase.removeChannel(gameChannelRef.current)
+    }
+  }, [isOpen, user])
+
+  // Multi-player Game Room Actions
+  const joinGameRoom = (newRoomId, opp, symbol) => {
+    setIsMultiplayer(true)
+    setRoomId(newRoomId)
+    setOpponent(opp)
+    setMySymbol(symbol)
+    resetGame()
+    setScores({ GM: 0, CM: 0, draws: 0 })
+
+    if (gameChannelRef.current) supabase.removeChannel(gameChannelRef.current)
+
+    const gameChan = supabase.channel(`game-${newRoomId}`)
+    
+    gameChan
+      .on('broadcast', { event: 'move' }, ({ payload }) => {
+        setBoard(payload.newBoard)
+        setCurrentPlayer(payload.nextPlayer)
+      })
+      .on('broadcast', { event: 'play-again' }, () => {
+        resetGame()
+      })
+      .on('broadcast', { event: 'leave' }, () => {
+        alert(`${opp.username} left the game.`)
+        exitMultiplayer()
+      })
+      .subscribe()
+    
+    gameChannelRef.current = gameChan
+  }
+
+  const sendRequest = async (targetUser) => {
+    if (!lobbyChannelRef.current) return
+    await lobbyChannelRef.current.send({
+      type: 'broadcast',
+      event: 'game-request',
+      payload: { targetId: targetUser.id, requester: user }
+    })
+    alert(`Challenge sent to ${targetUser.username}! Waiting for them to accept...`)
+  }
+
+  const acceptRequest = async (requester) => {
+    if (!lobbyChannelRef.current) return
+    const newRoomId = `${user.id}-${requester.id}-${Date.now()}`
+    
+    await lobbyChannelRef.current.send({
+      type: 'broadcast',
+      event: 'request-accepted',
+      payload: { targetId: requester.id, acceptor: user, roomId: newRoomId }
+    })
+    
+    setIncomingRequests(prev => prev.filter(r => r.id !== requester.id))
+    joinGameRoom(newRoomId, requester, 'CM') // Acceptor plays as CM
+  }
+
+  const exitMultiplayer = () => {
+    if (gameChannelRef.current) {
+      gameChannelRef.current.send({ type: 'broadcast', event: 'leave' })
+      supabase.removeChannel(gameChannelRef.current)
+      gameChannelRef.current = null
+    }
+    setIsMultiplayer(false)
+    setRoomId(null)
+    setOpponent(null)
+    resetGame()
+  }
+
+  // Check game win condition
   useEffect(() => {
     const result = checkWinner(board)
     if (result && !gameResult) {
@@ -258,9 +372,9 @@ export function MascotTicTacToe({ isOpen, onClose }) {
     }
   }, [board, gameResult])
 
-  // AI move
+  // Single Player AI Turn
   useEffect(() => {
-    if (!vsAI || currentPlayer !== 'CM' || gameResult) return
+    if (isMultiplayer || currentPlayer !== 'CM' || gameResult) return
     if (board.every(c => c === null)) return // wait for GM to go first
 
     setAiThinking(true)
@@ -278,17 +392,35 @@ export function MascotTicTacToe({ isOpen, onClose }) {
     }, 600)
 
     return () => clearTimeout(aiTimerRef.current)
-  }, [currentPlayer, vsAI, board, gameResult])
+  }, [currentPlayer, isMultiplayer, board, gameResult])
 
   const handleCellClick = useCallback((index) => {
     if (board[index] || gameResult) return
-    if (vsAI && currentPlayer === 'CM') return
-
-    const next = [...board]
-    next[index] = currentPlayer
-    setBoard(next)
-    setCurrentPlayer(p => p === 'GM' ? 'CM' : 'GM')
-  }, [board, currentPlayer, gameResult, vsAI])
+    
+    if (isMultiplayer) {
+      if (currentPlayer !== mySymbol) return // Not my turn
+      const nextBoard = [...board]
+      nextBoard[index] = mySymbol
+      const nextPlayer = mySymbol === 'GM' ? 'CM' : 'GM'
+      
+      setBoard(nextBoard)
+      setCurrentPlayer(nextPlayer)
+      
+      if (gameChannelRef.current) {
+        gameChannelRef.current.send({
+          type: 'broadcast',
+          event: 'move',
+          payload: { newBoard: nextBoard, nextPlayer }
+        })
+      }
+    } else {
+      if (currentPlayer === 'CM') return // AI turn
+      const nextBoard = [...board]
+      nextBoard[index] = currentPlayer
+      setBoard(nextBoard)
+      setCurrentPlayer('CM')
+    }
+  }, [board, currentPlayer, gameResult, isMultiplayer, mySymbol])
 
   const resetGame = () => {
     clearTimeout(aiTimerRef.current)
@@ -299,23 +431,34 @@ export function MascotTicTacToe({ isOpen, onClose }) {
     setShowConfetti(false)
   }
 
+  const handlePlayAgain = () => {
+    resetGame()
+    if (isMultiplayer && gameChannelRef.current) {
+      gameChannelRef.current.send({ type: 'broadcast', event: 'play-again' })
+    }
+  }
+
   const resetAll = () => {
     resetGame()
     setScores({ GM: 0, CM: 0, draws: 0 })
   }
 
   const winningCells = new Set(gameResult?.line || [])
-  const statusText = gameResult
-    ? gameResult.winner === 'draw'
-      ? "It's a Draw!"
-      : gameResult.winner === 'GM'
-        ? vsAI ? '🐺 You Win!' : '🐺 GM Wins!'
-        : vsAI ? '🦅 AI Wins!' : '🦅 CM Wins!'
-    : aiThinking
-      ? 'CM is thinking...'
-      : currentPlayer === 'GM'
-        ? vsAI ? 'Your Turn (GM)' : 'GM\'s Turn'
-        : 'CM\'s Turn'
+  const getStatusText = () => {
+    if (gameResult) {
+      if (gameResult.winner === 'draw') return "It's a Draw!"
+      if (isMultiplayer) {
+        return gameResult.winner === mySymbol ? '🎉 You Win!' : `😔 ${opponent.username} Wins!`
+      } else {
+        return gameResult.winner === 'GM' ? '🐺 You Win!' : '🦅 AI Wins!'
+      }
+    }
+    if (isMultiplayer) {
+      return currentPlayer === mySymbol ? 'Your Turn' : `Waiting for ${opponent.username}...`
+    } else {
+      return aiThinking ? 'AI is thinking...' : 'Your Turn'
+    }
+  }
 
   return (
     <AnimatePresence>
@@ -345,216 +488,192 @@ export function MascotTicTacToe({ isOpen, onClose }) {
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: 'spring', damping: 22, stiffness: 260 }}
             onClick={e => e.stopPropagation()}
-            style={{
+            className="flex flex-col md:flex-row max-w-4xl w-full gap-4"
+          >
+            {/* ── Left side: The Game ── */}
+            <div style={{
+              flex: 1,
               position: 'relative',
-              width: '100%',
-              maxWidth: 440,
               background: 'linear-gradient(145deg, #1a1816, #111009)',
               border: '1px solid rgba(201,169,110,0.25)',
               borderRadius: 24,
               padding: '32px 28px 28px',
               boxShadow: '0 40px 120px rgba(0,0,0,0.7), 0 0 60px rgba(201,169,110,0.06)',
               overflow: 'hidden',
-            }}
-          >
-            <Confetti active={showConfetti} />
+            }}>
+              <Confetti active={showConfetti} />
 
-            {/* Decorative top glow */}
-            <div style={{
-              position: 'absolute', top: 0, left: '20%', right: '20%', height: 1,
-              background: 'linear-gradient(90deg, transparent, rgba(201,169,110,0.6), transparent)',
-            }} />
-
-            {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{
-                fontFamily: "'Josefin Sans', sans-serif",
-                fontWeight: 100,
-                fontSize: '0.55rem',
-                letterSpacing: '0.4em',
-                textTransform: 'uppercase',
-                color: 'rgba(201,169,110,0.6)',
-                marginBottom: 6,
-              }}>
-                CONN3CT TO WIN
+                position: 'absolute', top: 0, left: '20%', right: '20%', height: 1,
+                background: 'linear-gradient(90deg, transparent, rgba(201,169,110,0.6), transparent)',
+              }} />
+
+              {/* Header */}
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <div style={{
+                  fontFamily: "'Josefin Sans', sans-serif", fontWeight: 100, fontSize: '0.55rem',
+                  letterSpacing: '0.4em', textTransform: 'uppercase', color: 'rgba(201,169,110,0.6)', marginBottom: 6,
+                }}>
+                  {isMultiplayer ? 'MULTIPLAYER MATCH' : 'CONN3CT TO WIN'}
+                </div>
+                <h2 style={{
+                  fontFamily: "'Josefin Sans', sans-serif", fontWeight: 300, fontSize: '1.4rem',
+                  letterSpacing: '0.25em', textTransform: 'uppercase', color: '#EDE8DC', margin: 0,
+                }}>
+                  GM <span style={{ color: '#C9A96E' }}>×</span> CM
+                </h2>
               </div>
-              <h2 style={{
-                fontFamily: "'Josefin Sans', sans-serif",
-                fontWeight: 300,
-                fontSize: '1.4rem',
-                letterSpacing: '0.25em',
-                textTransform: 'uppercase',
-                color: '#EDE8DC',
-                margin: 0,
-              }}>
-                GM <span style={{ color: '#C9A96E' }}>×</span> CM
-              </h2>
-            </div>
 
-            {/* Mode toggle */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-              <div style={{
-                display: 'flex',
-                background: 'rgba(237,232,220,0.04)',
-                border: '1px solid rgba(237,232,220,0.1)',
-                borderRadius: 8,
-                padding: 3,
-                gap: 2,
-              }}>
-                {[{ label: 'VS AI', val: true }, { label: '2 PLAYER', val: false }].map(({ label, val }) => (
-                  <button
-                    key={label}
-                    onClick={() => { setVsAI(val); resetGame() }}
-                    style={{
-                      fontFamily: "'Josefin Sans', sans-serif",
-                      fontWeight: 400,
-                      fontSize: '0.6rem',
-                      letterSpacing: '0.18em',
-                      textTransform: 'uppercase',
-                      padding: '5px 14px',
-                      borderRadius: 6,
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: vsAI === val ? 'rgba(201,169,110,0.2)' : 'transparent',
-                      color: vsAI === val ? '#C9A96E' : 'rgba(237,232,220,0.4)',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    {label}
-                  </button>
+              {/* Scoreboard */}
+              <ScoreBoard scores={scores} currentPlayer={gameResult ? null : currentPlayer} isMultiplayer={isMultiplayer} mySymbol={mySymbol} />
+
+              {/* Status bar */}
+              <motion.div
+                key={getStatusText()}
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  textAlign: 'center', fontFamily: "'Josefin Sans', sans-serif", fontWeight: 300,
+                  fontSize: '0.75rem', letterSpacing: '0.2em', textTransform: 'uppercase',
+                  color: gameResult
+                    ? gameResult.winner === 'draw' ? 'rgba(237,232,220,0.6)' : gameResult.winner === 'GM' ? '#EDE8DC' : '#C9A96E'
+                    : 'rgba(237,232,220,0.5)',
+                  marginTop: 16, marginBottom: 16, minHeight: 22,
+                }}
+              >
+                {getStatusText()}
+              </motion.div>
+
+              {/* Game Board */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 20 }}>
+                {board.map((cell, i) => (
+                  <GameCell
+                    key={i} value={cell} index={i} onClick={() => handleCellClick(i)}
+                    isWinning={winningCells.has(i)}
+                    disabled={!!gameResult || (isMultiplayer ? currentPlayer !== mySymbol : aiThinking)}
+                  />
                 ))}
               </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <motion.button
+                  onClick={handlePlayAgain}
+                  whileHover={{ scale: 1.03, backgroundColor: 'rgba(237,232,220,0.12)' }}
+                  whileTap={{ scale: 0.97 }}
+                  className="flex-1 font-['Josefin_Sans'] font-light text-[0.65rem] tracking-[0.2em] uppercase py-2.5 rounded-lg border border-cream/20 bg-cream/5 text-cream/80 cursor-pointer transition-colors"
+                >
+                  Play Again
+                </motion.button>
+
+                {!isMultiplayer && (
+                  <motion.button
+                    onClick={resetAll}
+                    whileHover={{ scale: 1.03, backgroundColor: 'rgba(201,169,110,0.15)' }}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex-1 font-['Josefin_Sans'] font-light text-[0.65rem] tracking-[0.2em] uppercase py-2.5 rounded-lg border border-gold/30 bg-gold/10 text-gold cursor-pointer transition-colors"
+                  >
+                    Reset Score
+                  </motion.button>
+                )}
+
+                {isMultiplayer && (
+                  <motion.button
+                    onClick={exitMultiplayer}
+                    whileHover={{ scale: 1.03, backgroundColor: 'rgba(255,100,100,0.15)' }}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex-1 font-['Josefin_Sans'] font-light text-[0.65rem] tracking-[0.2em] uppercase py-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 cursor-pointer transition-colors"
+                  >
+                    Leave Match
+                  </motion.button>
+                )}
+              </div>
             </div>
 
-            {/* Scoreboard */}
-            <ScoreBoard scores={scores} currentPlayer={gameResult ? null : currentPlayer} vsAI={vsAI} />
+            {/* ── Right side: Multiplayer Lobby ── */}
+            <div className="flex-1 min-w-[280px] bg-[#111009] border border-[#C9A96E]/20 rounded-[24px] p-6 flex flex-col relative overflow-hidden h-full max-h-[550px]">
+              <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-[#C9A96E]/40 to-transparent" />
+              
+              <h3 className="font-['Josefin_Sans'] text-sm tracking-[0.3em] uppercase text-[#C9A96E] mb-6 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                Active Conn3ctors
+              </h3>
 
-            {/* Status bar */}
-            <motion.div
-              key={statusText}
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                textAlign: 'center',
-                fontFamily: "'Josefin Sans', sans-serif",
-                fontWeight: 300,
-                fontSize: '0.75rem',
-                letterSpacing: '0.2em',
-                textTransform: 'uppercase',
-                color: gameResult
-                  ? gameResult.winner === 'draw'
-                    ? 'rgba(237,232,220,0.6)'
-                    : gameResult.winner === 'GM' ? '#EDE8DC' : '#C9A96E'
-                  : 'rgba(237,232,220,0.5)',
-                marginTop: 16,
-                marginBottom: 16,
-                minHeight: 22,
-              }}
+              {!user ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+                  <p className="text-white/40 font-['Josefin_Sans'] text-xs tracking-widest leading-relaxed">
+                    You must be logged in to challenge other Conn3ctors.
+                  </p>
+                </div>
+              ) : isMultiplayer ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-4 space-y-4">
+                  <div className="relative">
+                    <img src={opponent.avatar_url || `https://cdn.discordapp.com/avatars/${opponent.id}/${opponent.avatar}.png`} alt="Opponent" className="w-16 h-16 rounded-full border border-gold/50 object-cover" />
+                    <div className="absolute -bottom-1 -right-1 bg-red-500 w-4 h-4 rounded-full border-2 border-black" />
+                  </div>
+                  <div>
+                    <div className="text-white font-['Josefin_Sans'] text-lg">{opponent.username}</div>
+                    <div className="text-white/40 text-xs font-space uppercase tracking-widest">Playing as {mySymbol === 'GM' ? 'CM' : 'GM'}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
+                  {/* Incoming Requests */}
+                  {incomingRequests.length > 0 && (
+                    <div className="mb-4">
+                      <div className="text-[0.6rem] text-white/50 tracking-widest uppercase mb-2 font-['Josefin_Sans']">Incoming Challenges</div>
+                      <div className="space-y-2">
+                        {incomingRequests.map((req, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-gold/40 bg-gold/5">
+                            <div className="flex items-center gap-3">
+                              <img src={req.avatar_url || `https://cdn.discordapp.com/avatars/${req.id}/${req.avatar}.png`} className="w-8 h-8 rounded-full border border-gold/20" alt="avatar" />
+                              <span className="text-sm text-white/90 font-space truncate max-w-[100px]">{req.username}</span>
+                            </div>
+                            <button 
+                              onClick={() => acceptRequest(req)}
+                              className="px-3 py-1.5 bg-gold/20 hover:bg-gold/30 text-gold text-[0.6rem] uppercase tracking-widest rounded transition-colors"
+                            >
+                              Accept
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-[0.6rem] text-white/50 tracking-widest uppercase mb-2 font-['Josefin_Sans']">Online Lobby ({onlineUsers.length})</div>
+                  {onlineUsers.length === 0 ? (
+                    <div className="text-center text-white/30 text-xs italic mt-4">No other players online.</div>
+                  ) : (
+                    onlineUsers.map(onlineUser => (
+                      <div key={onlineUser.id} className="flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/5">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <img src={onlineUser.avatar_url || `https://cdn.discordapp.com/avatars/${onlineUser.id}/${onlineUser.avatar}.png`} className="w-8 h-8 rounded-full border border-white/20" alt="avatar" />
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-black" />
+                          </div>
+                          <span className="text-sm text-white/70 font-space truncate max-w-[100px]">{onlineUser.username}</span>
+                        </div>
+                        <button 
+                          onClick={() => sendRequest(onlineUser)}
+                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 text-[0.6rem] uppercase tracking-widest rounded transition-colors"
+                        >
+                          Challenge
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Floating Close Button outside for mobile or inside for desktop */}
+            <button
+              onClick={onClose}
+              className="absolute -top-12 right-0 md:top-4 md:right-4 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
             >
-              {statusText}
-            </motion.div>
-
-            {/* Game Board */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 8,
-              marginBottom: 20,
-            }}>
-              {board.map((cell, i) => (
-                <GameCell
-                  key={i}
-                  value={cell}
-                  index={i}
-                  onClick={() => handleCellClick(i)}
-                  isWinning={winningCells.has(i)}
-                  disabled={!!gameResult || aiThinking || (vsAI && currentPlayer === 'CM')}
-                />
-              ))}
-            </div>
-
-            {/* Action buttons */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <motion.button
-                onClick={resetGame}
-                whileHover={{ scale: 1.03, backgroundColor: 'rgba(237,232,220,0.12)' }}
-                whileTap={{ scale: 0.97 }}
-                style={{
-                  flex: 1,
-                  fontFamily: "'Josefin Sans', sans-serif",
-                  fontWeight: 400,
-                  fontSize: '0.65rem',
-                  letterSpacing: '0.2em',
-                  textTransform: 'uppercase',
-                  padding: '10px 0',
-                  borderRadius: 8,
-                  border: '1px solid rgba(237,232,220,0.2)',
-                  background: 'rgba(237,232,220,0.06)',
-                  color: 'rgba(237,232,220,0.8)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                New Game
-              </motion.button>
-
-              <motion.button
-                onClick={resetAll}
-                whileHover={{ scale: 1.03, backgroundColor: 'rgba(201,169,110,0.15)' }}
-                whileTap={{ scale: 0.97 }}
-                style={{
-                  flex: 1,
-                  fontFamily: "'Josefin Sans', sans-serif",
-                  fontWeight: 400,
-                  fontSize: '0.65rem',
-                  letterSpacing: '0.2em',
-                  textTransform: 'uppercase',
-                  padding: '10px 0',
-                  borderRadius: 8,
-                  border: '1px solid rgba(201,169,110,0.3)',
-                  background: 'rgba(201,169,110,0.08)',
-                  color: '#C9A96E',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Reset All
-              </motion.button>
-
-              <motion.button
-                onClick={onClose}
-                whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,100,100,0.12)' }}
-                whileTap={{ scale: 0.95 }}
-                style={{
-                  width: 42,
-                  fontFamily: "'Josefin Sans', sans-serif",
-                  fontSize: '1rem',
-                  padding: '10px 0',
-                  borderRadius: 8,
-                  border: '1px solid rgba(237,232,220,0.12)',
-                  background: 'rgba(237,232,220,0.04)',
-                  color: 'rgba(237,232,220,0.5)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                ✕
-              </motion.button>
-            </div>
-
-            {/* Hint label */}
-            <div style={{
-              textAlign: 'center',
-              marginTop: 12,
-              fontFamily: "'Josefin Sans', sans-serif",
-              fontWeight: 300,
-              fontSize: '0.55rem',
-              letterSpacing: '0.2em',
-              textTransform: 'uppercase',
-              color: 'rgba(237,232,220,0.2)',
-            }}>
-              {vsAI ? 'You are GM · AI is CM' : 'Player 1 is GM · Player 2 is CM'}
-            </div>
+              ✕
+            </button>
           </motion.div>
         </motion.div>
       )}
