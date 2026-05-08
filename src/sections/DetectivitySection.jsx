@@ -39,9 +39,9 @@ function ScammerCard({ item, index }) {
         </div>
 
         <div className="mt-6 flex items-center justify-between border-t border-white/5 pt-4">
-          <span className="font-space text-xs text-white/40">Reported by</span>
-          <span className="font-space text-sm font-medium" style={{ color: 'var(--gold)' }}>
-            @{item.author}
+          <span className="font-space text-xs text-white/40">Status</span>
+          <span className="font-space text-sm font-medium" style={{ color: '#ef4444' }}>
+            Verified Threat
           </span>
         </div>
       </div>

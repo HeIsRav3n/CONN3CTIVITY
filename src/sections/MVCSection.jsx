@@ -11,6 +11,9 @@ export function MVCSection() {
 
   useEffect(() => {
     async function fetchMVC() {
+      // Always start with fallback data so we have something to show immediately
+      setMvcProfile(SITE_DATA.fallbackMVC)
+
       if (!supabase || !SITE_DATA.mvcId) {
         setLoading(false)
         return
@@ -25,12 +28,9 @@ export function MVCSection() {
 
         if (data && !error) {
           setMvcProfile(data)
-        } else {
-          setMvcProfile(SITE_DATA.fallbackMVC)
         }
       } catch (err) {
-        console.error('Failed to fetch MVC', err)
-        setMvcProfile(SITE_DATA.fallbackMVC)
+        console.error('Failed to fetch MVC from database, using fallback.', err)
       } finally {
         setLoading(false)
       }
