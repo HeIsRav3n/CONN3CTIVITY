@@ -45,9 +45,10 @@ const fetchMembers = () => {
         {
           id: 'main',
           name: 'CONN3CTIVITY',
-          avatar: 'https://heisrav3n.github.io/CONN3CTIVITY/assets/logo.png', // Fallback to a known asset or standard icon
+          avatar: 'https://heisrav3n.github.io/CONN3CTIVITY/assets/logo.png',
           role: 'Core',
-          val: 20 // Make it larger
+          color: '#C9A96E',
+          val: 30 
         },
         ...filteredMembers.map(member => {
           const avatarHash = member.user.avatar;
@@ -72,7 +73,8 @@ const fetchMembers = () => {
         links.push({
           source: nodes[i].id,
           target: 'main',
-          value: 2
+          value: 2,
+          color: 'rgba(201, 169, 110, 0.2)' // Subtle gold "strings"
         });
 
         // Add a few random peer-to-peer links
@@ -83,7 +85,8 @@ const fetchMembers = () => {
             links.push({
               source: nodes[i].id,
               target: nodes[targetIndex].id,
-              value: 1
+              value: 1,
+              color: 'rgba(255, 255, 255, 0.05)' // Very faint peer connections
             });
           }
         }
