@@ -107,7 +107,9 @@ function InvestigationModal({ item, onClose }) {
                   item.chat.filter(msg => msg.content || (msg.attachments && msg.attachments.length > 0)).map((msg, i) => (
                     <div key={i} className="flex flex-col gap-1.5 p-4 rounded-2xl bg-white/5 border border-white/5">
                       <div className="flex items-center justify-between">
-                        <span className="font-orbitron text-[0.6rem] text-red-400/80 tracking-wider">@{msg.author}</span>
+                        <span className="font-orbitron text-[0.6rem] text-red-400/80 tracking-wider">
+                          {msg.author === 'Rick' || msg.author === 'jasich' || msg.author === '7xbunny' || msg.author === '0xjeeya' ? 'Verified Reporter' : 'Community Member'}
+                        </span>
                         <span className="font-space text-[0.55rem] text-white/20">
                           {new Date(msg.timestamp).toLocaleString()}
                         </span>
