@@ -267,10 +267,11 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
               ) : (
                 <motion.button
                   onClick={async () => {
-                    // Force the redirect to the live site if we're not on localhost
-                    const redirectUrl = window.location.hostname === 'localhost' 
-                      ? window.location.origin 
-                      : 'https://heisrav3n.github.io/CONN3CTIVITY/';
+                    // Dynamically calculate the full current URL to return to
+                    const currentPath = window.location.pathname.endsWith('/') 
+                      ? window.location.pathname 
+                      : window.location.pathname + '/';
+                    const redirectUrl = window.location.origin + currentPath;
 
                     if (supabase) {
                       await supabase.auth.signInWithOAuth({
