@@ -77,7 +77,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
       .upsert({
         id: user.id,
         username: user.username,
-        avatar_url: user.avatar,
+        avatar_url: user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : null),
         twitter: profileData.twitter,
         cm_type: profileData.cmType,
         services: profileData.services,
@@ -142,7 +142,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
             <div className="flex items-center gap-4 mb-8">
               <div className="relative">
                 <img
-                  src={`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`}
+                  src={user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.id) % 5}.png`)}
                   alt={user.username}
                   className="w-16 h-16 rounded-full border border-[#C9A96E]/50 object-cover"
                 />
