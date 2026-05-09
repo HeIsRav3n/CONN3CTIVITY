@@ -79,6 +79,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
       .upsert({
         id: user.id,
         username: user.username,
+        discord_id: user.user_metadata?.provider_id || user.id,
         avatar_url: user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : null),
         twitter: profileData.twitter,
         telegram: profileData.telegram,
