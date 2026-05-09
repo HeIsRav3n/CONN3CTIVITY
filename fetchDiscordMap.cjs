@@ -113,7 +113,33 @@ const fetchMembers = () => {
     });
   });
 
+  req.on('error', (error) => {
+    console.error('Request failed:', error);
+  });
   req.end();
+
+  // --- 2. FETCH REAL ACTIVE COUNT (GUILD INSIGHTS) ---
+  const insightReq = https.request(`https://discord.com/api/v10/guilds/${GUILD_ID}?with_counts=true`, options, (res) => {
+    let data = '';
+    res.on('data', (chunk) => data += chunk);
+    res.on('end', () => {
+      if (res.statusCode !== 200) return;
+      const guild = JSON.parse(data);
+      
+      // Load the file we just saved to update only the counts
+      const current = JSON.parse(fs.readFileSync('./src/data/serverInsights.json', 'utf8'));
+      const updated = {
+        ...current,
+        approximate_presence_count: guild.approximate_presence_count,
+        last_updated: new Date().toISOString()
+      };
+      
+      fs.writeFileSync('./src/data/serverInsights.json', JSON.stringify(updated, null, 2));
+      console.log(`Successfully updated active count: ${guild.approximate_presence_count} people.`);
+    });
+  });
+  insightReq.on('error', (err) => console.error('Insights fetch failed:', err));
+  insightReq.end();
 };
 
 fetchMembers();
