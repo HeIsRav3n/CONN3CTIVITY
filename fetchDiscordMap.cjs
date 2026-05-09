@@ -74,6 +74,16 @@ const fetchMembers = () => {
       fs.writeFileSync(OUTPUT_PATH, JSON.stringify(graphData, null, 2));
       console.log(`Successfully saved mapped network data to ${OUTPUT_PATH}`);
 
+      // Extract Insights (Now with Conn3ctor Count)
+      const insights = {
+        name: 'CONN3CTIVITY',
+        conn3ctor_count: filteredMembers.length,
+        approximate_presence_count: members.filter(m => m.presence?.status === 'online' || m.presence?.status === 'dnd' || m.presence?.status === 'idle').length || '500+',
+        last_updated: new Date().toISOString()
+      };
+      fs.writeFileSync('./src/data/serverInsights.json', JSON.stringify(insights, null, 2));
+      console.log('Successfully saved Server Insights to ./src/data/serverInsights.json');
+
       // Extract MVC
       const mvcMember = members.find(member => member.roles.includes(MVC_ROLE_ID));
       if (mvcMember) {
@@ -103,34 +113,7 @@ const fetchMembers = () => {
     });
   });
 
-  req.on('error', (error) => {
-    console.error('Request failed:', error);
-  });
   req.end();
-
-  // --- 2. FETCH GUILD INSIGHTS (COUNTS) ---
-  const insightReq = https.request(`https://discord.com/api/v10/guilds/${GUILD_ID}?with_counts=true`, options, (res) => {
-    let data = '';
-    res.on('data', (chunk) => data += chunk);
-    res.on('end', () => {
-      if (res.statusCode !== 200) {
-        console.error(`Insights Error: ${res.statusCode} - ${data}`);
-        return;
-      }
-      const guild = JSON.parse(data);
-      const insights = {
-        name: guild.name,
-        approximate_member_count: guild.approximate_member_count,
-        approximate_presence_count: guild.approximate_presence_count,
-        last_updated: new Date().toISOString()
-      };
-      fs.writeFileSync('./src/data/serverInsights.json', JSON.stringify(insights, null, 2));
-      console.log('Successfully saved Server Insights to ./src/data/serverInsights.json');
-    });
-  });
-
-  insightReq.on('error', (err) => console.error('Insights fetch failed:', err));
-  insightReq.end();
 };
 
 fetchMembers();

@@ -93,7 +93,7 @@ export function DiscordPrism() {
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
-                    <span className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.1em] text-cream/50 uppercase">Online</span>
+                    <span className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.1em] text-cream/50 uppercase">Active</span>
                   </div>
                   <span className="font-['Josefin_Sans'] font-light text-xl text-cream">
                     {data ? data.approximate_presence_count : '...'}
@@ -101,11 +101,11 @@ export function DiscordPrism() {
                 </div>
                 <div className="flex flex-col items-center border-l border-white/5">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cream/30" />
-                    <span className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.1em] text-cream/50 uppercase">Total</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-gold/50" />
+                    <span className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.1em] text-gold/80 uppercase">Conn3ctors</span>
                   </div>
-                  <span className="font-['Josefin_Sans'] font-light text-xl text-cream">
-                    {data ? data.approximate_member_count : '...'}
+                  <span className="font-['Josefin_Sans'] font-light text-xl text-gold">
+                    {data ? data.conn3ctor_count : '...'}
                   </span>
                 </div>
               </div>
