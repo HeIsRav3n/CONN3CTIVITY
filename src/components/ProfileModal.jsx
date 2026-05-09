@@ -170,109 +170,113 @@ export function ProfileModal({ isOpen, onClose, user }) {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
-                    className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar"
                   >
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className={labelStyle}>Twitter / X</label>
-                        <input
-                          type="text"
-                          placeholder="@handle"
-                          value={profileData.twitter}
-                          onChange={(e) => setProfileData({ ...profileData, twitter: e.target.value })}
-                          className={inputStyle}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelStyle}>Telegram</label>
-                        <input
-                          type="text"
-                          placeholder="@handle"
-                          value={profileData.telegram}
-                          onChange={(e) => setProfileData({ ...profileData, telegram: e.target.value })}
-                          className={inputStyle}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className={labelStyle}>CM Type</label>
-                        <select
-                          value={profileData.cmType}
-                          onChange={(e) => setProfileData({ ...profileData, cmType: e.target.value })}
-                          className={inputStyle}
-                        >
-                          <option value="Inbound">Inbound</option>
-                          <option value="Outbound">Outbound</option>
-                          <option value="Both">Both</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className={labelStyle}>Role Held</label>
-                        <select
-                          value={profileData.role}
-                          onChange={(e) => setProfileData({ ...profileData, role: e.target.value })}
-                          className={inputStyle}
-                        >
-                          <option value="Founder">Founder</option>
-                          <option value="Collab Manager">Collab Manager</option>
-                          <option value="Advisor">Advisor</option>
-                          <option value="Moderator">Moderator</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className={labelStyle}>Experience Level</label>
-                      <select
-                        value={profileData.experience}
-                        onChange={(e) => setProfileData({ ...profileData, experience: e.target.value })}
-                        className={inputStyle}
-                      >
-                        <option value="Less Than A Year">Less Than A Year</option>
-                        <option value="1 Year">1 Year</option>
-                        <option value="2 Years">2 Years</option>
-                        <option value="3 Years">3 Years</option>
-                        <option value="4 Years">4 Years</option>
-                        <option value="5 Years+">5 Years+</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className={labelStyle}>Services</label>
-                      <textarea
-                        rows={3}
-                        placeholder="What do you offer? (e.g. Community growth, partnerships, engagement)"
-                        value={profileData.services}
-                        onChange={(e) => setProfileData({ ...profileData, services: e.target.value })}
-                        className={`${inputStyle} resize-none`}
-                      />
-                    </div>
-
-                    <div>
-                      <label className={labelStyle}>Communities Represented (Top 3)</label>
-                      <div className="flex flex-col gap-2">
-                        {[0, 1, 2].map((i) => (
+                    <div className="flex flex-col gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar pb-20">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelStyle}>Twitter / X</label>
                           <input
-                            key={i}
                             type="text"
-                            placeholder={`Community ${i + 1}`}
-                            value={profileData.communities[i]}
-                            onChange={(e) => updateCommunity(i, e.target.value)}
+                            placeholder="@handle"
+                            value={profileData.twitter}
+                            onChange={(e) => setProfileData({ ...profileData, twitter: e.target.value })}
                             className={inputStyle}
                           />
-                        ))}
+                        </div>
+                        <div>
+                          <label className={labelStyle}>Telegram</label>
+                          <input
+                            type="text"
+                            placeholder="@handle"
+                            value={profileData.telegram}
+                            onChange={(e) => setProfileData({ ...profileData, telegram: e.target.value })}
+                            className={inputStyle}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelStyle}>CM Type</label>
+                          <select
+                            value={profileData.cmType}
+                            onChange={(e) => setProfileData({ ...profileData, cmType: e.target.value })}
+                            className={inputStyle}
+                          >
+                            <option value="Inbound">Inbound</option>
+                            <option value="Outbound">Outbound</option>
+                            <option value="Both">Both</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelStyle}>Role Held</label>
+                          <select
+                            value={profileData.role}
+                            onChange={(e) => setProfileData({ ...profileData, role: e.target.value })}
+                            className={inputStyle}
+                          >
+                            <option value="Founder">Founder</option>
+                            <option value="Collab Manager">Collab Manager</option>
+                            <option value="Advisor">Advisor</option>
+                            <option value="Moderator">Moderator</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className={labelStyle}>Experience Level</label>
+                        <select
+                          value={profileData.experience}
+                          onChange={(e) => setProfileData({ ...profileData, experience: e.target.value })}
+                          className={inputStyle}
+                        >
+                          <option value="Less Than A Year">Less Than A Year</option>
+                          <option value="1 Year">1 Year</option>
+                          <option value="2 Years">2 Years</option>
+                          <option value="3 Years">3 Years</option>
+                          <option value="4 Years">4 Years</option>
+                          <option value="5 Years+">5 Years+</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className={labelStyle}>Services</label>
+                        <textarea
+                          rows={3}
+                          placeholder="What do you offer? (e.g. Community growth, partnerships, engagement)"
+                          value={profileData.services}
+                          onChange={(e) => setProfileData({ ...profileData, services: e.target.value })}
+                          className={`${inputStyle} resize-none`}
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelStyle}>Communities Represented (Top 3)</label>
+                        <div className="flex flex-col gap-2">
+                          {[0, 1, 2].map((i) => (
+                            <input
+                              key={i}
+                              type="text"
+                              placeholder={`Community ${i + 1}`}
+                              value={profileData.communities[i]}
+                              onChange={(e) => updateCommunity(i, e.target.value)}
+                              className={inputStyle}
+                            />
+                          ))}
+                        </div>
                       </div>
                     </div>
 
-                    <button
-                      onClick={handleSave}
-                      disabled={isLoading}
-                      className="mt-4 w-full bg-[#C9A96E]/20 hover:bg-[#C9A96E]/30 text-[#C9A96E] border border-[#C9A96E]/40 py-2.5 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-colors disabled:opacity-50"
-                    >
-                      {isLoading ? 'Saving...' : 'Save Profile'}
-                    </button>
+                    {/* Sticky Footer for Save Button */}
+                    <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0B0A08] via-[#0B0A08] to-transparent pt-10">
+                      <button
+                        onClick={handleSave}
+                        disabled={isLoading}
+                        className="w-full bg-[#C9A96E] hover:bg-[#D4B882] text-[#0B0A08] py-3 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-all shadow-[0_0_20px_rgba(201,169,110,0.3)] font-bold disabled:opacity-50"
+                      >
+                        {isLoading ? 'Saving...' : 'Save Profile Settings'}
+                      </button>
+                    </div>
                   </motion.div>
                 ) : (
                   <motion.div
