@@ -267,15 +267,20 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
               ) : (
                 <motion.button
                   onClick={async () => {
+                    // Force the redirect to the live site if we're not on localhost
+                    const redirectUrl = window.location.hostname === 'localhost' 
+                      ? window.location.origin 
+                      : 'https://heisrav3n.github.io/CONN3CTIVITY/';
+
                     if (supabase) {
                       await supabase.auth.signInWithOAuth({
                         provider: 'discord',
-                        options: { redirectTo: window.location.origin }
+                        options: { redirectTo: redirectUrl }
                       });
                     } else {
                       const clientId = '1462687769594826774';
-                      const redirectUri = encodeURIComponent(window.location.origin);
-                      window.location.href = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirectUri}&scope=identify%20guilds`;
+                      const encodedRedirect = encodeURIComponent(redirectUrl);
+                      window.location.href = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodedRedirect}&scope=identify%20guilds`;
                     }
                   }}
                   className="hidden md:flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs px-4 py-2.5 rounded-sm transition-colors"
