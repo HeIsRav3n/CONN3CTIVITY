@@ -6,9 +6,10 @@ export function ProfileModal({ isOpen, onClose, user }) {
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState({
     twitter: '',
+    telegram: '',
     cmType: 'Inbound',
     services: '',
-    experience: '',
+    experience: '1 Year',
     communities: ['', '', ''],
     role: 'Collab Manager'
   });
@@ -42,9 +43,10 @@ export function ProfileModal({ isOpen, onClose, user }) {
         if (data) {
           setProfileData({
             twitter: data.twitter || '',
+            telegram: data.telegram || '',
             cmType: data.cm_type || 'Inbound',
             services: data.services || '',
-            experience: data.experience || '',
+            experience: data.experience || '1 Year',
             communities: data.communities || ['', '', ''],
             role: data.role || 'Collab Manager'
           });
@@ -79,6 +81,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
         username: user.username,
         avatar_url: user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : null),
         twitter: profileData.twitter,
+        telegram: profileData.telegram,
         cm_type: profileData.cmType,
         services: profileData.services,
         experience: profileData.experience,
@@ -168,15 +171,27 @@ export function ProfileModal({ isOpen, onClose, user }) {
                     exit={{ opacity: 0, x: 20 }}
                     className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar"
                   >
-                    <div>
-                      <label className={labelStyle}>Twitter / X Handle</label>
-                      <input
-                        type="text"
-                        placeholder="@username"
-                        value={profileData.twitter}
-                        onChange={(e) => setProfileData({ ...profileData, twitter: e.target.value })}
-                        className={inputStyle}
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelStyle}>Twitter / X</label>
+                        <input
+                          type="text"
+                          placeholder="@handle"
+                          value={profileData.twitter}
+                          onChange={(e) => setProfileData({ ...profileData, twitter: e.target.value })}
+                          className={inputStyle}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelStyle}>Telegram</label>
+                        <input
+                          type="text"
+                          placeholder="@handle"
+                          value={profileData.telegram}
+                          onChange={(e) => setProfileData({ ...profileData, telegram: e.target.value })}
+                          className={inputStyle}
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -209,13 +224,18 @@ export function ProfileModal({ isOpen, onClose, user }) {
 
                     <div>
                       <label className={labelStyle}>Experience Level</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 3 Years, Managed 10+ projects"
+                      <select
                         value={profileData.experience}
                         onChange={(e) => setProfileData({ ...profileData, experience: e.target.value })}
                         className={inputStyle}
-                      />
+                      >
+                        <option value="Less Than A Year">Less Than A Year</option>
+                        <option value="1 Year">1 Year</option>
+                        <option value="2 Years">2 Years</option>
+                        <option value="3 Years">3 Years</option>
+                        <option value="4 Years">4 Years</option>
+                        <option value="5 Years+">5 Years+</option>
+                      </select>
                     </div>
 
                     <div>
@@ -230,7 +250,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
                     </div>
 
                     <div>
-                      <label className={labelStyle}>Communities Represented (Max 3)</label>
+                      <label className={labelStyle}>Communities Represented (Top 3)</label>
                       <div className="flex flex-col gap-2">
                         {[0, 1, 2].map((i) => (
                           <input
@@ -306,15 +326,29 @@ export function ProfileModal({ isOpen, onClose, user }) {
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                           </svg>
-                          Connect on X
+                          X
+                        </a>
+                      )}
+                      
+                      {profileData.telegram && (
+                        <a
+                          href={profileData.telegram.startsWith('http') ? profileData.telegram : `https://t.me/${profileData.telegram.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-2 bg-[#0088cc]/10 hover:bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/30 py-2.5 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-colors"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.13-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .33z"/>
+                          </svg>
+                          TG
                         </a>
                       )}
                       
                       <button
                         onClick={() => setIsEditing(true)}
-                        className={`${profileData.twitter ? 'w-auto px-4' : 'w-full'} bg-white/5 hover:bg-white/10 text-white/70 border border-white/10 py-2.5 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-colors`}
+                        className={`${(profileData.twitter || profileData.telegram) ? 'w-auto px-4' : 'w-full'} bg-white/5 hover:bg-white/10 text-white/70 border border-white/10 py-2.5 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-colors`}
                       >
-                        Edit Profile
+                        Edit
                       </button>
                     </div>
                   </motion.div>

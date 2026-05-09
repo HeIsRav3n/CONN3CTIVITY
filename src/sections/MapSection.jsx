@@ -46,6 +46,7 @@ export function MapSection() {
             const parsed = JSON.parse(localData)
             setSelectedProfile({
               twitter: parsed.twitter,
+              telegram: parsed.telegram,
               cm_type: parsed.cmType,
               services: parsed.services,
               experience: parsed.experience,
@@ -66,6 +67,7 @@ export function MapSection() {
             const parsed = JSON.parse(localData)
             setSelectedProfile({
               twitter: parsed.twitter,
+              telegram: parsed.telegram,
               cm_type: parsed.cmType,
               services: parsed.services,
               experience: parsed.experience,
@@ -384,27 +386,52 @@ export function MapSection() {
                       </div>
                     )}
 
-                    {/* X Integration Row */}
-                    {(selectedProfile?.twitter || selectedNode.xHandle) && (
-                      <div className="mt-5 pt-5 border-t border-white/10 relative z-10">
-                        <a 
-                          href={`https://x.com/${(selectedProfile?.twitter || selectedNode.xHandle).replace('@', '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white border border-white/20 shadow-md">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                              </svg>
+                    {/* Social Integration Row */}
+                    {(selectedProfile?.twitter || selectedProfile?.telegram || selectedNode.xHandle) && (
+                      <div className="mt-5 pt-5 border-t border-white/10 flex flex-col gap-2 relative z-10">
+                        {/* X Link */}
+                        {(selectedProfile?.twitter || selectedNode.xHandle) && (
+                          <a 
+                            href={`https://x.com/${(selectedProfile?.twitter || selectedNode.xHandle).replace('@', '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-between w-full p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 rounded-full bg-black flex items-center justify-center text-white border border-white/20 shadow-md">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                                </svg>
+                              </div>
+                              <span className="text-white text-[11px] font-space group-hover:text-gold transition-colors">
+                                {(selectedProfile?.twitter || selectedNode.xHandle).startsWith('@') ? (selectedProfile?.twitter || selectedNode.xHandle) : `@${(selectedProfile?.twitter || selectedNode.xHandle)}`}
+                              </span>
                             </div>
-                            <span className="text-white text-sm font-space group-hover:text-gold transition-colors">
-                              {(selectedProfile?.twitter || selectedNode.xHandle).startsWith('@') ? (selectedProfile?.twitter || selectedNode.xHandle) : `@${(selectedProfile?.twitter || selectedNode.xHandle)}`}
-                            </span>
-                          </div>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40 group-hover:text-gold group-hover:translate-x-1 transition-all"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </a>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40 group-hover:text-gold group-hover:translate-x-1 transition-all"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                          </a>
+                        )}
+
+                        {/* Telegram Link */}
+                        {selectedProfile?.telegram && (
+                          <a 
+                            href={`https://t.me/${selectedProfile.telegram.replace('@', '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-between w-full p-2.5 rounded-xl bg-[#0088cc]/10 hover:bg-[#0088cc]/20 border border-[#0088cc]/20 transition-all group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 rounded-full bg-[#0088cc] flex items-center justify-center text-white border border-white/10 shadow-md">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.13-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .33z"/>
+                                </svg>
+                              </div>
+                              <span className="text-white text-[11px] font-space group-hover:text-[#0088cc] transition-colors">
+                                {selectedProfile.telegram.startsWith('@') ? selectedProfile.telegram : `@${selectedProfile.telegram}`}
+                              </span>
+                            </div>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40 group-hover:text-[#0088cc] group-hover:translate-x-1 transition-all"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                          </a>
+                        )}
                       </div>
                     )}
                     
