@@ -141,6 +141,10 @@ export function MapSection() {
     // When a user drags a node, freeze it in place
     node.fx = node.x
     node.fy = node.y
+    // Reheat slightly to settle other nodes, but don't loop forever
+    if (fgRef.current) {
+      fgRef.current.d3ReheatSimulation()
+    }
   }, [])
 
   // Custom Canvas Rendering for Nodes
@@ -189,12 +193,12 @@ export function MapSection() {
       ctx.stroke()
     }
 
-    // Text Labels
-    if (globalScale > 1.2 || isMain) {
+    // Text Labels (Optimized LOD)
+    if (globalScale > 2.5 || isMain) {
       const label = node.name
-      const fontSize = isMain ? 14 / globalScale : 10 / globalScale
+      const fontSize = isMain ? 14 / globalScale : 9 / globalScale
       ctx.font = `${fontSize}px 'Space Grotesk', sans-serif`
-      ctx.fillStyle = isMain ? '#C9A96E' : 'rgba(237,232,220,0.7)'
+      ctx.fillStyle = isMain ? '#C9A96E' : 'rgba(237,232,220,0.6)'
       ctx.textAlign = 'center'
       ctx.fillText(label, node.x, node.y + size + fontSize + 4)
     }
@@ -244,6 +248,7 @@ export function MapSection() {
             height={dimensions.height}
             graphData={MOCK_DATA}
             nodeCanvasObject={drawNode}
+            nodeCanvasObjectMode={() => 'replace'}
             linkColor={link => link.color}
             linkWidth={1}
             backgroundColor="transparent"
@@ -251,6 +256,10 @@ export function MapSection() {
             enableZoomPanInteraction={true}
             onNodeClick={handleNodeClick}
             onNodeDragEnd={handleNodeDragEnd}
+            cooldownTicks={100}
+            cooldownTime={3000}
+            d3AlphaDecay={0.05}
+            warmupTicks={20}
           />
 
           {/* Hyper-Realistic 3D Glass Profile ID Card Overlay */}
