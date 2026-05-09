@@ -40,31 +40,50 @@ const fetchMembers = () => {
       const filteredMembers = members.filter(member => member.roles.includes(ROLE_ID));
       console.log(`Found ${filteredMembers.length} users with the Conn3ctor role.`);
 
-      const nodes = filteredMembers.map(member => {
-        const avatarHash = member.user.avatar;
-        const userId = member.user.id;
-        const avatarUrl = avatarHash 
-          ? `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.png?size=128`
-          : `https://cdn.discordapp.com/embed/avatars/${parseInt(member.user.discriminator) % 5}.png`;
+      const nodes = [
+        // Central branding node
+        {
+          id: 'main',
+          name: 'CONN3CTIVITY',
+          avatar: 'https://heisrav3n.github.io/CONN3CTIVITY/assets/logo.png', // Fallback to a known asset or standard icon
+          role: 'Core',
+          val: 20 // Make it larger
+        },
+        ...filteredMembers.map(member => {
+          const avatarHash = member.user.avatar;
+          const userId = member.user.id;
+          const avatarUrl = avatarHash 
+            ? `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.png?size=128`
+            : `https://cdn.discordapp.com/embed/avatars/${parseInt(member.user.discriminator) % 5}.png`;
 
-        return {
-          id: userId,
-          name: member.nick || member.user.username,
-          avatar: avatarUrl,
-          role: 'Conn3ctor'
-        };
-      });
+          return {
+            id: userId,
+            name: member.nick || member.user.username,
+            avatar: avatarUrl,
+            role: 'Conn3ctor',
+            color: '#C9A96E'
+          };
+        })
+      ];
 
       const links = [];
-      for (let i = 0; i < nodes.length; i++) {
-        const numLinks = Math.floor(Math.random() * 3) + 1; 
-        for (let j = 0; j < numLinks; j++) {
-          const targetIndex = Math.floor(Math.random() * nodes.length);
+      // Connect everyone to the central node
+      for (let i = 1; i < nodes.length; i++) {
+        links.push({
+          source: nodes[i].id,
+          target: 'main',
+          value: 2
+        });
+
+        // Add a few random peer-to-peer links
+        const numPeerLinks = Math.floor(Math.random() * 2); 
+        for (let j = 0; j < numPeerLinks; j++) {
+          const targetIndex = Math.floor(Math.random() * (nodes.length - 1)) + 1;
           if (targetIndex !== i) {
             links.push({
               source: nodes[i].id,
               target: nodes[targetIndex].id,
-              value: Math.random()
+              value: 1
             });
           }
         }
@@ -72,7 +91,7 @@ const fetchMembers = () => {
 
       const graphData = { nodes, links };
       fs.writeFileSync(OUTPUT_PATH, JSON.stringify(graphData, null, 2));
-      console.log(`Successfully saved mapped network data to ${OUTPUT_PATH}`);
+      console.log(`Successfully saved mapped network data with ${nodes.length} nodes to ${OUTPUT_PATH}`);
 
       // Extract Insights (Now with Conn3ctor Count)
       const insights = {

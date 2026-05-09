@@ -64,10 +64,12 @@ export function MapSection() {
   // Spread nodes out using custom physics forces
   useEffect(() => {
     if (fgRef.current) {
-      // Negative charge repels nodes away from each other
-      fgRef.current.d3Force('charge').strength(-300)
-      // Increase distance of links to space out the central cluster
-      fgRef.current.d3Force('link').distance(80)
+      // Stronger repulsion for more nodes
+      fgRef.current.d3Force('charge').strength(-400).distanceMax(500)
+      // Longer links to prevent crowding
+      fgRef.current.d3Force('link').distance(120)
+      // Centering force
+      fgRef.current.d3Force('center').strength(0.1)
     }
   }, [])
 
