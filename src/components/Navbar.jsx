@@ -267,11 +267,11 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
               ) : (
                 <motion.button
                   onClick={async () => {
-                    // Dynamically calculate the full current URL to return to
-                    const currentPath = window.location.pathname.endsWith('/') 
-                      ? window.location.pathname 
-                      : window.location.pathname + '/';
-                    const redirectUrl = window.location.origin + currentPath;
+                    // BRUTE FORCE: Explicitly set the live URL for GitHub Pages
+                    const liveUrl = 'https://heisrav3n.github.io/CONN3CTIVITY/';
+                    const redirectUrl = window.location.hostname === 'localhost' 
+                      ? window.location.origin 
+                      : liveUrl;
 
                     if (supabase) {
                       await supabase.auth.signInWithOAuth({
