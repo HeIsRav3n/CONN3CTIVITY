@@ -23,20 +23,58 @@ export function MapSection() {
         return
       }
       
-      if (!supabase) return
+      if (!supabase) {
+        console.warn("Supabase not initialized, profile data unavailable.")
+        return
+      }
 
       setIsLoadingProfile(true)
       try {
+        console.log(`Fetching Supabase profile for ID: ${selectedNode.id}`)
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', selectedNode.id)
           .single()
 
-        if (data && !error) {
+        if (error) {
+          console.error("Supabase profile fetch error:", error)
+          // Fallback to localStorage if Supabase fails
+          const localData = localStorage.getItem(`profile_${selectedNode.id}`)
+          if (localData) {
+            console.log("Local profile found (Supabase fallback):", JSON.parse(localData))
+            const parsed = JSON.parse(localData)
+            setSelectedProfile({
+              twitter: parsed.twitter,
+              cm_type: parsed.cmType,
+              services: parsed.services,
+              experience: parsed.experience,
+              communities: parsed.communities,
+              role: parsed.role
+            })
+          } else {
+            setSelectedProfile(null)
+          }
+        } else if (data) {
+          console.log("Supabase profile found:", data)
           setSelectedProfile(data)
         } else {
-          setSelectedProfile(null)
+          // Check localStorage as final fallback
+          const localData = localStorage.getItem(`profile_${selectedNode.id}`)
+          if (localData) {
+            console.log("Local profile found (No Supabase record):", JSON.parse(localData))
+            const parsed = JSON.parse(localData)
+            setSelectedProfile({
+              twitter: parsed.twitter,
+              cm_type: parsed.cmType,
+              services: parsed.services,
+              experience: parsed.experience,
+              communities: parsed.communities,
+              role: parsed.role
+            })
+          } else {
+            setSelectedProfile(null)
+          }
         }
       } catch (err) {
         console.error("Failed to fetch profile", err)
