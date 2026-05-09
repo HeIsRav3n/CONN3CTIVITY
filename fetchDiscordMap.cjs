@@ -70,23 +70,26 @@ const fetchMembers = () => {
       const links = [];
       // Connect everyone to the central node
       for (let i = 1; i < nodes.length; i++) {
+        // High visibility colors matching screenshot
+        const colors = ['rgba(34, 197, 94, 0.3)', 'rgba(239, 68, 68, 0.3)', 'rgba(201, 169, 110, 0.3)', 'rgba(168, 85, 247, 0.3)'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
         links.push({
           source: nodes[i].id,
           target: 'main',
           value: 2,
-          color: 'rgba(201, 169, 110, 0.2)' // Subtle gold "strings"
+          color: randomColor
         });
 
-        // Add a few random peer-to-peer links
-        const numPeerLinks = Math.floor(Math.random() * 2); 
-        for (let j = 0; j < numPeerLinks; j++) {
+        // Add occasional peer links
+        if (Math.random() > 0.7) {
           const targetIndex = Math.floor(Math.random() * (nodes.length - 1)) + 1;
           if (targetIndex !== i) {
             links.push({
               source: nodes[i].id,
               target: nodes[targetIndex].id,
               value: 1,
-              color: 'rgba(255, 255, 255, 0.05)' // Very faint peer connections
+              color: 'rgba(255, 255, 255, 0.05)'
             });
           }
         }

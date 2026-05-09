@@ -110,7 +110,7 @@ export function MapSection() {
   // Custom Canvas Rendering for Nodes
   const drawNode = (node, ctx, globalScale) => {
     const isMain = node.id === 'main'
-    const size = isMain ? 24 : 12
+    const size = isMain ? 24 : 10 // Slightly smaller nodes to match screenshot density
 
     // Lazy load and cache images
     if (!node.imgObj && node.avatar) {
@@ -124,45 +124,64 @@ export function MapSection() {
     // Draw background/fallback
     ctx.beginPath()
     ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false)
-    ctx.fillStyle = '#1A1A24'
+    ctx.fillStyle = '#0B0A08'
     ctx.fill()
     ctx.clip()
 
     // Draw Avatar Image
     if (node.imgObj && node.imgObj.complete) {
       ctx.drawImage(node.imgObj, node.x - size, node.y - size, size * 2, size * 2)
+    } else {
+      // Fallback if image not loaded
+      ctx.fillStyle = '#1A1A24'
+      ctx.fill()
     }
 
     ctx.restore()
 
-    // Draw Outer Border & Badge
+    // Draw Outer Border
     ctx.beginPath()
     ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false)
-    ctx.strokeStyle = isMain ? '#C9A96E' : 'rgba(255,255,255,0.2)'
-    ctx.lineWidth = isMain ? 3 : 1.5
+    ctx.strokeStyle = isMain ? '#C9A96E' : 'rgba(255,255,255,0.3)'
+    ctx.lineWidth = isMain ? 4 : 1
     ctx.stroke()
 
-    // Small role indicator dot
+    // STATUS DOTS (Matching the screenshot)
     if (!isMain) {
+      const statusColor = (parseInt(node.id.slice(-1)) % 2 === 0) ? '#22c55e' : '#ef4444'
       ctx.beginPath()
-      ctx.arc(node.x + size * 0.7, node.y + size * 0.7, 4, 0, 2 * Math.PI)
-      ctx.fillStyle = node.color
+      ctx.arc(node.x + size * 0.7, node.y - size * 0.7, 3, 0, 2 * Math.PI)
+      ctx.fillStyle = statusColor
       ctx.fill()
       ctx.strokeStyle = '#0B0A08'
-      ctx.lineWidth = 1
+      ctx.lineWidth = 0.5
       ctx.stroke()
     }
 
-    // Text Labels
-    if (globalScale > 1.2 || isMain) {
-      const label = node.name
-      const fontSize = isMain ? 14 / globalScale : 10 / globalScale
-      ctx.font = `${fontSize}px 'Space Grotesk', sans-serif`
-      ctx.fillStyle = isMain ? '#C9A96E' : 'rgba(237,232,220,0.7)'
+    // Text Labels for the main node
+    if (isMain) {
+      ctx.font = `bold ${14 / globalScale}px 'Orbitron', sans-serif`
+      ctx.fillStyle = '#C9A96E'
       ctx.textAlign = 'center'
-      ctx.fillText(label, node.x, node.y + size + fontSize + 4)
+      ctx.fillText('CONN3CTIVITY', node.x, node.y + size + 16)
+      
+      // Double circle effect for center
+      ctx.beginPath()
+      ctx.arc(node.x, node.y, size + 4, 0, 2 * Math.PI)
+      ctx.strokeStyle = 'rgba(201,169,110,0.3)'
+      ctx.lineWidth = 1
+      ctx.stroke()
     }
   }
+
+  // Physics tuning for "Sunflower" look
+  useEffect(() => {
+    if (fgRef.current) {
+      fgRef.current.d3Force('charge').strength(-150) // Tighter cluster
+      fgRef.current.d3Force('link').distance(150) // Circular expansion
+      fgRef.current.d3Force('center').strength(0.5) // Strong anchor
+    }
+  }, [])
 
   return (
     <section id="map" className="relative py-24 px-4 overflow-hidden" style={{ background: '#07070b' }}>
