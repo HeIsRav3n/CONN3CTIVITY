@@ -40,17 +40,36 @@ async function fetchScammers() {
     let scammers = [];
     
     for (const thread of threads) {
-      const messages = await fetchJSON(`https://discord.com/api/v10/channels/${thread.id}/messages`);
-      // Sort messages by ID or assume the oldest message (last in array) is the original post
-      const originalPost = messages[messages.length - 1]; 
+      // Fetch the last 20 messages from the thread to get the full story
+      const messages = await fetchJSON(`https://discord.com/api/v10/channels/${thread.id}/messages?limit=20`);
       
+      // Discord returns newest first, reverse it for chronological order
+      const chronological = [...messages].reverse();
+      const originalPost = chronological[0]; 
+      
+      // Helper to extract text from a message (content or embed)
+      const getMsgText = (m) => {
+        if (m.content) return m.content;
+        if (m.embeds && m.embeds.length > 0) {
+          return m.embeds[0].description || m.embeds[0].title || '';
+        }
+        return '';
+      };
+
       scammers.push({
         id: thread.id,
         title: thread.name,
-        description: originalPost ? originalPost.content : '',
-        author: originalPost ? originalPost.author.username : thread.owner_id,
+        description: getMsgText(originalPost) || 'View investigation for details.',
+        author: originalPost ? originalPost.author.username : 'Unknown',
+        timestamp: thread.thread_metadata ? thread.thread_metadata.create_timestamp : null,
+        chat: chronological.map(m => ({
+          author: m.author.username,
+          content: getMsgText(m),
+          timestamp: m.timestamp,
+          attachments: m.attachments.map(a => a.url)
+        })),
         embeds: originalPost ? originalPost.embeds : [],
-        attachments: originalPost ? originalPost.attachments.map(a => a.url) : []
+        images: messages.flatMap(m => m.attachments.filter(a => a.content_type?.startsWith('image')).map(a => a.url))
       });
     }
     
