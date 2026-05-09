@@ -127,6 +127,7 @@ const fetchMembers = () => {
 
           const insights = {
             name: 'CONN3CTIVITY',
+            guild_id: GUILD_ID,
             conn3ctor_count: conn3ctors.length,
             approximate_presence_count: activeCount,
             last_updated: new Date().toISOString()

@@ -28,6 +28,29 @@ export function DiscordPrism() {
     y.set(yPct)
   }
 
+  useEffect(() => {
+    async function fetchLiveStats() {
+      if (!data?.guild_id) return
+      
+      try {
+        const response = await fetch(`https://discord.com/api/guilds/${data.guild_id}/widget.json`)
+        if (response.ok) {
+          const widgetData = await response.json()
+          setData(prev => ({
+            ...prev,
+            approximate_presence_count: widgetData.presence_count || prev.approximate_presence_count
+          }))
+        }
+      } catch (err) {
+        console.warn('Discord widget fetch failed, using cached stats.')
+      }
+    }
+    
+    fetchLiveStats()
+    const interval = setInterval(fetchLiveStats, 60000) // Update every minute
+    return () => clearInterval(interval)
+  }, [data?.guild_id])
+
   const handleMouseLeave = () => {
     x.set(0)
     y.set(0)

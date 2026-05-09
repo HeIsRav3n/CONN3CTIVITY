@@ -31,10 +31,11 @@ export function MapSection() {
       setIsLoadingProfile(true)
       try {
         console.log(`Fetching Supabase profile for ID: ${selectedNode.id}`)
+        // Use a timestamp to bypass any potential caching layers
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .or(`id.eq.${selectedNode.id},discord_id.eq.${selectedNode.id}`)
+          .or(`id.eq."${selectedNode.id}",discord_id.eq."${selectedNode.id}"`)
           .limit(1)
 
         if (error) {
