@@ -194,12 +194,12 @@ export function MapSection() {
       ctx.stroke()
     }
 
-    // Text Labels (Optimized LOD)
-    if (globalScale > 2.5 || isMain) {
+    // Text Labels (Optimized LOD - Only show when zoomed in close)
+    if (globalScale > 3.5 || isMain) {
       const label = node.name
-      const fontSize = isMain ? 14 / globalScale : 9 / globalScale
+      const fontSize = isMain ? 14 / globalScale : 10 / globalScale
       ctx.font = `${fontSize}px 'Space Grotesk', sans-serif`
-      ctx.fillStyle = isMain ? '#C9A96E' : 'rgba(237,232,220,0.6)'
+      ctx.fillStyle = isMain ? '#C9A96E' : 'rgba(237,232,220,0.85)'
       ctx.textAlign = 'center'
       ctx.fillText(label, node.x, node.y + size + fontSize + 4)
     }
@@ -257,10 +257,10 @@ export function MapSection() {
             enableZoomPanInteraction={true}
             onNodeClick={handleNodeClick}
             onNodeDragEnd={handleNodeDragEnd}
-            cooldownTicks={100}
-            cooldownTime={3000}
-            d3AlphaDecay={0.05}
-            warmupTicks={20}
+            cooldownTicks={50}
+            cooldownTime={2000}
+            d3AlphaDecay={0.08}
+            warmupTicks={30}
           />
 
           {/* Hyper-Realistic 3D Glass Profile ID Card Overlay */}
