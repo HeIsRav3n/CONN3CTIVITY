@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
+import serverInsights from '../data/serverInsights.json'
 
 export function DiscordPrism() {
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(serverInsights)
   const [error, setError] = useState(false)
 
   // Mouse tracking for 3D tilt
@@ -31,23 +32,6 @@ export function DiscordPrism() {
     x.set(0)
     y.set(0)
   }
-
-  useEffect(() => {
-    fetch('https://discord.com/api/guilds/1265954062789120050/widget.json')
-      .then(res => {
-        if (!res.ok) throw new Error('Widget Disabled')
-        return res.json()
-      })
-      .then(d => {
-        setData(d)
-        setError(false)
-      })
-      .catch(err => {
-        console.warn('Discord Widget error:', err)
-        setError(true)
-        setData({ presence_count: '---', name: 'CONN3CTIVITY' })
-      })
-  }, [])
 
   return (
     <motion.div
@@ -105,43 +89,26 @@ export function DiscordPrism() {
               </div>
 
               {/* Stats Row */}
-              <div className="w-full flex justify-center border-t border-cream/10 pt-5">
+              <div className="w-full grid grid-cols-2 gap-4 border-t border-cream/10 pt-5">
                 <div className="flex flex-col items-center">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] animate-pulse shadow-[0_0_12px_#22c55e]" />
-                    <span className="font-['Josefin_Sans'] text-[0.6rem] tracking-[0.2em] text-[#22c55e] uppercase">Active Now</span>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
+                    <span className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.1em] text-cream/50 uppercase">Online</span>
                   </div>
-                  <span className="font-['Josefin_Sans'] font-light text-3xl text-cream drop-shadow-lg">
-                    {data ? data.presence_count : '...'}
+                  <span className="font-['Josefin_Sans'] font-light text-xl text-cream">
+                    {data ? data.approximate_presence_count : '...'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center border-l border-white/5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cream/30" />
+                    <span className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.1em] text-cream/50 uppercase">Total</span>
+                  </div>
+                  <span className="font-['Josefin_Sans'] font-light text-xl text-cream">
+                    {data ? data.approximate_member_count : '...'}
                   </span>
                 </div>
               </div>
-              
-              {/* Error overlay */}
-              {error && (
-                <div className="absolute inset-0 backdrop-blur-md bg-black/60 flex flex-col items-center justify-center p-6 rounded-[30px] border border-red-500/30 z-20">
-                  <span className="text-red-400 font-space text-xs uppercase tracking-widest text-center mb-3">
-                    Widget Not Enabled
-                  </span>
-                  <p className="text-white/60 text-[10px] text-center mb-5 leading-relaxed font-space">
-                    Go to Discord Server Settings &gt; Enable Server Widget to show live insights here!
-                  </p>
-                  <a href="https://discord.gg/w7yG4R6z" target="_blank" rel="noopener noreferrer" className="px-5 py-2.5 bg-gold/10 hover:bg-gold/20 text-gold border border-gold/40 rounded-lg text-[10px] font-['Josefin_Sans'] uppercase tracking-widest transition-colors">
-                    Join Discord
-                  </a>
-                </div>
-              )}
-              
-              {!error && data && data.instant_invite && (
-                 <a 
-                   href={data.instant_invite} 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
-                   className="mt-6 px-5 py-2 rounded-lg bg-cream/5 border border-cream/20 hover:bg-cream/10 hover:border-cream/40 text-cream/80 hover:text-cream text-[10px] font-space uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(255,255,255,0.05)]"
-                 >
-                   Join Server
-                 </a>
-              )}
             </div>
           </div>
           
