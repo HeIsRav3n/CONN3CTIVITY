@@ -35,14 +35,13 @@ export function MapSection() {
           .from('profiles')
           .select('*')
           .or(`id.eq.${selectedNode.id},discord_id.eq.${selectedNode.id}`)
-          .single()
+          .limit(1)
 
         if (error) {
           console.error("Supabase profile fetch error:", error)
           // Fallback to localStorage if Supabase fails
           const localData = localStorage.getItem(`profile_${selectedNode.id}`)
           if (localData) {
-            console.log("Local profile found (Supabase fallback):", JSON.parse(localData))
             const parsed = JSON.parse(localData)
             setSelectedProfile({
               twitter: parsed.twitter,
@@ -56,9 +55,9 @@ export function MapSection() {
           } else {
             setSelectedProfile(null)
           }
-        } else if (data) {
-          console.log("Supabase profile found:", data)
-          setSelectedProfile(data)
+        } else if (data && data.length > 0) {
+          console.log("Supabase profile found:", data[0])
+          setSelectedProfile(data[0])
         } else {
           // Check localStorage as final fallback
           const localData = localStorage.getItem(`profile_${selectedNode.id}`)
