@@ -11,26 +11,50 @@ export function MVCSection() {
 
   useEffect(() => {
     async function fetchMVC() {
-      // Always start with fallback data so we have something to show immediately
       setMvcProfile(SITE_DATA.fallbackMVC)
 
-      if (!supabase || !SITE_DATA.mvcId) {
-        setLoading(false)
-        return
-      }
+      if (!supabase) { setLoading(false); return }
 
       try {
-        const { data, error } = await supabase
-          .from('profiles')
+        // 1. Check mvc_profile (bot-synced — always the latest role holder)
+        const { data: botData } = await supabase
+          .from('mvc_profile')
           .select('*')
-          .eq('discord_id', SITE_DATA.mvcId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
           .single()
 
-        if (data && !error) {
-          setMvcProfile(data)
+        if (botData) {
+          // 2. Optionally enrich with user-filled profile data
+          const discordId = botData.id
+          const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('discord_id', discordId)
+            .limit(1)
+            .single()
+
+          // Merge: user profile enriches bot data (user-set fields win)
+          setMvcProfile({
+            id: discordId,
+            discord_id: discordId,
+            username: botData.username,
+            avatar_url: botData.avatar_url,
+            twitter: botData.twitter,
+            ...(userProfile || {}),
+          })
+        } else if (SITE_DATA.mvcId) {
+          // 3. mvc_profile table empty — try profiles by mvcId directly
+          const { data: fallbackProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('discord_id', SITE_DATA.mvcId)
+            .limit(1)
+            .single()
+          if (fallbackProfile) setMvcProfile(fallbackProfile)
         }
-      } catch (err) {
-        console.error('Failed to fetch MVC from database, using fallback.', err)
+      } catch {
+        // Keep static fallback silently
       } finally {
         setLoading(false)
       }
@@ -38,21 +62,14 @@ export function MVCSection() {
 
     fetchMVC()
 
-    // Realtime subscription to automatically update if the MVC changes their profile
-    if (supabase && SITE_DATA.mvcId) {
-      const channel = supabase
-        .channel('mvc-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `discord_id=eq.${SITE_DATA.mvcId}` }, payload => {
-          if (payload.new) {
-            setMvcProfile(payload.new)
-          }
-        })
-        .subscribe()
+    // Realtime: refresh when bot or user updates MVC data
+    const channel = supabase
+      .channel('mvc-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mvc_profile' }, fetchMVC)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `discord_id=eq.${SITE_DATA.mvcId}` }, fetchMVC)
+      .subscribe()
 
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   return (
