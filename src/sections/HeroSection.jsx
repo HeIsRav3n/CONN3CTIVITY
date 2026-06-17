@@ -133,7 +133,6 @@ export function HeroSection({ onThreeClick }) {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const brand = 'CONN3CTIVITY'
   const tagWords = ['SEARCH', 'FIND', 'CONN3CT']
 
   // Parallax transforms on scroll
@@ -256,9 +255,9 @@ export function HeroSection({ onThreeClick }) {
             </span>
           </motion.div>
 
-          {/* Brand title */}
+          {/* Brand title — Venn logo split: CONN | 3 | CTIVITY */}
           <div
-            className="mb-6 overflow-hidden"
+            className="mb-6 flex items-center justify-center"
             style={{
               fontFamily: "'Josefin Sans', sans-serif",
               fontWeight: 100,
@@ -268,11 +267,41 @@ export function HeroSection({ onThreeClick }) {
               color: '#EDE8DC',
               perspective: '800px',
               lineHeight: 1,
+              gap: 'clamp(0.4rem, 1.5vw, 1.2rem)',
             }}
           >
-            {brand.split('').map((char, i) => (
-              <AnimatedLetter key={i} char={char} index={i} total={brand.length} onThreeClick={char === '3' ? onThreeClick : undefined} />
-            ))}
+            {/* Left segment: CONN */}
+            <span style={{ display: 'inline-flex' }}>
+              {'CONN'.split('').map((char, i) => (
+                <AnimatedLetter key={i} char={char} index={i} total={12} />
+              ))}
+            </span>
+
+            {/* Center intersection: 3 (gold, clickable) */}
+            <motion.span
+              initial={{ opacity: 0, scale: 0.5, rotateY: -90 }}
+              animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+              transition={{ duration: 1, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              onClick={onThreeClick}
+              style={{
+                color: '#C9A96E',
+                textShadow: '0 0 50px rgba(201,169,110,0.8), 0 0 100px rgba(201,169,110,0.3)',
+                cursor: 'pointer',
+                display: 'inline-block',
+                transformOrigin: '50% 50%',
+                padding: '0 0.05em',
+              }}
+              whileHover={{ scale: 1.15, textShadow: '0 0 80px rgba(201,169,110,1)' }}
+            >
+              3
+            </motion.span>
+
+            {/* Right segment: CTIVITY */}
+            <span style={{ display: 'inline-flex' }}>
+              {'CTIVITY'.split('').map((char, i) => (
+                <AnimatedLetter key={i} char={char} index={i + 5} total={12} />
+              ))}
+            </span>
           </div>
 
           {/* Motto */}

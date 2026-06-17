@@ -2,18 +2,70 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ForceGraph2D from 'react-force-graph-2d'
 
-import REAL_DATA from '../data/conn3ctors.json'
+import STATIC_DATA from '../data/conn3ctors.json'
 import { supabase } from '../lib/supabase'
 
-// If REAL_DATA is empty or fails to load, we can provide an empty fallback
-const MOCK_DATA = REAL_DATA && REAL_DATA.nodes ? REAL_DATA : { nodes: [], links: [] }
+const FALLBACK = STATIC_DATA?.nodes ? STATIC_DATA : { nodes: [], links: [] }
+
+const buildLiveGraph = (rows) => {
+  const main = { id: 'main', name: 'CONN3CTIVITY', group: 0, color: '#C9A96E', avatar: '/map-logo.png' }
+  const nodes = [main, ...rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    discordHandle: r.discord_handle,
+    xHandle: r.x_handle || null,
+    group: r.group || 1,
+    color: r.color || '#22c55e',
+    avatar: r.avatar || `https://cdn.discordapp.com/embed/avatars/0.png`,
+  }))]
+  const links = rows.map((r, i) => ({
+    source: 'main',
+    target: r.id,
+    color: i % 2 === 0 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)',
+  }))
+  return { nodes, links }
+}
+
 export function MapSection() {
   const containerRef = useRef(null)
   const fgRef = useRef(null)
+  const graphDataRef = useRef(FALLBACK)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [graphData, setGraphData] = useState(FALLBACK)
+  const [isLive, setIsLive] = useState(false)
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
+
+  // Sync graphDataRef so callbacks always see the latest data
+  useEffect(() => { graphDataRef.current = graphData }, [graphData])
+
+  // Load live conn3ctors from Supabase, fall back to static JSON
+  useEffect(() => {
+    async function loadLive() {
+      try {
+        const { data, error } = await supabase
+          .from('conn3ctors')
+          .select('id, name, discord_handle, avatar, color, "group", x_handle')
+          .order('name')
+        if (error || !data || data.length === 0) return
+        setGraphData(buildLiveGraph(data))
+        setIsLive(true)
+      } catch {
+        // Keep static fallback silently
+      }
+    }
+
+    loadLive()
+
+    // Realtime: refresh whenever the bot updates the table
+    const channel = supabase
+      .channel('conn3ctors-map')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conn3ctors' }, loadLive)
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   // Fetch real profile data from Supabase when a node is selected
   useEffect(() => {
@@ -118,8 +170,7 @@ export function MapSection() {
     }
 
     if (node.id === 'main') {
-      // Clicking the center logo retracts all nodes by clearing their fixed positions
-      MOCK_DATA.nodes.forEach(n => {
+      graphDataRef.current.nodes.forEach(n => {
         n.fx = undefined
         n.fy = undefined
       })
@@ -222,7 +273,15 @@ export function MapSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <div className="tag-gold inline-flex mb-6">ROLE: CONN3CTOR (1266023149359599617)</div>
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="tag-gold inline-flex">ROLE: CONN3CTOR (1266023149359599617)</div>
+            {isLive && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] font-['Josefin_Sans'] tracking-widest uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                Live
+              </div>
+            )}
+          </div>
           <h2 className="font-orbitron font-bold text-4xl md:text-5xl text-cream mb-6">
             THE CONN3CTION MAP
           </h2>
@@ -248,7 +307,7 @@ export function MapSection() {
             ref={fgRef}
             width={dimensions.width}
             height={dimensions.height}
-            graphData={MOCK_DATA}
+            graphData={graphData}
             nodeCanvasObject={drawNode}
             nodeCanvasObjectMode={() => 'replace'}
             linkColor={link => link.color}
