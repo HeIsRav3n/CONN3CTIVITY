@@ -488,7 +488,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: 'spring', damping: 22, stiffness: 260 }}
             onClick={e => e.stopPropagation()}
-            className="flex flex-col md:flex-row max-w-4xl w-full gap-4"
+            className="relative flex flex-col md:flex-row max-w-4xl w-full gap-4"
           >
             {/* ── Left side: The Game ── */}
             <div style={{

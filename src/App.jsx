@@ -60,6 +60,7 @@ export default function App() {
         if (session?.user) {
           setDiscordUser({
             id: session.user.id,
+            discord_id: session.user.user_metadata.provider_id,
             username: session.user.user_metadata.custom_claims?.global_name || session.user.user_metadata.name || session.user.user_metadata.full_name,
             avatar_url: session.user.user_metadata.avatar_url
           });
@@ -69,7 +70,8 @@ export default function App() {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
           setDiscordUser({
-            id: session.user.id, // We use Supabase user ID here for RLS
+            id: session.user.id,
+            discord_id: session.user.user_metadata.provider_id,
             username: session.user.user_metadata.custom_claims?.global_name || session.user.user_metadata.name || session.user.user_metadata.full_name,
             avatar_url: session.user.user_metadata.avatar_url
           });

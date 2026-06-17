@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 
 export function CryptoRadar() {
   const [prices, setPrices] = useState([])
-  const [error, setError] = useState(false)
+  const hasDataRef = useRef(false)
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -11,29 +11,25 @@ export function CryptoRadar() {
         const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true')
         if (!res.ok) throw new Error('API Error')
         const data = await res.json()
-        
+        hasDataRef.current = true
         setPrices([
           { id: 'BTC', name: 'Bitcoin', data: data.bitcoin, color: '#F7931A' },
           { id: 'ETH', name: 'Ethereum', data: data.ethereum, color: '#627EEA' },
           { id: 'SOL', name: 'Solana', data: data.solana, color: '#14F195' }
         ])
-        setError(false)
       } catch (err) {
-        console.warn('Failed to fetch crypto prices', err)
-        // Fallback mock data if API limits are hit
-        if (prices.length === 0) {
-            setPrices([
-                { id: 'BTC', name: 'Bitcoin', data: { usd: 65420.00, usd_24h_change: 2.4 }, color: '#F7931A' },
-                { id: 'ETH', name: 'Ethereum', data: { usd: 3450.00, usd_24h_change: -1.2 }, color: '#627EEA' },
-                { id: 'SOL', name: 'Solana', data: { usd: 145.20, usd_24h_change: 5.6 }, color: '#14F195' }
-            ])
-            setError(true)
+        if (!hasDataRef.current) {
+          setPrices([
+            { id: 'BTC', name: 'Bitcoin', data: { usd: 65420.00, usd_24h_change: 2.4 }, color: '#F7931A' },
+            { id: 'ETH', name: 'Ethereum', data: { usd: 3450.00, usd_24h_change: -1.2 }, color: '#627EEA' },
+            { id: 'SOL', name: 'Solana', data: { usd: 145.20, usd_24h_change: 5.6 }, color: '#14F195' }
+          ])
         }
       }
     }
-    
+
     fetchPrices()
-    const interval = setInterval(fetchPrices, 60000) // refresh every 60s
+    const interval = setInterval(fetchPrices, 60000)
     return () => clearInterval(interval)
   }, [])
 

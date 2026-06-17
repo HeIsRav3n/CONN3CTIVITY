@@ -103,7 +103,7 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
 
   // Track active section via IntersectionObserver
   useEffect(() => {
-    const sections = ['home', 'about', 'partnerships', 'team', 'connect']
+    const sections = ['home', 'about', 'mvc-spotlight', 'partnerships', 'team', 'map', 'detectivity', 'connect']
     const observers = sections.map((id) => {
       const el = document.getElementById(id)
       if (!el) return null
@@ -125,6 +125,11 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
     { label: 'Map',          href: '#map',           id: 'map' },
     { label: 'Connect',      href: '#connect',       id: 'connect' },
   ]
+
+  const getSectionLink = (sectionId) => {
+    const map = { 'mvc-spotlight': 'about', 'detectivity': 'connect' }
+    return map[sectionId] || sectionId
+  }
 
   return (
     <AnimatePresence>
@@ -172,7 +177,7 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
             {/* Desktop nav links */}
             <div className="hidden md:flex items-center gap-10">
               {navLinks.map((link) => {
-                const isActive = activeSection === link.id
+                const isActive = getSectionLink(activeSection) === link.id
                 return (
                   <motion.a
                     key={link.label}
@@ -330,7 +335,7 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
                         fontSize: '0.75rem',
                         letterSpacing: '0.25em',
                         textTransform: 'uppercase',
-                        color: activeSection === link.id
+                        color: getSectionLink(activeSection) === link.id
                           ? 'rgba(201,169,110,0.9)'
                           : 'rgba(237,232,220,0.65)',
                       }}
@@ -340,7 +345,7 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
                     </a>
                   ))}
                   <a
-                    href="https://x.com/thejasich"
+                    href={SITE_DATA.twitterUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -358,7 +363,7 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
                     }}
                     onClick={() => setMenuOpen(false)}
                   >
-                    Enquire via Twitter
+                    Follow Us On X
                   </a>
                 </div>
               </motion.div>

@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import scammers from '../data/scammers.json'
 
-console.log('Detectivity Database Loaded:', scammers.length, 'entries');
-
 function ScammerCard({ item, index, onView }) {
   return (
     <motion.div

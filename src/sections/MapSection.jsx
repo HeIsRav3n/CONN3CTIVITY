@@ -35,7 +35,7 @@ export function MapSection() {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .or(`id.eq."${selectedNode.id}",discord_id.eq."${selectedNode.id}"`)
+          .or(`id.eq.${selectedNode.id},discord_id.eq.${selectedNode.id}`)
           .limit(1)
 
         if (error) {

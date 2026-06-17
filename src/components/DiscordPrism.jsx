@@ -1,10 +1,27 @@
 import { useEffect, useState } from 'react'
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import serverInsights from '../data/serverInsights.json'
+import { supabase } from '../lib/supabase'
 
 export function DiscordPrism() {
   const [data, setData] = useState(serverInsights)
-  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    async function fetchLive() {
+      try {
+        const { data: row } = await supabase
+          .from('server_stats')
+          .select('*')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single()
+        if (row) setData(row)
+      } catch {
+        // Keep static fallback
+      }
+    }
+    fetchLive()
+  }, [])
 
   // Mouse tracking for 3D tilt
   const x = useMotionValue(0)

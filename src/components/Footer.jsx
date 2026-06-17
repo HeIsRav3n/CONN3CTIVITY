@@ -133,7 +133,7 @@ export function Footer() {
             className="font-space text-xs tracking-wider"
             style={{ color: 'rgba(240,244,255,0.3)' }}
           >
-            © 2024 CONN3CTIVITY All rights reserved
+            © {new Date().getFullYear()} CONN3CTIVITY All rights reserved
           </motion.p>
 
           <motion.p

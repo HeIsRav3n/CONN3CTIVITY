@@ -23,7 +23,7 @@ export function MVCSection() {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', SITE_DATA.mvcId)
+          .eq('discord_id', SITE_DATA.mvcId)
           .single()
 
         if (data && !error) {
@@ -42,7 +42,7 @@ export function MVCSection() {
     if (supabase && SITE_DATA.mvcId) {
       const channel = supabase
         .channel('mvc-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${SITE_DATA.mvcId}` }, payload => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `discord_id=eq.${SITE_DATA.mvcId}` }, payload => {
           if (payload.new) {
             setMvcProfile(payload.new)
           }
