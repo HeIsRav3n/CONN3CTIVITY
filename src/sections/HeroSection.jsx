@@ -4,6 +4,9 @@ import { VennAtmosphere } from '../components/VennAtmosphere'
 import { DiscordPrism } from '../components/DiscordPrism'
 import { CryptoRadar } from '../components/CryptoRadar'
 import { SITE_DATA } from '../data/siteData'
+import { useCountUp } from '../hooks/useCountUp'
+import { supabase } from '../lib/supabase'
+import serverInsights from '../data/serverInsights.json'
 
 // ─── Scroll Progress Bar ──────────────────────────────────────────────────────
 function ScrollProgressBar({ progress }) {
@@ -114,6 +117,94 @@ function ScrollCue() {
           background: 'linear-gradient(180deg, rgba(201,169,110,0.6), transparent)',
         }}
       />
+    </motion.div>
+  )
+}
+
+// ─── Hero Live Stats Bar ──────────────────────────────────────────────────────
+function HeroLiveBar() {
+  const [stats, setStats] = useState(serverInsights)
+  const [live, setLive]   = useState(false)
+
+  useEffect(() => {
+    async function fetch() {
+      try {
+        const { data, error } = await supabase
+          .from('server_stats')
+          .select('approximate_presence_count,conn3ctor_count,total_members')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single()
+        if (!error && data) { setStats(data); setLive(true) }
+      } catch {}
+    }
+    fetch()
+    const id = setInterval(fetch, 10000)
+    return () => clearInterval(id)
+  }, [])
+
+  const online     = useCountUp(stats?.approximate_presence_count ?? 0, 1800)
+  const conn3ctors = useCountUp(stats?.conn3ctor_count            ?? 0, 2000)
+  const total      = useCountUp(stats?.total_members              ?? 0, 2200)
+
+  const items = [
+    { label: 'Online',      value: online,     color: '#22c55e' },
+    { label: 'Conn3ctors',  value: conn3ctors, color: '#C9A96E' },
+    { label: 'Members',     value: total,      color: 'rgba(237,232,220,0.6)' },
+  ]
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 1.3, duration: 0.8 }}
+      className="flex items-center justify-center gap-0 mb-10 overflow-hidden rounded-full"
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        backdropFilter: 'blur(12px)',
+        width: 'fit-content',
+        margin: '0 auto 2.5rem',
+      }}
+    >
+      {/* Live dot */}
+      <div className="flex items-center gap-2 pl-4 pr-3 border-r border-white/5">
+        <span className="relative flex h-1.5 w-1.5">
+          <span
+            className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-70"
+            style={{ background: live ? '#22c55e' : '#C9A96E' }}
+          />
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: live ? '#22c55e' : '#C9A96E' }} />
+        </span>
+        <span
+          className="font-['Josefin_Sans'] text-[0.42rem] tracking-[0.3em] uppercase"
+          style={{ color: live ? '#22c55e' : '#C9A96E' }}
+        >
+          {live ? 'Live' : 'Cache'}
+        </span>
+      </div>
+
+      {/* Stats */}
+      {items.map((item, i) => (
+        <div
+          key={item.label}
+          className="flex items-center gap-2 px-4 py-2.5"
+          style={{ borderRight: i < items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+        >
+          <span
+            className="font-['Josefin_Sans'] font-light text-sm tabular-nums"
+            style={{ color: item.color }}
+          >
+            {item.value.toLocaleString()}
+          </span>
+          <span
+            className="font-['Josefin_Sans'] text-[0.42rem] tracking-[0.25em] uppercase"
+            style={{ color: 'rgba(237,232,220,0.3)' }}
+          >
+            {item.label}
+          </span>
+        </div>
+      ))}
     </motion.div>
   )
 }
@@ -331,11 +422,14 @@ export function HeroSection({ onThreeClick }) {
             ))}
           </motion.div>
 
+          {/* Live stats bar */}
+          <HeroLiveBar />
+
           {/* Subline */}
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.2, duration: 0.8 }}
+            transition={{ delay: 1.5, duration: 0.8 }}
             style={{
               fontFamily: "'Josefin Sans', sans-serif",
               fontWeight: 300,
@@ -343,7 +437,7 @@ export function HeroSection({ onThreeClick }) {
               letterSpacing: '0.1em',
               color: 'rgba(237,232,220,0.38)',
               maxWidth: '38ch',
-              margin: '0 auto 2.5rem',
+              margin: '0 auto 2rem',
               lineHeight: 1.9,
             }}
           >
@@ -354,7 +448,7 @@ export function HeroSection({ onThreeClick }) {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.5, duration: 0.8 }}
+            transition={{ delay: 1.8, duration: 0.8 }}
             className="flex items-center justify-center gap-4 flex-wrap"
           >
             <motion.a

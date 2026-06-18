@@ -1,140 +1,220 @@
-import { useEffect, useState } from 'react'
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
-import serverInsights from '../data/serverInsights.json'
+import { useEffect, useState, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
+import { useCountUp } from '../hooks/useCountUp'
+import serverInsights from '../data/serverInsights.json'
+
+const POLL_MS = 8000 // re-fetch every 8 s (feels live, stays within rate limits)
+
+function StatBlock({ label, value, color = '#EDE8DC', accent = false }) {
+  const display = useCountUp(value)
+  return (
+    <div className="flex flex-col items-center gap-1 relative">
+      {accent && (
+        <div
+          className="absolute -inset-2 rounded-xl opacity-20 blur-md"
+          style={{ background: color }}
+        />
+      )}
+      <span
+        className="font-['Josefin_Sans'] font-light tabular-nums relative z-10"
+        style={{ fontSize: '1.55rem', color, letterSpacing: '-0.02em', lineHeight: 1 }}
+      >
+        {display.toLocaleString()}
+      </span>
+      <span
+        className="font-['Josefin_Sans'] text-[0.48rem] tracking-[0.25em] uppercase relative z-10"
+        style={{ color: `${color}80` }}
+      >
+        {label}
+      </span>
+    </div>
+  )
+}
+
+function PulsingDot({ color = '#22c55e' }) {
+  return (
+    <span className="relative flex h-2 w-2">
+      <span
+        className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
+        style={{ background: color }}
+      />
+      <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: color }} />
+    </span>
+  )
+}
 
 export function DiscordPrism() {
-  const [data, setData] = useState(serverInsights)
+  const [data, setData]       = useState(serverInsights)
+  const [isLive, setIsLive]   = useState(false)
+  const [lastPing, setLastPing] = useState(null)
+  const pollRef               = useRef(null)
+
+  async function fetchLive() {
+    try {
+      const { data: row, error } = await supabase
+        .from('server_stats')
+        .select('name,conn3ctor_count,approximate_presence_count,total_members,updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single()
+      if (!error && row) {
+        setData(row)
+        setIsLive(true)
+        setLastPing(new Date())
+      }
+    } catch {
+      // keep fallback silently
+    }
+  }
 
   useEffect(() => {
-    async function fetchLive() {
-      try {
-        const { data: row } = await supabase
-          .from('server_stats')
-          .select('*')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (row) setData(row)
-      } catch {
-        // Keep static fallback
-      }
-    }
     fetchLive()
+    pollRef.current = setInterval(fetchLive, POLL_MS)
+
+    // Realtime subscription — instant push when bot writes
+    const channel = supabase
+      .channel('prism-stats')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'server_stats' }, (payload) => {
+        if (payload.new) {
+          setData(payload.new)
+          setIsLive(true)
+          setLastPing(new Date())
+        }
+      })
+      .subscribe()
+
+    return () => {
+      clearInterval(pollRef.current)
+      supabase.removeChannel(channel)
+    }
   }, [])
 
-  // Mouse tracking for 3D tilt
-  const x = useMotionValue(0)
-  const y = useMotionValue(0)
-
-  const mouseXSpring = useSpring(x, { stiffness: 150, damping: 20 })
-  const mouseYSpring = useSpring(y, { stiffness: 150, damping: 20 })
-
-  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], [15, -15])
-  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], [-15, 15])
-
-  const handleMouseMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const width = rect.width
-    const height = rect.height
-    const mouseX = e.clientX - rect.left
-    const mouseY = e.clientY - rect.top
-    const xPct = mouseX / width - 0.5
-    const yPct = mouseY / height - 0.5
-    x.set(xPct)
-    y.set(yPct)
-  }
-
-  const handleMouseLeave = () => {
-    x.set(0)
-    y.set(0)
-  }
+  const online     = data?.approximate_presence_count ?? 0
+  const conn3ctors = data?.conn3ctor_count             ?? 0
+  const total      = data?.total_members               ?? 0
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 1.8, duration: 1, type: 'spring' }}
-      className="absolute bottom-24 right-4 md:right-12 lg:right-24 z-[100] pointer-events-auto scale-[0.8] md:scale-100 origin-bottom-right"
+      initial={{ opacity: 0, y: 60, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: 1.8, duration: 1.1, type: 'spring', stiffness: 80 }}
+      className="absolute bottom-20 right-3 md:right-10 lg:right-20 z-[100] pointer-events-auto"
       style={{ perspective: 1200 }}
     >
+      {/* Floating */}
       <motion.div
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          rotateX,
-          rotateY,
-          transformStyle: 'preserve-3d'
-        }}
-        className="group cursor-pointer"
+        animate={{ y: [-6, 6, -6] }}
+        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       >
-        {/* Floating animation wrapper */}
-        <motion.div
-          animate={{ y: [-5, 5, -5] }}
-          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-          className="relative"
-        >
-          {/* THE PRISM BODY */}
-          <div 
-            className="relative w-[280px] rounded-[30px] overflow-hidden backdrop-blur-2xl"
-            style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.01) 100%)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              boxShadow: '0 30px 60px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.4)',
-              transform: 'translateZ(20px)'
-            }}
-          >
-            {/* Prismatic reflections */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-[#a855f7]/10 via-[#00d4ff]/10 to-[#C9A96E]/10 pointer-events-none mix-blend-screen" />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent h-[40%] pointer-events-none" />
+        {/* Glow backdrop */}
+        <div
+          className="absolute -inset-6 rounded-[44px] blur-3xl opacity-30 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse, #C9A96E 0%, #a855f7 50%, transparent 70%)' }}
+        />
 
-            {/* Inner Content */}
-            <div className="p-6 flex flex-col items-center relative z-10" style={{ transform: 'translateZ(30px)' }}>
-              {/* Discord Icon */}
-              <div className="w-12 h-12 mb-4 flex items-center justify-center rounded-2xl bg-[#5865F2]/20 border border-[#5865F2]/40 shadow-[0_0_20px_rgba(88,101,242,0.4)]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="#5865F2">
-                  <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.461-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+        {/* Card */}
+        <div
+          className="relative w-[300px] rounded-[28px] overflow-hidden"
+          style={{
+            background: 'linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 32px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 1px 0 rgba(255,255,255,0.18) inset',
+            backdropFilter: 'blur(28px)',
+          }}
+        >
+          {/* Prismatic sheen */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[28px]">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#C9A96E]/8 via-transparent to-[#a855f7]/8" />
+            <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+            <div
+              className="absolute top-0 left-0 right-0 h-32 pointer-events-none"
+              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 100%)' }}
+            />
+          </div>
+
+          {/* Header bar */}
+          <div className="relative flex items-center justify-between px-5 pt-5 pb-3">
+            <div className="flex items-center gap-2.5">
+              {/* Discord logo */}
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(88,101,242,0.2)', border: '1px solid rgba(88,101,242,0.3)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#5865F2">
+                  <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.461-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.028z"/>
                 </svg>
               </div>
-
-              <div className="font-['Josefin_Sans'] text-[0.55rem] tracking-[0.4em] uppercase text-cream/40 mb-2">
-                Live Server Insights
-              </div>
-
-              <div className="font-['Orbitron'] font-bold text-lg text-cream mb-6 text-center shadow-black drop-shadow-md">
-                {data ? data.name : 'Loading...'}
-              </div>
-
-              {/* Stats Row */}
-              <div className="w-full grid grid-cols-2 gap-4 border-t border-cream/10 pt-5">
-                <div className="flex flex-col items-center">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
-                    <span className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.1em] text-cream/50 uppercase">Active</span>
-                  </div>
-                  <span className="font-['Josefin_Sans'] font-light text-xl text-cream">
-                    {data ? data.approximate_presence_count : '...'}
-                  </span>
+              <div>
+                <div
+                  className="font-['Josefin_Sans'] text-[0.72rem] font-semibold tracking-[0.15em] uppercase"
+                  style={{ color: 'rgba(237,232,220,0.9)' }}
+                >
+                  {data?.name || 'CONN3CTIVITY'}
                 </div>
-                <div className="flex flex-col items-center border-l border-white/5">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-gold/50" />
-                    <span className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.1em] text-gold/80 uppercase">Conn3ctors</span>
-                  </div>
-                  <span className="font-['Josefin_Sans'] font-light text-xl text-gold">
-                    {data ? data.conn3ctor_count : '...'}
-                  </span>
+                <div
+                  className="font-['Josefin_Sans'] text-[0.42rem] tracking-[0.3em] uppercase mt-0.5"
+                  style={{ color: 'rgba(237,232,220,0.35)' }}
+                >
+                  Live Server Insights
                 </div>
               </div>
             </div>
+
+            {/* Live badge */}
+            <div
+              className="flex items-center gap-1.5 px-2 py-1 rounded-full"
+              style={{
+                background: isLive ? 'rgba(34,197,94,0.12)' : 'rgba(201,169,110,0.10)',
+                border: `1px solid ${isLive ? 'rgba(34,197,94,0.3)' : 'rgba(201,169,110,0.2)'}`,
+              }}
+            >
+              <PulsingDot color={isLive ? '#22c55e' : '#C9A96E'} />
+              <span
+                className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase font-semibold"
+                style={{ color: isLive ? '#22c55e' : '#C9A96E' }}
+              >
+                {isLive ? 'Live' : 'Cached'}
+              </span>
+            </div>
           </div>
-          
-          {/* Back prism shadow effect */}
-          <div 
-            className="absolute -inset-4 bg-gradient-to-br from-[#C9A96E]/20 via-[#00d4ff]/10 to-[#a855f7]/20 rounded-[40px] blur-2xl -z-10 opacity-60"
-            style={{ transform: 'translateZ(-20px)' }}
-          />
-        </motion.div>
+
+          {/* Divider */}
+          <div className="mx-5 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-3 gap-px px-5 py-5">
+            <StatBlock label="Online" value={online} color="#22c55e" accent />
+            <StatBlock label="Conn3ctors" value={conn3ctors} color="#C9A96E" accent />
+            <StatBlock label="Members" value={total} color="rgba(237,232,220,0.7)" />
+          </div>
+
+          {/* Divider */}
+          <div className="mx-5 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+
+          {/* Footer */}
+          <div className="flex items-center justify-between px-5 py-3">
+            <span
+              className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase"
+              style={{ color: 'rgba(237,232,220,0.25)' }}
+            >
+              {lastPing
+                ? `Updated ${lastPing.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+                : 'Connecting…'}
+            </span>
+            <div className="flex items-center gap-1">
+              {[...Array(3)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  animate={{ scaleY: [0.4, 1, 0.4] }}
+                  transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+                  className="w-0.5 rounded-full"
+                  style={{ height: 8, background: isLive ? '#22c55e' : 'rgba(201,169,110,0.4)' }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
       </motion.div>
     </motion.div>
   )

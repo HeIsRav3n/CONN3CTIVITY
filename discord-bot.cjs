@@ -1,76 +1,71 @@
 /**
- * CONN3CTIVITY Discord Bot
+ * CONN3CTIVITY Discord Gateway Bot
  *
- * Syncs live Discord guild data to Supabase so the website
- * always shows real member counts and a live Conn3ction Map.
+ * Connects to Discord via WebSocket Gateway for REAL-TIME events.
+ * Updates Supabase INSTANTLY when members join/leave or go online/offline.
+ * Also runs a full sync every SYNC_INTERVAL_MS for consistency.
  *
- * SETUP:
- *   1. Copy .env.example → .env and fill in your secrets.
- *   2. npm install   (uses the @supabase/supabase-js already in package.json)
- *   3. node discord-bot.cjs
+ * Required .env:
+ *   DISCORD_BOT_TOKEN    — bot token
+ *   DISCORD_GUILD_ID     — server snowflake
+ *   SUPABASE_SERVICE_KEY — service-role key (Settings → API in Supabase dashboard)
  *
- * DEPLOY:
- *   Railway → New Project → "Deploy from GitHub Repo"
- *   Set the start command to: node discord-bot.cjs
- *   Add environment variables from .env
+ * IMPORTANT: Enable these Privileged Gateway Intents in Discord Developer Portal:
+ *   → Server Members Intent
+ *   → Presence Intent
+ *
+ * Deploy: node discord-bot.cjs
+ * Recommend: Railway, Render, or any always-on Node host
  */
 
 'use strict'
 
 const https  = require('https')
+const WebSocket = require('ws')
 require('dotenv').config()
 
-// ──────────────────────────────────────────────────────
-//  Config (all secrets from .env)
-// ──────────────────────────────────────────────────────
-const BOT_TOKEN         = process.env.DISCORD_BOT_TOKEN
-const GUILD_ID          = process.env.DISCORD_GUILD_ID          || '1265954062789120050'
-const CONN3CTOR_ROLE    = process.env.CONN3CTOR_ROLE_ID         || '1266023149359599617'
-const MVC_ROLE          = process.env.MVC_ROLE_ID               || '1350853857701269534'
-const SUPABASE_URL      = process.env.VITE_SUPABASE_URL         || 'https://odmctbgjjonlhyfojfva.supabase.co'
-const SUPABASE_KEY      = process.env.SUPABASE_SERVICE_KEY       // Must be the service-role key (not anon)
-const SYNC_INTERVAL_MS  = parseInt(process.env.SYNC_INTERVAL_MS || '600000', 10) // default: 10 min
+// ── Config ────────────────────────────────────────────────────────────────────
+const BOT_TOKEN        = process.env.DISCORD_BOT_TOKEN
+const GUILD_ID         = process.env.DISCORD_GUILD_ID          || '1265954062789120050'
+const CONN3CTOR_ROLE   = process.env.CONN3CTOR_ROLE_ID         || '1266023149359599617'
+const MVC_ROLE         = process.env.MVC_ROLE_ID               || '1350853857701269534'
+const SUPABASE_URL     = process.env.VITE_SUPABASE_URL         || 'https://odmctbgjjonlhyfojfva.supabase.co'
+const SUPABASE_KEY     = process.env.SUPABASE_SERVICE_KEY
+const SYNC_INTERVAL_MS = parseInt(process.env.SYNC_INTERVAL_MS || '300000', 10) // 5 min full sync
 
-if (!BOT_TOKEN) {
-  console.error('[Bot] DISCORD_BOT_TOKEN is required. Check your .env file.')
-  process.exit(1)
-}
-if (!SUPABASE_KEY) {
-  console.error('[Bot] SUPABASE_SERVICE_KEY is required. Check your .env file.')
-  process.exit(1)
-}
+// Discord Gateway intents
+// GUILDS(1) | GUILD_MEMBERS(2) | GUILD_PRESENCES(256)
+const INTENTS = 1 | 2 | 256
 
-// ──────────────────────────────────────────────────────
-//  Minimal HTTP helpers (no extra deps)
-// ──────────────────────────────────────────────────────
+const COLOURS = ['#22c55e','#ef4444','#3b82f6','#f59e0b','#a855f7','#ec4899','#06b6d4','#f97316','#8b5cf6','#14b8a6']
 
+if (!BOT_TOKEN) { console.error('[Bot] DISCORD_BOT_TOKEN missing'); process.exit(1) }
+if (!SUPABASE_KEY) { console.warn('[Bot] SUPABASE_SERVICE_KEY missing — DB writes disabled') }
+
+// ── In-memory state ──────────────────────────────────────────────────────────
+let onlineCount   = 0
+let memberCount   = 0
+let conn3ctorCount = 0
+
+// ── HTTP helpers ──────────────────────────────────────────────────────────────
 function discordGet(path) {
   return new Promise((resolve, reject) => {
-    const options = {
+    const req = https.request({
       hostname: 'discord.com',
       path: `/api/v10${path}`,
-      method: 'GET',
-      headers: {
-        Authorization: `Bot ${BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'CONN3CTIVITY-Bot/2.0',
-      }
-    }
-    const req = https.request(options, res => {
+      headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' }
+    }, res => {
       let body = ''
-      res.on('data', c => { body += c })
+      res.on('data', c => body += c)
       res.on('end', () => {
         if (res.statusCode === 429) {
-          const retry = (JSON.parse(body).retry_after || 1) * 1000
-          console.warn(`[Bot] Rate limited. Retrying in ${retry}ms…`)
-          setTimeout(() => discordGet(path).then(resolve).catch(reject), retry)
+          const retryAfter = (JSON.parse(body).retry_after || 1) * 1000
+          setTimeout(() => discordGet(path).then(resolve).catch(reject), retryAfter)
           return
         }
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error(`Discord ${path} → ${res.statusCode}: ${body}`))
-          return
-        }
-        resolve(JSON.parse(body))
+        res.statusCode < 200 || res.statusCode >= 300
+          ? reject(new Error(`Discord ${path} → ${res.statusCode}`))
+          : resolve(JSON.parse(body))
       })
     })
     req.on('error', reject)
@@ -79,40 +74,111 @@ function discordGet(path) {
 }
 
 function supabaseUpsert(table, rows) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify(Array.isArray(rows) ? rows : [rows])
-    const options = {
-      hostname: new URL(SUPABASE_URL).hostname,
+  if (!SUPABASE_KEY) return Promise.resolve()
+  const arr  = Array.isArray(rows) ? rows : [rows]
+  const body = JSON.stringify(arr)
+  return new Promise((resolve) => {
+    const host = new URL(SUPABASE_URL).hostname
+    const req = https.request({
+      hostname: host,
       path: `/rest/v1/${table}`,
       method: 'POST',
       headers: {
-        apikey:          SUPABASE_KEY,
-        Authorization:   `Bearer ${SUPABASE_KEY}`,
-        'Content-Type':  'application/json',
-        'Prefer':        'resolution=merge-duplicates,return=minimal',
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
         'Content-Length': Buffer.byteLength(body),
       }
-    }
-    const req = https.request(options, res => {
+    }, res => {
       let data = ''
-      res.on('data', c => { data += c })
+      res.on('data', c => data += c)
       res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve()
-        } else {
-          reject(new Error(`Supabase upsert to ${table} failed (${res.statusCode}): ${data}`))
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          console.warn(`[Supabase] ${table} ${res.statusCode}: ${data.slice(0, 120)}`)
         }
+        resolve()
       })
     })
-    req.on('error', reject)
+    req.on('error', e => { console.warn(`[Supabase] ${e.message}`); resolve() })
     req.write(body)
     req.end()
   })
 }
 
-// ──────────────────────────────────────────────────────
-//  Member pagination (up to Discord's 1000/page limit)
-// ──────────────────────────────────────────────────────
+// ── Push live stats to Supabase ───────────────────────────────────────────────
+async function pushStats() {
+  await supabaseUpsert('server_stats', {
+    id:                         GUILD_ID,
+    name:                       'CONN3CTIVITY',
+    conn3ctor_count:            conn3ctorCount,
+    approximate_presence_count: onlineCount,
+    total_members:              memberCount,
+    updated_at:                 new Date().toISOString(),
+  })
+  console.log(`[Bot] Stats pushed — online:${onlineCount} conn3ctors:${conn3ctorCount} total:${memberCount}`)
+}
+
+// ── Full sync (members + MVC + conn3ctors table) ─────────────────────────────
+async function fullSync() {
+  console.log('[Bot] Full sync…')
+  try {
+    const [members, guild] = await Promise.all([
+      fetchAllMembers(),
+      discordGet(`/guilds/${GUILD_ID}?with_counts=true`),
+    ])
+
+    memberCount    = guild.approximate_member_count   || members.length
+    onlineCount    = guild.approximate_presence_count || onlineCount
+
+    const conn3ctors = members.filter(m => m.roles.includes(CONN3CTOR_ROLE))
+    const mvc        = members.find(m  => m.roles.includes(MVC_ROLE))
+    conn3ctorCount   = conn3ctors.length
+
+    // Build conn3ctors rows
+    const nodes = conn3ctors.map((m, i) => {
+      const u = m.user
+      const avatar = u.avatar
+        ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128`
+        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) % 6n)}.png`
+      const nick = m.nick || u.global_name || u.username
+      const xMatch = nick.match(/@([a-zA-Z0-9_]{1,15})/)
+      return {
+        id: u.id, name: nick,
+        discord_handle: `@${u.username}`,
+        avatar, color: COLOURS[i % COLOURS.length],
+        group: (i % 8) + 1,
+        x_handle: xMatch ? xMatch[1] : null,
+        updated_at: new Date().toISOString(),
+      }
+    })
+
+    for (let i = 0; i < nodes.length; i += 100) {
+      await supabaseUpsert('conn3ctors', nodes.slice(i, i + 100))
+    }
+
+    // MVC
+    if (mvc) {
+      const u = mvc.user
+      const avatar = u.avatar
+        ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=256`
+        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) % 6n)}.png`
+      const nick = mvc.nick || u.global_name || u.username
+      const xMatch = nick.match(/@([a-zA-Z0-9_]{1,15})/)
+      await supabaseUpsert('mvc_profile', {
+        id: u.id, username: nick, avatar_url: avatar,
+        twitter: xMatch ? xMatch[1] : null,
+        updated_at: new Date().toISOString(),
+      })
+      console.log(`[Bot] MVC: ${nick} (${u.id})`)
+    }
+
+    await pushStats()
+    console.log(`[Bot] Full sync done — ${conn3ctors.length} Conn3ctors`)
+  } catch (err) {
+    console.error('[Bot] Full sync error:', err.message)
+  }
+}
 
 async function fetchAllMembers() {
   const all = []
@@ -123,99 +189,167 @@ async function fetchAllMembers() {
     all.push(...batch)
     after = batch[batch.length - 1].user.id
     if (batch.length < 1000) break
-    await new Promise(r => setTimeout(r, 600)) // respect Discord rate limits
+    await new Promise(r => setTimeout(r, 600))
   }
   return all
 }
 
-// ──────────────────────────────────────────────────────
-//  Colour palette for map nodes
-// ──────────────────────────────────────────────────────
-const COLOURS = ['#22c55e','#ef4444','#3b82f6','#f59e0b','#a855f7','#ec4899','#06b6d4','#f97316','#8b5cf6','#14b8a6']
+// ── Discord Gateway WebSocket ─────────────────────────────────────────────────
+let ws = null
+let heartbeatInterval = null
+let lastSeq = null
+let sessionId = null
+let resumeUrl = null
 
-// ──────────────────────────────────────────────────────
-//  Main sync function
-// ──────────────────────────────────────────────────────
+function connectGateway() {
+  const url = resumeUrl || 'wss://gateway.discord.gg/?v=10&encoding=json'
+  console.log(`[Gateway] Connecting to ${url}…`)
+  ws = new WebSocket(url)
 
-async function sync() {
-  const started = Date.now()
-  console.log(`[Bot] ${new Date().toISOString()} — Sync started…`)
+  ws.on('open', () => console.log('[Gateway] Connected'))
 
-  try {
-    // 1. Guild info (member count + presence count)
-    const guild = await discordGet(`/guilds/${GUILD_ID}?with_counts=true`)
-    console.log(`[Bot] Guild: ${guild.name} | Members: ${guild.approximate_member_count} | Online: ${guild.approximate_presence_count}`)
+  ws.on('message', (raw) => {
+    const payload = JSON.parse(raw.toString())
+    const { op, d, s, t } = payload
+    if (s) lastSeq = s
 
-    // 2. All members (paginated)
-    const members = await fetchAllMembers()
-    const conn3ctors = members.filter(m => m.roles.includes(CONN3CTOR_ROLE))
-    const mvc        = members.find(m => m.roles.includes(MVC_ROLE))
-    console.log(`[Bot] Conn3ctors: ${conn3ctors.length} | MVC: ${mvc ? (mvc.nick || mvc.user.username) : 'none'}`)
+    switch (op) {
+      case 10: { // HELLO — start heartbeating
+        const interval = d.heartbeat_interval
+        heartbeatInterval = setInterval(() => {
+          ws.send(JSON.stringify({ op: 1, d: lastSeq }))
+        }, interval)
 
-    // 3. Upsert server_stats
-    await supabaseUpsert('server_stats', {
-      id:                        GUILD_ID,
-      name:                      guild.name,
-      conn3ctor_count:           conn3ctors.length,
-      approximate_presence_count: guild.approximate_presence_count,
-      total_members:             guild.approximate_member_count,
-      updated_at:                new Date().toISOString(),
-    })
-    console.log('[Bot] server_stats updated.')
-
-    // 4. Upsert conn3ctors table (map nodes)
-    const nodes = conn3ctors.map((m, i) => {
-      const u = m.user
-      const avatar = u.avatar
-        ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128`
-        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) % 6n)}.png`
-      const nick = m.nick || u.global_name || u.username
-      const xMatch = nick.match(/@([a-zA-Z0-9_]{1,15})/)
-      return {
-        id:             u.id,
-        name:           nick,
-        discord_handle: `@${u.username}`,
-        avatar,
-        color:          COLOURS[i % COLOURS.length],
-        group:          (i % 8) + 1,
-        x_handle:       xMatch ? xMatch[1] : null,
-        updated_at:     new Date().toISOString(),
+        // Identify or Resume
+        if (sessionId && lastSeq) {
+          ws.send(JSON.stringify({
+            op: 6,
+            d: { token: BOT_TOKEN, session_id: sessionId, seq: lastSeq }
+          }))
+        } else {
+          ws.send(JSON.stringify({
+            op: 2,
+            d: {
+              token: BOT_TOKEN,
+              intents: INTENTS,
+              properties: { os: 'linux', browser: 'conn3ctivity', device: 'conn3ctivity' },
+              large_threshold: 250,
+            }
+          }))
+        }
+        break
       }
-    })
 
-    // Batch in groups of 100 to stay under Supabase payload limits
-    for (let i = 0; i < nodes.length; i += 100) {
-      await supabaseUpsert('conn3ctors', nodes.slice(i, i + 100))
+      case 11: break // Heartbeat ACK — ignore
+
+      case 0: handleEvent(t, d); break // Dispatch
+
+      case 7: reconnect(); break // Reconnect
+
+      case 9: { // Invalid Session
+        sessionId = null; lastSeq = null; resumeUrl = null
+        setTimeout(connectGateway, 5000)
+        break
+      }
     }
-    console.log(`[Bot] conn3ctors table synced (${nodes.length} rows).`)
+  })
 
-    // 5. Upsert MVC profile
-    if (mvc) {
-      const u = mvc.user
-      const avatar = u.avatar
-        ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=256`
-        : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) % 6n)}.png`
-      const nick = mvc.nick || u.global_name || u.username
-      const xMatch = nick.match(/@([a-zA-Z0-9_]{1,15})/)
-      await supabaseUpsert('mvc_profile', {
-        id:         u.id,
-        username:   nick,
-        avatar_url: avatar,
-        twitter:    xMatch ? xMatch[1] : null,
-        updated_at: new Date().toISOString(),
-      })
-      console.log(`[Bot] MVC profile updated: ${nick}`)
-    }
+  ws.on('close', (code) => {
+    clearInterval(heartbeatInterval)
+    console.warn(`[Gateway] Closed (${code}) — reconnecting in 5s…`)
+    setTimeout(code === 4004 ? () => process.exit(1) : reconnect, 5000)
+  })
 
-    console.log(`[Bot] Sync complete in ${((Date.now() - started) / 1000).toFixed(1)}s`)
-  } catch (err) {
-    console.error('[Bot] Sync error:', err.message)
+  ws.on('error', (err) => {
+    console.error('[Gateway] WS error:', err.message)
+  })
+}
+
+function reconnect() {
+  if (ws) { try { ws.terminate() } catch {} }
+  clearInterval(heartbeatInterval)
+  connectGateway()
+}
+
+// ── Event handlers ─────────────────────────────────────────────────────────────
+async function handleEvent(type, data) {
+  if (!data) return
+
+  switch (type) {
+    case 'READY':
+      sessionId = data.session_id
+      resumeUrl = data.resume_gateway_url
+      memberCount = data.guilds?.[0]?.member_count || memberCount
+      console.log(`[Gateway] READY as ${data.user?.username}`)
+      break
+
+    case 'GUILD_CREATE':
+      if (data.id === GUILD_ID) {
+        memberCount = data.member_count || memberCount
+        // Count online from presences
+        onlineCount = (data.presences || []).filter(p => p.status !== 'offline').length
+        conn3ctorCount = (data.members || []).filter(m => (m.roles || []).includes(CONN3CTOR_ROLE)).length
+        console.log(`[Gateway] Guild ready — ${memberCount} members, ${onlineCount} online, ${conn3ctorCount} conn3ctors`)
+        await pushStats()
+      }
+      break
+
+    case 'GUILD_MEMBER_ADD':
+      if (data.guild_id === GUILD_ID) {
+        memberCount++
+        const u = data.user
+        const nick = data.nick || u?.global_name || u?.username || 'Unknown'
+        console.log(`[Gateway] +Member: ${nick} (total: ${memberCount})`)
+        await pushStats()
+      }
+      break
+
+    case 'GUILD_MEMBER_REMOVE':
+      if (data.guild_id === GUILD_ID) {
+        memberCount = Math.max(0, memberCount - 1)
+        console.log(`[Gateway] -Member: ${data.user?.username} (total: ${memberCount})`)
+        await pushStats()
+      }
+      break
+
+    case 'GUILD_MEMBER_UPDATE':
+      if (data.guild_id === GUILD_ID) {
+        // Recalculate conn3ctorCount if roles changed
+        const hadRole = data.roles?.includes(CONN3CTOR_ROLE)
+        // We'll let the full sync catch this — too complex to track incrementally
+        _ = hadRole // used to suppress lint
+      }
+      break
+
+    case 'PRESENCE_UPDATE':
+      if (data.guild_id === GUILD_ID) {
+        // Discord sends these for every status change; debounce stats push
+        debouncedPresenceUpdate()
+      }
+      break
   }
 }
 
-// ──────────────────────────────────────────────────────
-//  Run on startup and on every SYNC_INTERVAL_MS
-// ──────────────────────────────────────────────────────
-sync()
-setInterval(sync, SYNC_INTERVAL_MS)
-console.log(`[Bot] Running. Will sync every ${SYNC_INTERVAL_MS / 60000} min.`)
+// Debounce presence updates — they fire rapidly, no need to push every one
+let presenceDebounce = null
+let onlineDelta = 0
+function debouncedPresenceUpdate() {
+  clearTimeout(presenceDebounce)
+  presenceDebounce = setTimeout(async () => {
+    // Re-fetch guild for accurate count rather than tracking individually
+    try {
+      const guild = await discordGet(`/guilds/${GUILD_ID}?with_counts=true`)
+      const newOnline = guild.approximate_presence_count || 0
+      if (newOnline !== onlineCount) {
+        onlineCount = newOnline
+        await pushStats()
+      }
+    } catch {}
+  }, 3000) // 3-second debounce
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+console.log('[Bot] CONN3CTIVITY Gateway Bot starting…')
+fullSync()
+setInterval(fullSync, SYNC_INTERVAL_MS)
+connectGateway()

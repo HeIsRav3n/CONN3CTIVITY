@@ -29,7 +29,8 @@
     "react-dom": "^19.2.5",
     "react-force-graph-2d": "^1.29.1",
     "tailwindcss": "^4.2.4",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
