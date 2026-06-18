@@ -61,25 +61,28 @@ export function MapSection() {
     const fg = fgRef.current
     if (!fg) return
 
-    // Strong central repulsion so nodes spread wide
     fg.d3Force('charge').strength(n => n.id === 'main' ? -4000 : -80)
     fg.d3Force('link').distance(160).strength(0.35)
 
-    // Gentle continuous drift so the map is always "breathing"
+    // Gentle drift impulse applied on each reheat cycle
     let nodeList = []
     const driftForce = Object.assign(
-      () => {
+      (alpha) => {
         const t = Date.now() * 0.001
         nodeList.forEach((n, i) => {
           if (n.id !== 'main' && !n.fx) {
-            n.vx += Math.sin(t * 0.35 + i * 0.53) * 0.06
-            n.vy += Math.cos(t * 0.28 + i * 0.79) * 0.06
+            n.vx += Math.sin(t * 0.35 + i * 0.53) * alpha * 0.4
+            n.vy += Math.cos(t * 0.28 + i * 0.79) * alpha * 0.4
           }
         })
       },
       { initialize: ns => { nodeList = ns } }
     )
     fg.d3Force('drift', driftForce)
+
+    // Reheat every 4 s so nodes breathe without pegging CPU
+    const id = setInterval(() => fg.d3ReheatSimulation(), 4000)
+    return () => clearInterval(id)
   }, [graphData])
 
   // Fetch localStorage profile when node selected
@@ -276,10 +279,10 @@ export function MapSection() {
             onNodeClick={handleNodeClick}
             onNodeHover={handleNodeHover}
             onNodeDragEnd={handleNodeDragEnd}
-            cooldownTicks={Infinity}
-            d3AlphaDecay={0}
-            d3VelocityDecay={0.55}
-            warmupTicks={120}
+            cooldownTicks={300}
+            d3AlphaDecay={0.015}
+            d3VelocityDecay={0.4}
+            warmupTicks={100}
             nodeRelSize={1}
           />
 
