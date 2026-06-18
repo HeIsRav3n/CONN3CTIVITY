@@ -302,12 +302,7 @@ async function handleEvent(type, data) {
       break
 
     case 'GUILD_MEMBER_UPDATE':
-      if (data.guild_id === GUILD_ID) {
-        // Recalculate conn3ctorCount if roles changed
-        const hadRole = data.roles?.includes(CONN3CTOR_ROLE)
-        // We'll let the full sync catch this — too complex to track incrementally
-        _ = hadRole // used to suppress lint
-      }
+      // Full sync every 5 min handles role changes — skip incremental tracking
       break
 
     case 'PRESENCE_UPDATE':
