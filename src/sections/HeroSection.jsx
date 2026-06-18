@@ -5,7 +5,7 @@ import { DiscordPrism } from '../components/DiscordPrism'
 import { CryptoRadar } from '../components/CryptoRadar'
 import { SITE_DATA } from '../data/siteData'
 import { useCountUp } from '../hooks/useCountUp'
-import { supabase } from '../lib/supabase'
+import { sql } from '../lib/neon'
 import serverInsights from '../data/serverInsights.json'
 
 // ─── Scroll Progress Bar ──────────────────────────────────────────────────────
@@ -129,13 +129,8 @@ function HeroLiveBar() {
   useEffect(() => {
     async function fetch() {
       try {
-        const { data, error } = await supabase
-          .from('server_stats')
-          .select('approximate_presence_count,conn3ctor_count,total_members')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .single()
-        if (!error && data) { setStats(data); setLive(true) }
+        const rows = await sql`SELECT approximate_presence_count, conn3ctor_count, total_members FROM server_stats ORDER BY updated_at DESC LIMIT 1`
+        if (rows.length) { setStats(rows[0]); setLive(true) }
       } catch {}
     }
     fetch()

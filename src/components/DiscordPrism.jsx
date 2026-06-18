@@ -1,20 +1,17 @@
 import { useEffect, useState, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { supabase } from '../lib/supabase'
+import { motion } from 'framer-motion'
+import { sql } from '../lib/neon'
 import { useCountUp } from '../hooks/useCountUp'
 import serverInsights from '../data/serverInsights.json'
 
-const POLL_MS = 8000 // re-fetch every 8 s (feels live, stays within rate limits)
+const POLL_MS = 8000
 
 function StatBlock({ label, value, color = '#EDE8DC', accent = false }) {
   const display = useCountUp(value)
   return (
     <div className="flex flex-col items-center gap-1 relative">
       {accent && (
-        <div
-          className="absolute -inset-2 rounded-xl opacity-20 blur-md"
-          style={{ background: color }}
-        />
+        <div className="absolute -inset-2 rounded-xl opacity-20 blur-md" style={{ background: color }} />
       )}
       <span
         className="font-['Josefin_Sans'] font-light tabular-nums relative z-10"
@@ -35,10 +32,7 @@ function StatBlock({ label, value, color = '#EDE8DC', accent = false }) {
 function PulsingDot({ color = '#22c55e' }) {
   return (
     <span className="relative flex h-2 w-2">
-      <span
-        className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
-        style={{ background: color }}
-      />
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: color }} />
       <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: color }} />
     </span>
   )
@@ -52,14 +46,9 @@ export function DiscordPrism() {
 
   async function fetchLive() {
     try {
-      const { data: row, error } = await supabase
-        .from('server_stats')
-        .select('name,conn3ctor_count,approximate_presence_count,total_members,updated_at')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single()
-      if (!error && row) {
-        setData(row)
+      const rows = await sql`SELECT name, conn3ctor_count, approximate_presence_count, total_members FROM server_stats ORDER BY updated_at DESC LIMIT 1`
+      if (rows.length) {
+        setData(rows[0])
         setIsLive(true)
         setLastPing(new Date())
       }
@@ -71,23 +60,7 @@ export function DiscordPrism() {
   useEffect(() => {
     fetchLive()
     pollRef.current = setInterval(fetchLive, POLL_MS)
-
-    // Realtime subscription — instant push when bot writes
-    const channel = supabase
-      .channel('prism-stats')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'server_stats' }, (payload) => {
-        if (payload.new) {
-          setData(payload.new)
-          setIsLive(true)
-          setLastPing(new Date())
-        }
-      })
-      .subscribe()
-
-    return () => {
-      clearInterval(pollRef.current)
-      supabase.removeChannel(channel)
-    }
+    return () => clearInterval(pollRef.current)
   }, [])
 
   const online     = data?.approximate_presence_count ?? 0
@@ -102,7 +75,6 @@ export function DiscordPrism() {
       className="absolute bottom-20 right-3 md:right-10 lg:right-20 z-[100] pointer-events-auto"
       style={{ perspective: 1200 }}
     >
-      {/* Floating */}
       <motion.div
         animate={{ y: [-6, 6, -6] }}
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
@@ -127,35 +99,22 @@ export function DiscordPrism() {
           <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[28px]">
             <div className="absolute inset-0 bg-gradient-to-br from-[#C9A96E]/8 via-transparent to-[#a855f7]/8" />
             <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-            <div
-              className="absolute top-0 left-0 right-0 h-32 pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 100%)' }}
-            />
+            <div className="absolute top-0 left-0 right-0 h-32 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 100%)' }} />
           </div>
 
-          {/* Header bar */}
+          {/* Header */}
           <div className="relative flex items-center justify-between px-5 pt-5 pb-3">
             <div className="flex items-center gap-2.5">
-              {/* Discord logo */}
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(88,101,242,0.2)', border: '1px solid rgba(88,101,242,0.3)' }}
-              >
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(88,101,242,0.2)', border: '1px solid rgba(88,101,242,0.3)' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="#5865F2">
                   <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.461-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.028z"/>
                 </svg>
               </div>
               <div>
-                <div
-                  className="font-['Josefin_Sans'] text-[0.72rem] font-semibold tracking-[0.15em] uppercase"
-                  style={{ color: 'rgba(237,232,220,0.9)' }}
-                >
+                <div className="font-['Josefin_Sans'] text-[0.72rem] font-semibold tracking-[0.15em] uppercase" style={{ color: 'rgba(237,232,220,0.9)' }}>
                   {data?.name || 'CONN3CTIVITY'}
                 </div>
-                <div
-                  className="font-['Josefin_Sans'] text-[0.42rem] tracking-[0.3em] uppercase mt-0.5"
-                  style={{ color: 'rgba(237,232,220,0.35)' }}
-                >
+                <div className="font-['Josefin_Sans'] text-[0.42rem] tracking-[0.3em] uppercase mt-0.5" style={{ color: 'rgba(237,232,220,0.35)' }}>
                   Live Server Insights
                 </div>
               </div>
@@ -170,34 +129,26 @@ export function DiscordPrism() {
               }}
             >
               <PulsingDot color={isLive ? '#22c55e' : '#C9A96E'} />
-              <span
-                className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase font-semibold"
-                style={{ color: isLive ? '#22c55e' : '#C9A96E' }}
-              >
+              <span className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase font-semibold" style={{ color: isLive ? '#22c55e' : '#C9A96E' }}>
                 {isLive ? 'Live' : 'Cached'}
               </span>
             </div>
           </div>
 
-          {/* Divider */}
           <div className="mx-5 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
 
-          {/* Stats grid */}
+          {/* Stats */}
           <div className="grid grid-cols-3 gap-px px-5 py-5">
-            <StatBlock label="Online" value={online} color="#22c55e" accent />
-            <StatBlock label="Conn3ctors" value={conn3ctors} color="#C9A96E" accent />
-            <StatBlock label="Members" value={total} color="rgba(237,232,220,0.7)" />
+            <StatBlock label="Online"     value={online}     color="#22c55e"              accent />
+            <StatBlock label="Conn3ctors" value={conn3ctors} color="#C9A96E"              accent />
+            <StatBlock label="Members"    value={total}      color="rgba(237,232,220,0.7)" />
           </div>
 
-          {/* Divider */}
           <div className="mx-5 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
 
           {/* Footer */}
           <div className="flex items-center justify-between px-5 py-3">
-            <span
-              className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase"
-              style={{ color: 'rgba(237,232,220,0.25)' }}
-            >
+            <span className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase" style={{ color: 'rgba(237,232,220,0.25)' }}>
               {lastPing
                 ? `Updated ${lastPing.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
                 : 'Connecting…'}

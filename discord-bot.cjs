@@ -20,8 +20,9 @@
 
 'use strict'
 
-const https  = require('https')
+const https     = require('https')
 const WebSocket = require('ws')
+const { Pool }  = require('pg')
 require('dotenv').config()
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -29,9 +30,8 @@ const BOT_TOKEN        = process.env.DISCORD_BOT_TOKEN
 const GUILD_ID         = process.env.DISCORD_GUILD_ID          || '1265954062789120050'
 const CONN3CTOR_ROLE   = process.env.CONN3CTOR_ROLE_ID         || '1266023149359599617'
 const MVC_ROLE         = process.env.MVC_ROLE_ID               || '1350853857701269534'
-const SUPABASE_URL     = process.env.VITE_SUPABASE_URL         || 'https://odmctbgjjonlhyfojfva.supabase.co'
-const SUPABASE_KEY     = process.env.SUPABASE_SERVICE_KEY
-const SYNC_INTERVAL_MS = parseInt(process.env.SYNC_INTERVAL_MS || '300000', 10) // 5 min full sync
+const NEON_URL         = process.env.NEON_DATABASE_URL
+const SYNC_INTERVAL_MS = parseInt(process.env.SYNC_INTERVAL_MS || '300000', 10)
 
 // Discord Gateway intents
 // GUILDS(1) | GUILD_MEMBERS(2) | GUILD_PRESENCES(256)
@@ -40,7 +40,9 @@ const INTENTS = 1 | 2 | 256
 const COLOURS = ['#22c55e','#ef4444','#3b82f6','#f59e0b','#a855f7','#ec4899','#06b6d4','#f97316','#8b5cf6','#14b8a6']
 
 if (!BOT_TOKEN) { console.error('[Bot] DISCORD_BOT_TOKEN missing'); process.exit(1) }
-if (!SUPABASE_KEY) { console.warn('[Bot] SUPABASE_SERVICE_KEY missing — DB writes disabled') }
+if (!NEON_URL)   { console.warn('[Bot] NEON_DATABASE_URL missing — DB writes disabled') }
+
+const pool = NEON_URL ? new Pool({ connectionString: NEON_URL, ssl: { rejectUnauthorized: false } }) : null
 
 // ── In-memory state ──────────────────────────────────────────────────────────
 let onlineCount   = 0
@@ -73,42 +75,29 @@ function discordGet(path) {
   })
 }
 
-function supabaseUpsert(table, rows) {
-  if (!SUPABASE_KEY) return Promise.resolve()
-  const arr  = Array.isArray(rows) ? rows : [rows]
-  const body = JSON.stringify(arr)
-  return new Promise((resolve) => {
-    const host = new URL(SUPABASE_URL).hostname
-    const req = https.request({
-      hostname: host,
-      path: `/rest/v1/${table}`,
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates,return=minimal',
-        'Content-Length': Buffer.byteLength(body),
-      }
-    }, res => {
-      let data = ''
-      res.on('data', c => data += c)
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          console.warn(`[Supabase] ${table} ${res.statusCode}: ${data.slice(0, 120)}`)
-        }
-        resolve()
-      })
-    })
-    req.on('error', e => { console.warn(`[Supabase] ${e.message}`); resolve() })
-    req.write(body)
-    req.end()
-  })
+async function dbUpsert(table, rows) {
+  if (!pool) return
+  const arr = Array.isArray(rows) ? rows : [rows]
+  try {
+    for (const row of arr) {
+      const keys   = Object.keys(row)
+      const vals   = Object.values(row)
+      const cols   = keys.map(k => `"${k}"`).join(', ')
+      const params = vals.map((_, i) => `$${i + 1}`).join(', ')
+      const update = keys.filter(k => k !== 'id').map(k => `"${k}" = EXCLUDED."${k}"`).join(', ')
+      await pool.query(
+        `INSERT INTO ${table} (${cols}) VALUES (${params}) ON CONFLICT (id) DO UPDATE SET ${update}`,
+        vals
+      )
+    }
+  } catch (e) {
+    console.warn(`[Neon] ${table} error:`, e.message)
+  }
 }
 
 // ── Push live stats to Supabase ───────────────────────────────────────────────
 async function pushStats() {
-  await supabaseUpsert('server_stats', {
+  await dbUpsert('server_stats', {
     id:                         GUILD_ID,
     name:                       'CONN3CTIVITY',
     conn3ctor_count:            conn3ctorCount,
@@ -154,7 +143,7 @@ async function fullSync() {
     })
 
     for (let i = 0; i < nodes.length; i += 100) {
-      await supabaseUpsert('conn3ctors', nodes.slice(i, i + 100))
+      await dbUpsert('conn3ctors', nodes.slice(i, i + 100))
     }
 
     // MVC
@@ -165,7 +154,7 @@ async function fullSync() {
         : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.id) % 6n)}.png`
       const nick = mvc.nick || u.global_name || u.username
       const xMatch = nick.match(/@([a-zA-Z0-9_]{1,15})/)
-      await supabaseUpsert('mvc_profile', {
+      await dbUpsert('mvc_profile', {
         id: u.id, username: nick, avatar_url: avatar,
         twitter: xMatch ? xMatch[1] : null,
         updated_at: new Date().toISOString(),
@@ -349,7 +338,7 @@ function debouncedPresenceUpdate() {
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
-console.log('[Bot] CONN3CTIVITY Gateway Bot starting…')
+console.log('[Bot] CONN3CTIVITY Gateway Bot starting… (Neon DB:', NEON_URL ? 'connected' : 'disabled', ')')
 fullSync()
 setInterval(fullSync, SYNC_INTERVAL_MS)
 connectGateway()

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { supabase } from '../lib/supabase'
+import { sql } from '../lib/neon'
 import { SITE_DATA } from '../data/siteData'
 import { use3DTilt } from '../hooks/use3DTilt'
 
@@ -12,46 +12,10 @@ export function MVCSection() {
   useEffect(() => {
     async function fetchMVC() {
       setMvcProfile(SITE_DATA.fallbackMVC)
-
-      if (!supabase) { setLoading(false); return }
-
       try {
-        // 1. Check mvc_profile (bot-synced — always the latest role holder)
-        const { data: botData } = await supabase
-          .from('mvc_profile')
-          .select('*')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .single()
-
-        if (botData) {
-          // 2. Optionally enrich with user-filled profile data
-          const discordId = botData.id
-          const { data: userProfile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('discord_id', discordId)
-            .limit(1)
-            .single()
-
-          // Merge: user profile enriches bot data (user-set fields win)
-          setMvcProfile({
-            id: discordId,
-            discord_id: discordId,
-            username: botData.username,
-            avatar_url: botData.avatar_url,
-            twitter: botData.twitter,
-            ...(userProfile || {}),
-          })
-        } else if (SITE_DATA.mvcId) {
-          // 3. mvc_profile table empty — try profiles by mvcId directly
-          const { data: fallbackProfile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('discord_id', SITE_DATA.mvcId)
-            .limit(1)
-            .single()
-          if (fallbackProfile) setMvcProfile(fallbackProfile)
+        const rows = await sql`SELECT * FROM mvc_profile ORDER BY updated_at DESC LIMIT 1`
+        if (rows.length) {
+          setMvcProfile({ id: rows[0].id, discord_id: rows[0].id, username: rows[0].username, avatar_url: rows[0].avatar_url, twitter: rows[0].twitter })
         }
       } catch {
         // Keep static fallback silently
@@ -61,15 +25,8 @@ export function MVCSection() {
     }
 
     fetchMVC()
-
-    // Realtime: refresh when bot or user updates MVC data
-    const channel = supabase
-      .channel('mvc-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mvc_profile' }, fetchMVC)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `discord_id=eq.${SITE_DATA.mvcId}` }, fetchMVC)
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
+    const id = setInterval(fetchMVC, 30000)
+    return () => clearInterval(id)
   }, [])
 
   return (

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ForceGraph2D from 'react-force-graph-2d'
 
 import STATIC_DATA from '../data/conn3ctors.json'
-import { supabase } from '../lib/supabase'
+import { sql } from '../lib/neon'
 
 const FALLBACK = STATIC_DATA?.nodes ? STATIC_DATA : { nodes: [], links: [] }
 
@@ -40,16 +40,13 @@ export function MapSection() {
   // Sync graphDataRef so callbacks always see the latest data
   useEffect(() => { graphDataRef.current = graphData }, [graphData])
 
-  // Load live conn3ctors from Supabase, fall back to static JSON
+  // Load live conn3ctors from Neon, fall back to static JSON
   useEffect(() => {
     async function loadLive() {
       try {
-        const { data, error } = await supabase
-          .from('conn3ctors')
-          .select('id, name, discord_handle, avatar, color, "group", x_handle')
-          .order('name')
-        if (error || !data || data.length === 0) return
-        setGraphData(buildLiveGraph(data))
+        const rows = await sql`SELECT id, name, discord_handle, avatar, color, "group", x_handle FROM conn3ctors ORDER BY name`
+        if (!rows || rows.length === 0) return
+        setGraphData(buildLiveGraph(rows))
         setIsLive(true)
       } catch {
         // Keep static fallback silently
@@ -57,81 +54,36 @@ export function MapSection() {
     }
 
     loadLive()
-
-    // Realtime: refresh whenever the bot updates the table
-    const channel = supabase
-      .channel('conn3ctors-map')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conn3ctors' }, loadLive)
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
+    const id = setInterval(loadLive, 30000)
+    return () => clearInterval(id)
   }, [])
 
-  // Fetch real profile data from Supabase when a node is selected
+  // Fetch profile from localStorage when a node is selected
   useEffect(() => {
     async function fetchProfile() {
       if (!selectedNode || !selectedNode.id) {
         setSelectedProfile(null)
         return
       }
-      
-      if (!supabase) {
-        console.warn("Supabase not initialized, profile data unavailable.")
-        return
-      }
 
       setIsLoadingProfile(true)
       try {
-        console.log(`Fetching Supabase profile for ID: ${selectedNode.id}`)
-        // Use a timestamp to bypass any potential caching layers
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .or(`id.eq.${selectedNode.id},discord_id.eq.${selectedNode.id}`)
-          .limit(1)
-
-        if (error) {
-          console.error("Supabase profile fetch error:", error)
-          // Fallback to localStorage if Supabase fails
-          const localData = localStorage.getItem(`profile_${selectedNode.id}`)
-          if (localData) {
-            const parsed = JSON.parse(localData)
-            setSelectedProfile({
-              twitter: parsed.twitter,
-              telegram: parsed.telegram,
-              cm_type: parsed.cmType,
-              services: parsed.services,
-              experience: parsed.experience,
-              communities: parsed.communities,
-              role: parsed.role
-            })
-          } else {
-            setSelectedProfile(null)
-          }
-        } else if (data && data.length > 0) {
-          console.log("Supabase profile found:", data[0])
-          setSelectedProfile(data[0])
+        const localData = localStorage.getItem(`profile_${selectedNode.id}`)
+        if (localData) {
+          const parsed = JSON.parse(localData)
+          setSelectedProfile({
+            twitter: parsed.twitter,
+            telegram: parsed.telegram,
+            cm_type: parsed.cmType,
+            services: parsed.services,
+            experience: parsed.experience,
+            communities: parsed.communities,
+            role: parsed.role
+          })
         } else {
-          // Check localStorage as final fallback
-          const localData = localStorage.getItem(`profile_${selectedNode.id}`)
-          if (localData) {
-            console.log("Local profile found (No Supabase record):", JSON.parse(localData))
-            const parsed = JSON.parse(localData)
-            setSelectedProfile({
-              twitter: parsed.twitter,
-              telegram: parsed.telegram,
-              cm_type: parsed.cmType,
-              services: parsed.services,
-              experience: parsed.experience,
-              communities: parsed.communities,
-              role: parsed.role
-            })
-          } else {
-            setSelectedProfile(null)
-          }
+          setSelectedProfile(null)
         }
-      } catch (err) {
-        console.error("Failed to fetch profile", err)
+      } catch {
         setSelectedProfile(null)
       }
       setIsLoadingProfile(false)
