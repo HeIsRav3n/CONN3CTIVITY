@@ -1,6 +1,12 @@
 import { neon } from '@neondatabase/serverless'
 
-// Read-only HTTP client — safe to expose (web_reader role: SELECT only)
-const sql = neon(import.meta.env.VITE_NEON_DATABASE_URL)
+// Tagged-template no-op used when URL is not configured
+const noop = () => Promise.resolve([])
 
-export { sql }
+let _sql = noop
+try {
+  const url = import.meta.env.VITE_NEON_DATABASE_URL
+  if (url) _sql = neon(url)
+} catch {}
+
+export const sql = _sql
