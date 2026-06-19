@@ -79,17 +79,18 @@ async function dbUpsert(table, rows) {
   if (!pool) return
   const arr = Array.isArray(rows) ? rows : [rows]
   try {
-    for (const row of arr) {
+    const promises = arr.map(row => {
       const keys   = Object.keys(row)
       const vals   = Object.values(row)
       const cols   = keys.map(k => `"${k}"`).join(', ')
       const params = vals.map((_, i) => `$${i + 1}`).join(', ')
       const update = keys.filter(k => k !== 'id').map(k => `"${k}" = EXCLUDED."${k}"`).join(', ')
-      await pool.query(
+      return pool.query(
         `INSERT INTO ${table} (${cols}) VALUES (${params}) ON CONFLICT (id) DO UPDATE SET ${update}`,
         vals
       )
-    }
+    })
+    await Promise.all(promises)
   } catch (e) {
     console.warn(`[Neon] ${table} error:`, e.message)
   }

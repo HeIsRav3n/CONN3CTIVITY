@@ -89,24 +89,24 @@ export function MapSection() {
     return () => clearInterval(id)
   }, [])
 
-  // Re-apply collapse state when live data reloads
-  useEffect(() => {
-    if (!collapsedRef.current) return
-    const mainNode = graphData.nodes.find(n => n.id === 'main')
-    const mx = mainNode?.x ?? 0
-    const my = mainNode?.y ?? 0
-    graphData.nodes.forEach(n => {
-      if (n.id !== 'main') { n.fx = mx; n.fy = my }
-    })
-  }, [graphData])
-
   // D3 physics + drift
   useEffect(() => {
     const fg = fgRef.current
     if (!fg) return
 
-    fg.d3Force('charge').strength(n => n.id === 'main' ? -4000 : -80)
-    fg.d3Force('link').distance(160).strength(0.35)
+    const isC = collapsed
+
+    // Adjust forces based on collapse state for organic jelly motion
+    fg.d3Force('charge').strength(n => {
+      if (n.id === 'main') {
+        return isC ? -150 : -4000
+      }
+      return isC ? -15 : -80
+    })
+
+    fg.d3Force('link')
+      .distance(isC ? 22 : 160)
+      .strength(isC ? 0.8 : 0.35)
 
     let nodeList = []
     const driftForce = Object.assign(
@@ -125,10 +125,11 @@ export function MapSection() {
 
     // Gentle reheat every 3 s — keeps lines dancing
     const id = setInterval(() => {
-      if (!collapsedRef.current) fg.d3ReheatSimulation()
+      fg.d3ReheatSimulation()
     }, 3000)
     return () => clearInterval(id)
-  }, [graphData])
+  }, [graphData, collapsed])
+
   // Profile from Supabase & localStorage
   useEffect(() => {
     if (!selectedNode) { setSelectedProfile(null); return }
@@ -185,26 +186,22 @@ export function MapSection() {
     loadProfile()
     return () => { active = false }
   }, [selectedNode])
+
   // ── Collapse / expand all nodes toward center ─────────────────────────────────
   const toggleCollapse = useCallback(() => {
     const fg = fgRef.current
     if (!fg) return
-    const mainNode = graphData.nodes.find(n => n.id === 'main')
-    const mx = mainNode?.x ?? 0
-    const my = mainNode?.y ?? 0
 
     if (!collapsedRef.current) {
+      // Unfix any fixed positions when collapsing so nodes fall back to center organically
       graphData.nodes.forEach(n => {
-        if (n.id !== 'main') { n.fx = mx; n.fy = my }
+        if (n.id !== 'main') { n.fx = undefined; n.fy = undefined }
       })
       collapsedRef.current = true
       setCollapsed(true)
       setSelectedNode(null)
       fg.d3ReheatSimulation()
     } else {
-      graphData.nodes.forEach(n => {
-        if (n.id !== 'main') { n.fx = undefined; n.fy = undefined }
-      })
       collapsedRef.current = false
       setCollapsed(false)
       fg.d3ReheatSimulation()
@@ -221,10 +218,6 @@ export function MapSection() {
     const isC        = collapsedRef.current
     const r          = isMain ? 30 : (isHovered || isSelected) ? 17 : 13
 
-    // Satellite nodes disappear into center when collapsed
-    if (!isMain && isC) return
-
-    // ── Outer glow ────────────────────────────────────────────────────────────
     if (isMain || isHovered || isSelected) {
       const glowR  = r + (isMain ? (isC ? 18 : 8) : 5)
       const glowCol = isMain && isC ? '#22c55e' : node.color
@@ -339,7 +332,7 @@ export function MapSection() {
     const cpx = (s.x + t.x) / 2 + nx * wave
     const cpy = (s.y + t.y) / 2 + ny * wave
 
-    const baseAlpha  = isC ? 0.05 : (isHighlit ? 1 : 0.28)
+    const baseAlpha  = isC ? 0.15 : (isHighlit ? 1 : 0.28)
     const grd        = ctx.createLinearGradient(s.x, s.y, t.x, t.y)
 
     if (isHighlit) {
@@ -364,7 +357,6 @@ export function MapSection() {
       toggleCollapse()
       return
     }
-    if (collapsedRef.current) return
     setSelectedNode(prev => prev?.id === node.id ? null : node)
     fgRef.current?.centerAt(node.x, node.y, 800)
     fgRef.current?.zoom(2.8, 800)
