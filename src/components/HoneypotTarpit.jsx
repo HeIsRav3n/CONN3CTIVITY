@@ -5,16 +5,6 @@ export function HoneypotTarpit({ state }) {
   const [logs, setLogs] = useState([])
   const [glitch, setGlitch] = useState(false)
 
-  useEffect(() => {
-    // Heavy CPU wasting for bots (Tarpit feature)
-    // Runs complex math in a hidden worker/loop to slow down automated scanners
-    const wasteCPU = setInterval(() => {
-      let junk = 0;
-      for(let i = 0; i < 1000000; i++) junk += Math.sqrt(i);
-    }, 50);
-
-    return () => clearInterval(wasteCPU);
-  }, []);
 
   useEffect(() => {
     if (state === 'breach') {

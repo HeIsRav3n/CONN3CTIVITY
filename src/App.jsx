@@ -22,6 +22,14 @@ import { useSoundEffects } from './hooks/useSoundEffects'
 
 
 export default function App() {
+  // Remove the HTML loading skeleton once React has mounted
+  useEffect(() => {
+    const el = document.getElementById('app-loading')
+    if (el) el.style.opacity = '0'
+    const t = setTimeout(() => { if (el) el.remove() }, 400)
+    return () => clearTimeout(t)
+  }, [])
+
   const [navVisible, setNavVisible] = useState(true)
   const [gameOpen, setGameOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
