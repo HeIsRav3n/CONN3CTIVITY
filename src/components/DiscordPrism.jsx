@@ -1,10 +1,9 @@
-import { useEffect, useState, useRef } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { fetchStats, resolveDataStatus, statusLabel, statusColor } from '../lib/api'
+import { fetchStats, statusLabel, statusColor } from '../lib/api'
 import { useCountUp } from '../hooks/useCountUp'
+import { useLiveQuery } from '../hooks/useLiveQuery'
 import serverInsights from '../data/serverInsights.json'
-
-const POLL_MS = 8000
 
 function StatBlock({ label, value, color = '#EDE8DC', accent = false }) {
   const display = useCountUp(value)
@@ -39,36 +38,19 @@ function PulsingDot({ color = '#22c55e' }) {
 }
 
 export function DiscordPrism() {
-  const [data, setData] = useState(serverInsights)
-  const [status, setStatus] = useState('cached')
-  const [lastPing, setLastPing] = useState(null)
-  const pollRef = useRef(null)
-
-  async function fetchLive() {
-    try {
-      const row = await fetchStats()
-      if (row) {
-        setData(row)
-        setStatus(resolveDataStatus(row.updated_at, { fetchedOk: true, hasData: true }))
-        setLastPing(row.updated_at ? new Date(row.updated_at) : new Date())
-      } else {
-        setStatus(resolveDataStatus(null, { fetchedOk: true, hasData: false }))
-      }
-    } catch {
-      setStatus(resolveDataStatus(null, { fetchedOk: false, hasData: true }))
-    }
-  }
-
-  useEffect(() => {
-    fetchLive()
-    pollRef.current = setInterval(fetchLive, POLL_MS)
-    return () => clearInterval(pollRef.current)
-  }, [])
+  const { data, status, realtime } = useLiveQuery({
+    fetcher: fetchStats,
+    initial: serverInsights,
+    table: 'server_stats',
+    applyRealtime: (payload, prev) => payload.new || prev,
+  })
+  const [lastPing] = useState(() => new Date())
 
   const online     = data?.approximate_presence_count ?? 0
   const conn3ctors = data?.conn3ctor_count             ?? 0
   const total      = data?.total_members               ?? 0
   const color = statusColor(status)
+  const syncedAt = data?.updated_at ? new Date(data.updated_at) : lastPing
 
   return (
     <motion.div
@@ -128,7 +110,7 @@ export function DiscordPrism() {
             >
               <PulsingDot color={color} />
               <span className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase font-semibold" style={{ color }}>
-                {statusLabel(status)}
+                {statusLabel(status, { realtime })}
               </span>
             </div>
           </div>
@@ -145,8 +127,8 @@ export function DiscordPrism() {
 
           <div className="flex items-center justify-between px-5 py-3">
             <span className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase" style={{ color: 'rgba(237,232,220,0.25)' }}>
-              {lastPing
-                ? `Synced ${lastPing.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              {syncedAt
+                ? `Synced ${syncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                 : 'Connecting…'}
             </span>
             <div className="flex items-center gap-1">

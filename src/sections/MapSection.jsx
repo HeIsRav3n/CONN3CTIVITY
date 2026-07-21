@@ -1,11 +1,24 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ForceGraph2D from 'react-force-graph-2d'
 import STATIC_DATA from '../data/conn3ctors.json'
-import { fetchConn3ctors, resolveDataStatus, statusLabel, statusColor } from '../lib/api'
+import { fetchConn3ctors, statusLabel, statusColor } from '../lib/api'
+import { useLiveQuery } from '../hooks/useLiveQuery'
 import { supabase } from '../lib/supabase'
 
 const FALLBACK = STATIC_DATA?.nodes ? STATIC_DATA : { nodes: [], links: [] }
+const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
+  .filter(n => n.id !== 'main')
+  .map(n => ({
+    id: n.id,
+    name: n.name,
+    discord_handle: n.discordHandle || n.discord_handle,
+    avatar: n.avatar,
+    color: n.color,
+    group: n.group || 1,
+    x_handle: n.xHandle || n.x_handle || null,
+    updated_at: null,
+  }))
 
 const buildLiveGraph = (rows) => {
   const main = { id: 'main', name: 'CONN3CTIVITY', group: 0, color: '#C9A96E', avatar: '/map-logo.png' }
@@ -22,6 +35,32 @@ const buildLiveGraph = (rows) => {
   return { nodes, links }
 }
 
+function applyConn3ctorChange(payload, prev) {
+  const list = Array.isArray(prev) ? [...prev] : []
+  if (payload.eventType === 'DELETE') {
+    return list.filter(r => r.id !== payload.old?.id)
+  }
+  const row = payload.new
+  if (!row) return list
+  const idx = list.findIndex(r => r.id === row.id)
+  if (idx >= 0) list[idx] = row
+  else list.push(row)
+  return list
+}
+
+function normalizeCommunities(value) {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 export function MapSection() {
   const containerRef  = useRef(null)
   const fgRef         = useRef(null)
@@ -29,12 +68,31 @@ export function MapSection() {
 
   const [dimensions,    setDimensions]    = useState({ width: 800, height: 700 })
   const [graphData,     setGraphData]     = useState(FALLBACK)
-  const [status,        setStatus]        = useState('cached')
   const [hoveredNode,   setHoveredNode]   = useState(null)
   const [selectedNode,  setSelectedNode]  = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
+  const [profileState, setProfileState] = useState('idle')
   const [collapsed,     setCollapsed]     = useState(false)
   const [renderTrigger, setRenderTrigger] = useState(0)
+  const [query, setQuery] = useState('')
+
+  const {
+    data: liveRows,
+    status,
+    realtime,
+  } = useLiveQuery({
+    fetcher: fetchConn3ctors,
+    initial: FALLBACK_ROWS,
+    table: 'conn3ctors',
+    applyRealtime: applyConn3ctorChange,
+    getUpdatedAt: (rows) => {
+      if (!Array.isArray(rows) || !rows.length) return null
+      return rows.reduce((max, r) => {
+        const t = r.updated_at ? new Date(r.updated_at).getTime() : 0
+        return t > max ? t : max
+      }, 0) || null
+    },
+  })
 
   // Container dimensions
   useEffect(() => {
@@ -49,49 +107,30 @@ export function MapSection() {
     return () => ro.disconnect()
   }, [])
 
-  // Live data — 30 s refresh via /api/conn3ctors
+  // Merge live rows into graph while preserving physics state
   useEffect(() => {
-    async function load() {
-      try {
-        const rows = await fetchConn3ctors()
-        if (rows?.length) {
-          const fresh = buildLiveGraph(rows)
-          setGraphData(old => {
-            if (!old || !old.nodes) return fresh
-            const nodeMap = new Map(old.nodes.map(n => [n.id, n]))
-            const mergedNodes = fresh.nodes.map(node => {
-              const oldNode = nodeMap.get(node.id)
-              if (oldNode) {
-                return {
-                  ...node,
-                  x: oldNode.x,
-                  y: oldNode.y,
-                  vx: oldNode.vx,
-                  vy: oldNode.vy,
-                  fx: oldNode.fx,
-                  fy: oldNode.fy
-                }
-              }
-              return node
-            })
-            return { nodes: mergedNodes, links: fresh.links }
-          })
-          const newest = rows.reduce((max, r) => {
-            const t = r.updated_at ? new Date(r.updated_at).getTime() : 0
-            return t > max ? t : max
-          }, 0)
-          setStatus(resolveDataStatus(newest || null, { fetchedOk: true, hasData: true }))
-        } else {
-          setStatus(resolveDataStatus(null, { fetchedOk: true, hasData: false }))
+    if (!liveRows?.length) return
+    const fresh = buildLiveGraph(liveRows)
+    setGraphData(old => {
+      if (!old?.nodes) return fresh
+      const nodeMap = new Map(old.nodes.map(n => [n.id, n]))
+      const mergedNodes = fresh.nodes.map(node => {
+        const oldNode = nodeMap.get(node.id)
+        if (!oldNode) return node
+        return {
+          ...node,
+          x: oldNode.x,
+          y: oldNode.y,
+          vx: oldNode.vx,
+          vy: oldNode.vy,
+          fx: oldNode.fx,
+          fy: oldNode.fy,
+          _img: oldNode._img,
         }
-      } catch {
-        setStatus(resolveDataStatus(null, { fetchedOk: false, hasData: true }))
-      }
-    }
-    load()
-    const id = setInterval(load, 30000)
-    return () => clearInterval(id)
-  }, [])
+      })
+      return { nodes: mergedNodes, links: fresh.links }
+    })
+  }, [liveRows])
 
   // D3 physics + drift
   useEffect(() => {
@@ -100,11 +139,8 @@ export function MapSection() {
 
     const isC = collapsed
 
-    // Adjust forces based on collapse state for organic jelly motion
     fg.d3Force('charge').strength(n => {
-      if (n.id === 'main') {
-        return isC ? -150 : -4000
-      }
+      if (n.id === 'main') return isC ? -150 : -4000
       return isC ? -15 : -80
     })
 
@@ -127,40 +163,48 @@ export function MapSection() {
     )
     fg.d3Force('drift', driftForce)
 
-    // Gentle reheat every 3 s — keeps lines dancing
     const id = setInterval(() => {
       fg.d3ReheatSimulation()
     }, 3000)
     return () => clearInterval(id)
   }, [graphData, collapsed])
 
-  // Profile from Supabase & localStorage
+  // Profile from Supabase (+ Realtime updates while card is open)
   useEffect(() => {
-    if (!selectedNode) { setSelectedProfile(null); return }
+    if (!selectedNode) {
+      setSelectedProfile(null)
+      setProfileState('idle')
+      return
+    }
     let active = true
+    let channel = null
+
+    const mapProfile = (data) => ({
+      username: data.username || null,
+      twitter: data.twitter || null,
+      telegram: data.telegram || null,
+      cm_type: data.cm_type || null,
+      services: data.services || null,
+      experience: data.experience || null,
+      communities: normalizeCommunities(data.communities),
+      role: data.role || null,
+    })
 
     async function loadProfile() {
+      setProfileState('loading')
       if (supabase) {
         try {
-          // Map nodes use Discord snowflake IDs; profiles are keyed by discord_id
           const { data, error } = await supabase
             .from('profiles')
             .select('*')
-            .eq('discord_id', selectedNode.id)
+            .or(`discord_id.eq.${selectedNode.id},id.eq.${selectedNode.id}`)
             .maybeSingle()
 
           if (error) console.warn('Profile lookup:', error.message)
 
           if (active && data) {
-            setSelectedProfile({
-              twitter: data.twitter || null,
-              telegram: data.telegram || null,
-              cm_type: data.cm_type || null,
-              services: data.services || null,
-              experience: data.experience || null,
-              communities: data.communities || [],
-              role: data.role || null,
-            })
+            setSelectedProfile(mapProfile(data))
+            setProfileState('ready')
             return
           }
         } catch (err) {
@@ -174,33 +218,97 @@ export function MapSection() {
         if (raw) {
           const p = JSON.parse(raw)
           setSelectedProfile({
+            username: p.username || null,
             twitter: p.twitter || null,
             telegram: p.telegram || null,
             cm_type: p.cmType || p.cm_type || null,
             services: p.services || null,
             experience: p.experience || null,
-            communities: p.communities || [],
+            communities: normalizeCommunities(p.communities),
             role: p.role || null,
           })
+          setProfileState('ready')
         } else {
           setSelectedProfile(null)
+          setProfileState('empty')
         }
       } catch {
         setSelectedProfile(null)
+        setProfileState('error')
       }
     }
 
     loadProfile()
-    return () => { active = false }
+
+    if (supabase) {
+      channel = supabase
+        .channel(`profile:${selectedNode.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles' },
+          (payload) => {
+            const row = payload.new || payload.old
+            if (!row) return
+            if (row.discord_id !== selectedNode.id && row.id !== selectedNode.id) return
+            if (payload.eventType === 'DELETE') {
+              setSelectedProfile(null)
+              setProfileState('empty')
+              return
+            }
+            setSelectedProfile(mapProfile(payload.new))
+            setProfileState('ready')
+          },
+        )
+        .subscribe()
+    }
+
+    return () => {
+      active = false
+      if (channel) supabase?.removeChannel(channel)
+    }
   }, [selectedNode])
 
-  // ── Collapse / expand all nodes toward center ─────────────────────────────────
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') setSelectedNode(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.cursor = 'default'
+    }
+  }, [])
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return (liveRows || [])
+      .filter(r =>
+        r.name?.toLowerCase().includes(q) ||
+        r.discord_handle?.toLowerCase().includes(q) ||
+        r.x_handle?.toLowerCase().includes(q)
+      )
+      .slice(0, 8)
+  }, [liveRows, query])
+
+  const focusNodeById = useCallback((id) => {
+    const node = graphData.nodes.find(n => n.id === id)
+    if (!node) return
+    setSelectedNode(node)
+    setQuery('')
+    if (collapsedRef.current) {
+      collapsedRef.current = false
+      setCollapsed(false)
+    }
+    fgRef.current?.centerAt(node.x, node.y, 800)
+    fgRef.current?.zoom(2.8, 800)
+  }, [graphData])
+
   const toggleCollapse = useCallback(() => {
     const fg = fgRef.current
     if (!fg) return
 
     if (!collapsedRef.current) {
-      // Unfix any fixed positions when collapsing so nodes fall back to center organically
       graphData.nodes.forEach(n => {
         if (n.id !== 'main') { n.fx = undefined; n.fy = undefined }
       })
@@ -215,7 +323,6 @@ export function MapSection() {
     }
   }, [graphData])
 
-  // ── Node renderer ─────────────────────────────────────────────────────────────
   const drawNode = useCallback((node, ctx, gs) => {
     if (!isFinite(node.x) || !isFinite(node.y)) return
 
@@ -237,7 +344,6 @@ export function MapSection() {
       ctx.fill()
     }
 
-    // ── Pulsing ring on main when collapsed ───────────────────────────────────
     if (isMain && isC) {
       const t    = Date.now() * 0.003
       const pulR = r + 12 + Math.sin(t) * 4
@@ -248,7 +354,6 @@ export function MapSection() {
       ctx.stroke()
     }
 
-    // ── Avatar clip & fill ────────────────────────────────────────────────────
     ctx.save()
     ctx.beginPath()
     ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
@@ -269,7 +374,6 @@ export function MapSection() {
     }
     ctx.restore()
 
-    // ── Border ────────────────────────────────────────────────────────────────
     ctx.beginPath()
     ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
     ctx.strokeStyle = isMain
@@ -278,7 +382,6 @@ export function MapSection() {
     ctx.lineWidth   = isMain ? 2.5 : (isHovered || isSelected) ? 2 : 1
     ctx.stroke()
 
-    // ── Collapse / expand icon overlay on main ────────────────────────────────
     if (isMain) {
       const fs = Math.max(11 / gs, 5)
       ctx.font          = `600 ${fs}px 'Josefin Sans', sans-serif`
@@ -288,7 +391,6 @@ export function MapSection() {
       ctx.fillText(isC ? '+' : '', node.x, node.y + r + fs + 2 / gs)
     }
 
-    // ── Role dot ──────────────────────────────────────────────────────────────
     if (!isMain) {
       ctx.beginPath()
       ctx.arc(node.x + r * 0.68, node.y + r * 0.68, 3.5, 0, Math.PI * 2)
@@ -299,7 +401,6 @@ export function MapSection() {
       ctx.stroke()
     }
 
-    // ── Labels ────────────────────────────────────────────────────────────────
     if (isMain || isHovered || isSelected || gs > 4) {
       const fs = Math.max(isMain ? 10 / gs : 8 / gs, isMain ? 6 : 4)
       ctx.font         = `500 ${fs}px 'Josefin Sans', sans-serif`
@@ -309,7 +410,7 @@ export function MapSection() {
       ctx.fillText(node.name, node.x, node.y + r + 3 / gs)
     }
   }, [hoveredNode, selectedNode, renderTrigger])
-  // ── Link renderer — dancing quadratic bezier ──────────────────────────────────
+
   const drawLink = useCallback((link, ctx) => {
     const s = link.source
     const t = link.target
@@ -324,21 +425,14 @@ export function MapSection() {
     const isC       = collapsedRef.current
     const isHighlit = hoveredNode?.id === t.id || selectedNode?.id === t.id
 
-    // Perpendicular unit vector for the wave
     const nx = -dy / len
     const ny =  dx / len
-
-    // Unique seed per link for offset phase variety
     const seed = (typeof t.id === 'string' ? t.id.charCodeAt(0) : 0) * 0.19
     const now  = Date.now() * 0.001
-
-    // Larger wave for highlighted links; tiny wave for background links
     const amp  = isC ? 0 : (isHighlit ? 8 : 2.5)
     const wave = Math.sin(now * 2.0 + seed) * amp
-
     const cpx = (s.x + t.x) / 2 + nx * wave
     const cpy = (s.y + t.y) / 2 + ny * wave
-
     const baseAlpha  = isC ? 0.15 : (isHighlit ? 1 : 0.28)
     const grd        = ctx.createLinearGradient(s.x, s.y, t.x, t.y)
 
@@ -358,7 +452,6 @@ export function MapSection() {
     ctx.stroke()
   }, [hoveredNode, selectedNode])
 
-  // ── Event handlers ────────────────────────────────────────────────────────────
   const handleNodeClick = useCallback(node => {
     if (!node || node.id === 'main') {
       toggleCollapse()
@@ -383,6 +476,8 @@ export function MapSection() {
     fgRef.current?.d3ReheatSimulation()
   }, [])
 
+  const badgeLabel = statusLabel(status, { realtime })
+
   return (
     <section id="map" className="relative py-24 px-4 overflow-hidden" style={{ background: '#07070b' }}>
 
@@ -392,7 +487,6 @@ export function MapSection() {
 
       <div className="max-w-7xl mx-auto relative z-10">
 
-        {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -416,7 +510,7 @@ export function MapSection() {
               }}
             >
               <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: statusColor(status) }} />
-              {statusLabel(status)}
+              {badgeLabel}
             </div>
           </div>
 
@@ -427,14 +521,58 @@ export function MapSection() {
             CONN3CTION MAP
           </h2>
           <p
-            className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto"
+            className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
             Drag to move &nbsp; Click logo to retract &nbsp; Click node to inspect
           </p>
+
+          <div className="relative max-w-md mx-auto">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search Conn3ctors…"
+              aria-label="Search Conn3ctors"
+              className="w-full px-4 py-2.5 rounded-full font-['Josefin_Sans'] text-sm outline-none"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(201,169,110,0.22)',
+                color: 'var(--cream)',
+              }}
+            />
+            {matches.length > 0 && (
+              <div
+                className="absolute left-0 right-0 mt-2 rounded-2xl overflow-hidden z-20 text-left"
+                style={{
+                  background: 'rgba(11,10,8,0.96)',
+                  border: '1px solid rgba(201,169,110,0.2)',
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.55)',
+                }}
+              >
+                {matches.map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => focusNodeById(m.id)}
+                    className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/5 text-left"
+                  >
+                    <img src={m.avatar} alt="" className="w-8 h-8 rounded-lg object-cover" />
+                    <span className="min-w-0">
+                      <span className="block font-['Josefin_Sans'] text-sm truncate" style={{ color: 'var(--cream)' }}>
+                        {m.name}
+                      </span>
+                      <span className="block font-['Josefin_Sans'] text-[0.55rem] tracking-widest uppercase truncate" style={{ color: 'rgba(237,232,220,0.4)' }}>
+                        {m.discord_handle}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </motion.div>
 
-        {/* Graph canvas */}
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}
           whileInView={{ opacity: 1, scale: 1 }}
@@ -473,7 +611,6 @@ export function MapSection() {
             nodeRelSize={1}
           />
 
-          {/* Collapsed state pill */}
           <AnimatePresence>
             {collapsed && (
               <motion.div
@@ -496,7 +633,6 @@ export function MapSection() {
             )}
           </AnimatePresence>
 
-          {/* Node count */}
           <div
             className="absolute top-4 left-4 pointer-events-none"
             style={{
@@ -507,19 +643,21 @@ export function MapSection() {
               color: 'rgba(201,169,110,0.3)',
             }}
           >
-            {graphData.nodes.length - 1} Conn3ctors
+            {Math.max(0, graphData.nodes.length - 1)} Conn3ctors
           </div>
 
-          {/* Selected node profile card */}
           <AnimatePresence>
             {selectedNode && !collapsed && (
               <motion.div
                 key={selectedNode.id}
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${selectedNode.name} profile`}
                 initial={{ opacity: 0, y: 16, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 16, scale: 0.96 }}
                 transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-                className="absolute bottom-6 right-6 z-50 w-[288px]"
+                className="absolute bottom-6 right-6 z-50 w-[288px] max-w-[calc(100%-2rem)]"
               >
                 <div
                   className="rounded-[20px] relative overflow-hidden"
@@ -530,14 +668,12 @@ export function MapSection() {
                     backdropFilter: 'blur(24px)',
                   }}
                 >
-                  {/* Top sheen */}
                   <div
                     className="absolute top-0 left-0 right-0 h-px"
                     style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent)' }}
                   />
 
                   <div className="p-5">
-                    {/* Header */}
                     <div className="flex items-center gap-3 mb-4">
                       <div className="relative flex-shrink-0">
                         <img
@@ -566,7 +702,9 @@ export function MapSection() {
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={() => setSelectedNode(null)}
+                        aria-label="Close profile"
                         className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
                         style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.35)' }}
                       >
@@ -576,8 +714,7 @@ export function MapSection() {
                       </button>
                     </div>
 
-                    {/* Badges */}
-                    <div className="flex items-center gap-2 mb-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
                       <div
                         className="px-2.5 py-1 rounded-full font-['Josefin_Sans'] text-[0.48rem] tracking-[0.28em] uppercase"
                         style={{
@@ -588,9 +725,26 @@ export function MapSection() {
                       >
                         Conn3ctor
                       </div>
-                      {selectedNode.xHandle && (
+                      <a
+                        href={`https://discord.com/users/${selectedNode.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                        style={{
+                          background: 'rgba(88,101,242,0.12)',
+                          border: '1px solid rgba(88,101,242,0.35)',
+                          color: '#9aa3ff',
+                          fontSize: '0.48rem',
+                          letterSpacing: '0.15em',
+                          fontFamily: "'Josefin Sans', sans-serif",
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Discord
+                      </a>
+                      {(selectedNode.xHandle || selectedProfile?.twitter) && (
                         <a
-                          href={`https://x.com/${selectedNode.xHandle.replace('@', '')}`}
+                          href={`https://x.com/${(selectedNode.xHandle || selectedProfile.twitter).replace('@', '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
@@ -607,28 +761,44 @@ export function MapSection() {
                           <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                           </svg>
-                          @{selectedNode.xHandle.replace('@', '')}
+                          @{(selectedNode.xHandle || selectedProfile.twitter).replace('@', '')}
                         </a>
                       )}
                     </div>
 
-                    {/* Profile data */}
+                    {profileState === 'loading' && (
+                      <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div
+                          className="font-['Josefin_Sans'] text-[0.52rem] tracking-widest uppercase"
+                          style={{ color: 'rgba(237,232,220,0.45)' }}
+                        >
+                          Loading profile...
+                        </div>
+                      </div>
+                    )}
+
                     {selectedProfile && (
                       <div className="space-y-2 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        {selectedProfile.role && (
+                          <div className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest" style={{ color: 'rgba(237,232,220,0.45)' }}>
+                            <span style={{ color: '#C9A96E' }}>ROLE </span>
+                            {selectedProfile.role}
+                          </div>
+                        )}
+                        {selectedProfile.cm_type && (
+                          <div className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest" style={{ color: 'rgba(237,232,220,0.45)' }}>
+                            <span style={{ color: '#C9A96E' }}>CM TYPE </span>
+                            {selectedProfile.cm_type}
+                          </div>
+                        )}
                         {selectedProfile.experience && (
-                          <div
-                            className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest"
-                            style={{ color: 'rgba(237,232,220,0.45)' }}
-                          >
+                          <div className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest" style={{ color: 'rgba(237,232,220,0.45)' }}>
                             <span style={{ color: '#C9A96E' }}>EXP </span>
                             {selectedProfile.experience}
                           </div>
                         )}
                         {selectedProfile.services && (
-                          <div
-                            className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest"
-                            style={{ color: 'rgba(237,232,220,0.45)' }}
-                          >
+                          <div className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest" style={{ color: 'rgba(237,232,220,0.45)' }}>
                             <span style={{ color: '#C9A96E' }}>SERVICES </span>
                             {selectedProfile.services}
                           </div>
@@ -644,6 +814,34 @@ export function MapSection() {
                             TG {selectedProfile.telegram}
                           </a>
                         )}
+                        {selectedProfile.communities.filter(Boolean).length > 0 && (
+                          <div className="pt-1 flex flex-wrap gap-1.5">
+                            {selectedProfile.communities.filter(Boolean).slice(0, 5).map((community, idx) => (
+                              <span
+                                key={`${community}-${idx}`}
+                                className="px-2 py-0.5 rounded-full font-['Josefin_Sans'] text-[0.42rem] tracking-widest uppercase"
+                                style={{
+                                  color: '#C9A96E',
+                                  border: '1px solid rgba(201,169,110,0.35)',
+                                  background: 'rgba(201,169,110,0.08)',
+                                }}
+                              >
+                                {community}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {profileState !== 'loading' && !selectedProfile && (
+                      <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div
+                          className="font-['Josefin_Sans'] text-[0.52rem] tracking-widest uppercase"
+                          style={{ color: 'rgba(237,232,220,0.35)' }}
+                        >
+                          No extended profile yet
+                        </div>
                       </div>
                     )}
                   </div>

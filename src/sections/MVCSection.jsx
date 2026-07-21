@@ -1,44 +1,32 @@
-import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { fetchMvc, resolveDataStatus, statusLabel, statusColor } from '../lib/api'
+import { fetchMvc, statusLabel, statusColor } from '../lib/api'
 import { SITE_DATA } from '../data/siteData'
 import { use3DTilt } from '../hooks/use3DTilt'
+import { useLiveQuery } from '../hooks/useLiveQuery'
 
 export function MVCSection() {
-  const [mvcProfile, setMvcProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [status, setStatus] = useState('cached')
   const { ref, rotateX, rotateY, handleMouseMove, handleMouseLeave } = use3DTilt({ damping: 20, stiffness: 200, mass: 0.5 }, 10)
+  const { data: row, status, realtime } = useLiveQuery({
+    fetcher: fetchMvc,
+    initial: SITE_DATA.fallbackMVC,
+    table: 'mvc_profile',
+    applyRealtime: (payload, prev) => payload.new || prev,
+  })
 
-  useEffect(() => {
-    async function loadMVC() {
-      setMvcProfile(SITE_DATA.fallbackMVC)
-      try {
-        const row = await fetchMvc()
-        if (row) {
-          setMvcProfile({
-            id: row.id,
-            discord_id: row.id,
-            username: row.username,
-            avatar_url: row.avatar_url,
-            twitter: row.twitter,
-          })
-          setStatus(resolveDataStatus(row.updated_at, { fetchedOk: true, hasData: true }))
-        } else {
-          setStatus(resolveDataStatus(null, { fetchedOk: true, hasData: false }))
-        }
-      } catch {
-        setStatus(resolveDataStatus(null, { fetchedOk: false, hasData: true }))
-      } finally {
-        setLoading(false)
+  const mvcProfile = row
+    ? {
+        id: row.id,
+        discord_id: row.id || row.discord_id,
+        username: row.username,
+        avatar_url: row.avatar_url,
+        twitter: row.twitter,
+        cm_type: row.cm_type,
+        experience: row.experience,
+        services: row.services,
+        communities: row.communities,
       }
-    }
-
-    loadMVC()
-    const id = setInterval(loadMVC, 30000)
-    return () => clearInterval(id)
-  }, [])
-
+    : SITE_DATA.fallbackMVC
+  const loading = !mvcProfile
   const badgeColor = statusColor(status)
 
   return (
@@ -62,7 +50,7 @@ export function MVCSection() {
           <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full border border-[#C9A96E]/30 bg-[#C9A96E]/10 mb-6 backdrop-blur-md">
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: badgeColor }} />
             <span className="font-josefin text-[0.65rem] tracking-[0.3em] uppercase" style={{ color: badgeColor }}>
-              {statusLabel(status)} · Spotlight
+              {statusLabel(status, { realtime })} · Spotlight
             </span>
           </div>
           <h2 className="font-orbitron font-black text-4xl md:text-6xl text-cream tracking-wide mb-4 drop-shadow-[0_0_20px_rgba(201,169,110,0.3)]">
@@ -148,7 +136,7 @@ export function MVCSection() {
                     </div>
                   </div>
 
-                  {mvcProfile.communities && mvcProfile.communities.filter(c => c).length > 0 && (
+                  {Array.isArray(mvcProfile.communities) && mvcProfile.communities.filter(c => c).length > 0 && (
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
                       <span className="font-['Josefin_Sans'] text-[0.6rem] tracking-[0.2em] text-cream/40 uppercase mr-2">Communities:</span>
                       {mvcProfile.communities.filter(c => c).map((comm, idx) => (

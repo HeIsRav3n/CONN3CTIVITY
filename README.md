@@ -60,12 +60,19 @@ Run the `profiles` section of [`supabase-schema.sql`](supabase-schema.sql) in th
 | `npm run lint` | ESLint |
 | `npm test` | Vitest smoke tests |
 | `npm run update-scammers` | Refresh Detectivity JSON |
+| `npm run bot` | Discord gateway bot (Neon + Supabase Realtime mirror) |
+| `npm run seed:live` | One-shot Neon → Supabase live table seed |
 
 ## Stack
 
 - React 19 + Vite 8
 - Tailwind CSS v4
 - Framer Motion + Lenis
-- Neon Postgres (live Discord data)
-- Supabase (Auth / profiles / Realtime game)
+- Neon Postgres (API source of truth for Discord data)
+- Supabase (Auth / profiles / Realtime live mirrors)
 - Vercel Analytics
+
+## Realtime
+
+The site subscribes to Supabase Realtime on `server_stats`, `conn3ctors`, `mvc_profile`, and `profiles`.
+Keep `discord-bot.cjs` running with `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` so Discord events dual-write to Neon and Supabase.

@@ -8,7 +8,7 @@ export function getSql() {
   return neon(url)
 }
 
-export function sendOk(res, data, { maxAge = 15 } = {}) {
+export function sendOk(res, data, { maxAge = 5 } = {}) {
   res.setHeader('Content-Type', 'application/json')
   res.setHeader('Cache-Control', `s-maxage=${maxAge}, stale-while-revalidate=30`)
   res.statusCode = 200

@@ -1,9 +1,10 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef } from 'react'
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
 import { VennAtmosphere } from '../components/VennAtmosphere'
 import { SITE_DATA } from '../data/siteData'
 import { useCountUp } from '../hooks/useCountUp'
-import { fetchStats, resolveDataStatus, statusLabel, statusColor } from '../lib/api'
+import { fetchStats, statusLabel, statusColor } from '../lib/api'
+import { useLiveQuery } from '../hooks/useLiveQuery'
 import serverInsights from '../data/serverInsights.json'
 
 // ─── Scroll Progress Bar ──────────────────────────────────────────────────────
@@ -68,27 +69,12 @@ function ScrollCue() {
 
 // ─── Hero Live Stats Bar ──────────────────────────────────────────────────────
 function HeroLiveBar() {
-  const [stats, setStats] = useState(serverInsights)
-  const [status, setStatus] = useState('cached')
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const row = await fetchStats()
-        if (row) {
-          setStats(row)
-          setStatus(resolveDataStatus(row.updated_at, { fetchedOk: true, hasData: true }))
-        } else {
-          setStatus(resolveDataStatus(null, { fetchedOk: true, hasData: false }))
-        }
-      } catch {
-        setStatus(resolveDataStatus(null, { fetchedOk: false, hasData: true }))
-      }
-    }
-    load()
-    const id = setInterval(load, 10000)
-    return () => clearInterval(id)
-  }, [])
+  const { data: stats, status, realtime } = useLiveQuery({
+    fetcher: fetchStats,
+    initial: serverInsights,
+    table: 'server_stats',
+    applyRealtime: (payload, prev) => payload.new || prev,
+  })
 
   const online     = useCountUp(stats?.approximate_presence_count ?? 0, 1800)
   const conn3ctors = useCountUp(stats?.conn3ctor_count            ?? 0, 2000)
@@ -128,7 +114,7 @@ function HeroLiveBar() {
           className="font-['Josefin_Sans'] text-[0.42rem] tracking-[0.3em] uppercase"
           style={{ color }}
         >
-          {statusLabel(status)}
+          {statusLabel(status, { realtime })}
         </span>
       </div>
 

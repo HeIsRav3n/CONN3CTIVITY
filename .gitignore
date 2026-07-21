@@ -26,5 +26,9 @@ dist-ssr
 # Env files
 .env
 .env.*
+!.env.example
 
 .vercel
+scripts/_seed-live.sql
+scripts/_keys.json
+supabase/.temp/

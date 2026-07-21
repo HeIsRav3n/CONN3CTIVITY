@@ -1,5 +1,7 @@
 /** Max age (ms) before live data is treated as stale */
-export const STALE_MS = 2 * 60 * 60 * 1000
+export const STALE_MS = 15 * 60 * 1000
+export const LIVE_POLL_MS = 10000
+export const LIVE_BACKGROUND_POLL_MS = 20000
 
 /**
  * @returns {'live' | 'stale' | 'cached' | 'offline'}
@@ -13,7 +15,8 @@ export function resolveDataStatus(updatedAt, { fetchedOk = false, hasData = fals
   return 'live'
 }
 
-export function statusLabel(status) {
+export function statusLabel(status, { realtime = false } = {}) {
+  if (realtime && (status === 'live' || status === 'cached')) return 'Realtime'
   switch (status) {
     case 'live': return 'Live'
     case 'stale': return 'Last synced'
