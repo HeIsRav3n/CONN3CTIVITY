@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'api/**', '*.cjs', 'vite.config.js', 'vite-plugin-local-api.js']),
+  globalIgnores(['dist', '*.cjs', 'vite.config.js', 'vite-plugin-local-api.js']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -25,6 +25,16 @@ export default defineConfig([
       // Polling / auth / game loops legitimately sync external data into state on mount
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/immutability': 'off',
+    },
+  },
+  {
+    files: ['api/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

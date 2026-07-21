@@ -52,10 +52,10 @@ export function ProfileModal({ isOpen, onClose, user }) {
       return true;
     }
 
+    // discord_id is set server-side by enforce_profile_discord_id() — never client-claimed
     const payload = {
       id: user.id,
       username: user.username,
-      discord_id: user.discord_id || user.id,
       avatar_url: user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : null),
       twitter: data.twitter,
       telegram: data.telegram,
@@ -121,7 +121,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('*')
+          .select('twitter, telegram, cm_type, services, experience, communities, role')
           .eq('id', user.id)
           .maybeSingle();
 

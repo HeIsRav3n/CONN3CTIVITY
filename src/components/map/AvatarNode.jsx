@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Billboard, Text } from '@react-three/drei'
+import { Billboard, Html } from '@react-three/drei'
 import * as THREE from 'three'
 
 const textureCache = new Map()

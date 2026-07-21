@@ -1,6 +1,6 @@
 # CONN3CTIVITY
 
-Cinematic Web3 community landing page — Discord-centric CM network. Built with React 19, Vite, Framer Motion, and Force-Graph.
+Cinematic Web3 community landing page — Discord-centric CM network. Built with React 19, Vite, Framer Motion, and a 3D Conn3ctor orbital map (React Three Fiber).
 
 ## Prerequisites
 
@@ -11,6 +11,7 @@ Cinematic Web3 community landing page — Discord-centric CM network. Built with
 
 1. Copy `.env.example` → `.env` and fill in values:
    - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — Discord OAuth + profiles
+   - `VITE_SITE_URL` (optional) — OAuth redirect; defaults to `window.location.origin`. Add the same URL in Supabase Auth redirect allowlist.
    - `NEON_DATABASE_URL` — server-side only (APIs + Discord bot). Never use a `VITE_` prefix for Neon.
    - Discord bot vars if you run the sync bot
 2. Install and run:
@@ -28,12 +29,12 @@ Cinematic Web3 community landing page — Discord-centric CM network. Built with
 | Auth + profiles | Supabase Auth | Supabase client |
 | Detectivity threats | `npm run update-scammers` → `scammers.json` | Static import (redeploy to refresh) |
 
-The Discord bot **must keep running** (or you must periodically run `node fetchDiscordMap.cjs`) for Live badges to stay green. Stale Neon rows show as “Last synced”.
+The Discord bot **must keep running** (or you must periodically run `npm run sync:map`) for Live badges to stay green. Stale Neon rows show as “Last synced”.
 
 ### One-shot map sync
 
 ```bash
-node fetchDiscordMap.cjs
+npm run sync:map
 ```
 
 ### Scammer snapshot
@@ -44,11 +45,11 @@ npm run update-scammers
 
 ### Profiles schema
 
-Run the `profiles` section of [`supabase-schema.sql`](supabase-schema.sql) in the Supabase SQL editor.
+Run the `profiles` section of [`supabase-schema.sql`](supabase-schema.sql) in the Supabase SQL editor (includes `discord_id` lock trigger).
 
 ## Deploy (Vercel)
 
-1. Set project env vars: `NEON_DATABASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+1. Set project env vars: `NEON_DATABASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (and optionally `VITE_SITE_URL`)
 2. Push to `main` — Vite build + `/api` serverless functions deploy together
 
 ## Scripts
@@ -60,6 +61,7 @@ Run the `profiles` section of [`supabase-schema.sql`](supabase-schema.sql) in th
 | `npm run lint` | ESLint |
 | `npm test` | Vitest smoke tests |
 | `npm run update-scammers` | Refresh Detectivity JSON |
+| `npm run sync:map` | One-shot Discord → Neon + JSON sync |
 | `npm run bot` | Discord gateway bot (Neon + Supabase Realtime mirror) |
 | `npm run seed:live` | One-shot Neon → Supabase live table seed |
 
@@ -68,6 +70,7 @@ Run the `profiles` section of [`supabase-schema.sql`](supabase-schema.sql) in th
 - React 19 + Vite 8
 - Tailwind CSS v4
 - Framer Motion + Lenis
+- React Three Fiber / Drei / Three.js (3D Conn3ctor orb)
 - Neon Postgres (API source of truth for Discord data)
 - Supabase (Auth / profiles / Realtime live mirrors)
 - Vercel Analytics

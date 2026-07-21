@@ -58,6 +58,36 @@ function normalizeCommunities(value) {
   return []
 }
 
+const PROFILE_SELECT =
+  'username, twitter, telegram, cm_type, services, experience, communities, role, discord_id, id'
+
+/** Discord snowflake ids are 17–20 digit decimal strings */
+function isDiscordSnowflake(id) {
+  return typeof id === 'string' && /^\d{17,20}$/.test(id)
+}
+
+async function fetchProfileForNode(nodeId) {
+  if (!supabase || !nodeId) return null
+
+  if (isDiscordSnowflake(nodeId)) {
+    const byDiscord = await supabase
+      .from('profiles')
+      .select(PROFILE_SELECT)
+      .eq('discord_id', nodeId)
+      .maybeSingle()
+    if (byDiscord.error) console.warn('Profile lookup:', byDiscord.error.message)
+    if (byDiscord.data) return byDiscord.data
+  }
+
+  const byId = await supabase
+    .from('profiles')
+    .select(PROFILE_SELECT)
+    .eq('id', nodeId)
+    .maybeSingle()
+  if (byId.error) console.warn('Profile lookup:', byId.error.message)
+  return byId.data ?? null
+}
+
 export function MapSection() {
   const containerRef = useRef(null)
   const device = useDeviceCapability()
@@ -150,13 +180,7 @@ export function MapSection() {
       setProfileState('loading')
       if (supabase) {
         try {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .or(`discord_id.eq.${selectedNode.id},id.eq.${selectedNode.id}`)
-            .maybeSingle()
-
-          if (error) console.warn('Profile lookup:', error.message)
+          const data = await fetchProfileForNode(selectedNode.id)
 
           if (active && data) {
             setSelectedProfile(mapProfile(data))

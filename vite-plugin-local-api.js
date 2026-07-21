@@ -1,35 +1,19 @@
 import { neon } from '@neondatabase/serverless'
+import { queryServerStats, queryConn3ctors, queryMvcProfile } from './api/_lib/queries.js'
 
 async function handleStats() {
   const sql = neon(process.env.NEON_DATABASE_URL)
-  const rows = await sql`
-    SELECT name, conn3ctor_count, approximate_presence_count, total_members, updated_at
-    FROM server_stats
-    ORDER BY updated_at DESC
-    LIMIT 1
-  `
-  return { data: rows[0] ?? null }
+  return { data: await queryServerStats(sql) }
 }
 
 async function handleConn3ctors() {
   const sql = neon(process.env.NEON_DATABASE_URL)
-  const rows = await sql`
-    SELECT id, name, discord_handle, avatar, color, "group", x_handle, updated_at
-    FROM conn3ctors
-    ORDER BY name
-  `
-  return { data: rows }
+  return { data: await queryConn3ctors(sql) }
 }
 
 async function handleMvc() {
   const sql = neon(process.env.NEON_DATABASE_URL)
-  const rows = await sql`
-    SELECT id, username, avatar_url, twitter, updated_at
-    FROM mvc_profile
-    ORDER BY updated_at DESC
-    LIMIT 1
-  `
-  return { data: rows[0] ?? null }
+  return { data: await queryMvcProfile(sql) }
 }
 
 const ROUTES = {
@@ -72,9 +56,13 @@ export function localApiPlugin() {
           res.setHeader('Cache-Control', 's-maxage=15, stale-while-revalidate=30')
           res.end(JSON.stringify({ ok: true, ...payload }))
         } catch (err) {
+          const expose = process.env.NODE_ENV !== 'production'
           res.statusCode = 500
           res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({ ok: false, error: String(err?.message || err) }))
+          res.end(JSON.stringify({
+            ok: false,
+            error: expose ? String(err?.message || err) : 'Internal server error',
+          }))
         }
       })
     },

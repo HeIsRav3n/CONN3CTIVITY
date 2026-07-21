@@ -1,4 +1,5 @@
 import { getSql, sendOk, sendError } from './_lib/neon.js'
+import { queryConn3ctors } from './_lib/queries.js'
 
 export default async function handler(req, res) {
   if (req.method && req.method !== 'GET') {
@@ -6,12 +7,8 @@ export default async function handler(req, res) {
   }
   try {
     const sql = getSql()
-    const rows = await sql`
-      SELECT id, name, discord_handle, avatar, color, "group", x_handle, updated_at
-      FROM conn3ctors
-      ORDER BY name
-    `
-    return sendOk(res, { data: rows })
+    const data = await queryConn3ctors(sql)
+    return sendOk(res, { data })
   } catch (err) {
     return sendError(res, err, err.message?.includes('not configured') ? 503 : 500)
   }
