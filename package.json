@@ -11,7 +11,8 @@
     "test": "vitest run",
     "update-scammers": "node fetchForumThreads.cjs",
     "seed:live": "node scripts/seed-supabase-live.cjs",
-    "bot": "node discord-bot.cjs"
+    "bot": "node discord-bot.cjs",
+    "fetch:welcome": "node scripts/fetch-welcome-sound.cjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

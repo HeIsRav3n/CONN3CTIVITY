@@ -1,9 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 
+function normalizeCommunities(value) {
+  let list = [];
+  if (Array.isArray(value)) list = value;
+  else if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      list = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      list = [];
+    }
+  }
+  return [list[0] || '', list[1] || '', list[2] || ''];
+}
+
 export function ProfileModal({ isOpen, onClose, user }) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
   const [profileData, setProfileData] = useState({
     twitter: '',
     telegram: '',
@@ -15,20 +29,91 @@ export function ProfileModal({ isOpen, onClose, user }) {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [saveState, setSaveState] = useState('idle'); // idle | saving | saved | error
+  const saveTimer = useRef(null);
+  const skipAutosave = useRef(true);
+  const profileDataRef = useRef(profileData);
+
+  useEffect(() => {
+    profileDataRef.current = profileData;
+  }, [profileData]);
+
+  const persistProfile = useCallback(async (data, { quiet = false } = {}) => {
+    if (!user?.id) return false;
+
+    if (!quiet) setIsLoading(true);
+    setSaveState('saving');
+
+    if (!supabase) {
+      localStorage.setItem(`profile_${user.id}`, JSON.stringify(data));
+      localStorage.setItem(`profile_${user.discord_id || user.id}`, JSON.stringify(data));
+      setSaveState('saved');
+      if (!quiet) setIsLoading(false);
+      return true;
+    }
+
+    const payload = {
+      id: user.id,
+      username: user.username,
+      discord_id: user.discord_id || user.id,
+      avatar_url: user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : null),
+      twitter: data.twitter,
+      telegram: data.telegram,
+      cm_type: data.cmType,
+      services: data.services,
+      experience: data.experience,
+      communities: data.communities,
+      role: data.role,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('profiles').upsert(payload);
+
+    // Also mirror under discord snowflake key in localStorage for map fallback
+    try {
+      localStorage.setItem(`profile_${user.discord_id || user.id}`, JSON.stringify(data));
+      localStorage.setItem(`profile_${user.id}`, JSON.stringify(data));
+    } catch {
+      // ignore
+    }
+
+    if (error) {
+      console.error('Error saving profile:', error);
+      setSaveState('error');
+      if (!quiet) {
+        setIsLoading(false);
+        alert('Failed to save profile. Check console for details.');
+      }
+      return false;
+    }
+
+    setSaveState('saved');
+    if (!quiet) setIsLoading(false);
+    return true;
+  }, [user]);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user?.id) return;
-      
-      // Fallback if Supabase is not configured yet
+      if (!user?.id || !isOpen) return;
+      skipAutosave.current = true;
+
       if (!supabase) {
-        const savedData = localStorage.getItem(`profile_${user.id}`);
+        const savedData = localStorage.getItem(`profile_${user.id}`)
+          || localStorage.getItem(`profile_${user.discord_id}`);
         if (savedData) {
-          setProfileData(JSON.parse(savedData));
-          setIsEditing(false);
-        } else {
-          setIsEditing(true);
+          const parsed = JSON.parse(savedData);
+          setProfileData({
+            twitter: parsed.twitter || '',
+            telegram: parsed.telegram || '',
+            cmType: parsed.cmType || parsed.cm_type || 'Inbound',
+            services: parsed.services || '',
+            experience: parsed.experience || '1 Year',
+            communities: normalizeCommunities(parsed.communities),
+            role: parsed.role || 'Collab Manager',
+          });
         }
+        setIsEditing(true);
+        setTimeout(() => { skipAutosave.current = false }, 400);
         return;
       }
 
@@ -49,57 +134,47 @@ export function ProfileModal({ isOpen, onClose, user }) {
             cmType: data.cm_type || 'Inbound',
             services: data.services || '',
             experience: data.experience || '1 Year',
-            communities: data.communities || ['', '', ''],
-            role: data.role || 'Collab Manager'
+            communities: normalizeCommunities(data.communities),
+            role: data.role || 'Collab Manager',
           });
-          setIsEditing(false);
-        } else {
-          setIsEditing(true);
         }
+        setIsEditing(true);
       } catch (err) {
         console.error('Error fetching profile:', err);
         setIsEditing(true);
       }
       setIsLoading(false);
+      setTimeout(() => { skipAutosave.current = false }, 400);
     };
 
     fetchProfile();
-  }, [user]);
+  }, [user, isOpen]);
+
+  // Autosave while editing — reflects live on map via Supabase Realtime
+  useEffect(() => {
+    if (!isOpen || !user?.id || !isEditing || skipAutosave.current) return undefined;
+
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      persistProfile(profileDataRef.current, { quiet: true });
+    }, 700);
+
+    return () => clearTimeout(saveTimer.current);
+  }, [profileData, isOpen, isEditing, user, persistProfile]);
+
+  // Flush save on close
+  useEffect(() => {
+    if (isOpen) return undefined;
+    clearTimeout(saveTimer.current);
+    if (user?.id && !skipAutosave.current) {
+      persistProfile(profileDataRef.current, { quiet: true });
+    }
+    return undefined;
+  }, [isOpen, user, persistProfile]);
 
   const handleSave = async () => {
-    if (!user?.id) return;
-
-    if (!supabase) {
-      localStorage.setItem(`profile_${user.id}`, JSON.stringify(profileData));
-      setIsEditing(false);
-      return;
-    }
-
-    setIsLoading(true);
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: user.id,
-        username: user.username,
-        discord_id: user.discord_id || user.id,
-        avatar_url: user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : null),
-        twitter: profileData.twitter,
-        telegram: profileData.telegram,
-        cm_type: profileData.cmType,
-        services: profileData.services,
-        experience: profileData.experience,
-        communities: profileData.communities,
-        role: profileData.role,
-        updated_at: new Date().toISOString(),
-      });
-
-    if (!error) {
-      setIsEditing(false);
-    } else {
-      console.error('Error saving profile:', error);
-      alert('Failed to save profile. Check console for details.');
-    }
-    setIsLoading(false);
+    const ok = await persistProfile(profileData, { quiet: false });
+    if (ok) setIsEditing(false);
   };
 
   const updateCommunity = (index, value) => {
@@ -128,6 +203,12 @@ export function ProfileModal({ isOpen, onClose, user }) {
 
   if (!isOpen || !user) return null;
 
+  const saveLabel =
+    saveState === 'saving' ? 'Saving…'
+    : saveState === 'saved' ? 'Saved'
+    : saveState === 'error' ? 'Save failed'
+    : 'Autosave on';
+
   return (
     <AnimatePresence>
       <div
@@ -152,12 +233,10 @@ export function ProfileModal({ isOpen, onClose, user }) {
           style={glassStyle}
           className="relative w-full max-w-md rounded-lg overflow-hidden flex flex-col"
         >
-          {/* Top Decorative Line */}
           <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#C9A96E] to-transparent opacity-50" />
 
           <div className="p-6 md:p-8">
-            {/* Header: Avatar and Name */}
-            <div className="flex items-center gap-4 mb-8">
+            <div className="flex items-center gap-4 mb-6">
               <div className="relative">
                 <img
                   src={user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.id) % 5}.png`)}
@@ -166,7 +245,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
                 />
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-[#0B0A08] rounded-full" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h2 className="text-[#EDE8DC] font-['Josefin_Sans'] text-xl font-light tracking-wider">
                   {user.username}
                 </h2>
@@ -174,6 +253,17 @@ export function ProfileModal({ isOpen, onClose, user }) {
                   {profileData.role}
                 </p>
               </div>
+              <span
+                className="font-['Josefin_Sans'] text-[0.5rem] tracking-[0.2em] uppercase"
+                style={{
+                  color: saveState === 'error' ? '#ef4444'
+                    : saveState === 'saved' ? '#22c55e'
+                    : saveState === 'saving' ? '#C9A96E'
+                    : 'rgba(237,232,220,0.35)',
+                }}
+              >
+                {saveLabel}
+              </span>
             </div>
 
             <div className="relative">
@@ -281,14 +371,13 @@ export function ProfileModal({ isOpen, onClose, user }) {
                       </div>
                     </div>
 
-                    {/* Sticky Footer for Save Button */}
                     <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0B0A08] via-[#0B0A08] to-transparent pt-10">
                       <button
                         onClick={handleSave}
                         disabled={isLoading}
                         className="w-full bg-[#C9A96E] hover:bg-[#D4B882] text-[#0B0A08] py-3 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-all shadow-[0_0_20px_rgba(201,169,110,0.3)] font-bold disabled:opacity-50"
                       >
-                        {isLoading ? 'Saving...' : 'Save Profile Settings'}
+                        {isLoading ? 'Saving...' : 'Done'}
                       </button>
                     </div>
                   </motion.div>
@@ -300,7 +389,6 @@ export function ProfileModal({ isOpen, onClose, user }) {
                     exit={{ opacity: 0, x: -20 }}
                     className="flex flex-col gap-5"
                   >
-                    {/* View Mode Stats */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white/5 border border-white/5 p-3 rounded-sm">
                         <p className={labelStyle}>CM Type</p>
@@ -319,71 +407,63 @@ export function ProfileModal({ isOpen, onClose, user }) {
                       </p>
                     </div>
 
-                    <div>
-                      <p className={labelStyle}>Communities Represented</p>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {profileData.communities.filter(c => c.trim() !== '').length > 0 ? (
-                          profileData.communities.filter(c => c.trim() !== '').map((community, idx) => (
-                            <span key={idx} className="bg-[#C9A96E]/10 border border-[#C9A96E]/20 text-[#C9A96E] px-3 py-1 rounded-full text-xs font-['Josefin_Sans'] tracking-wider">
-                              {community}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-white/30 text-xs italic">None</span>
+                    {(profileData.twitter || profileData.telegram) && (
+                      <div className="flex flex-wrap gap-2">
+                        {profileData.twitter && (
+                          <a
+                            href={`https://x.com/${profileData.twitter.replace('@', '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[#EDE8DC]/70 text-xs font-['Josefin_Sans'] hover:border-[#C9A96E]/40 transition-colors"
+                          >
+                            @{profileData.twitter.replace('@', '')}
+                          </a>
+                        )}
+                        {profileData.telegram && (
+                          <a
+                            href={`https://t.me/${profileData.telegram.replace('@', '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[#EDE8DC]/70 text-xs font-['Josefin_Sans'] hover:border-[#C9A96E]/40 transition-colors"
+                          >
+                            TG {profileData.telegram}
+                          </a>
                         )}
                       </div>
-                    </div>
+                    )}
 
-                    <div className="flex gap-3 mt-4">
-                      {profileData.twitter && (
-                        <a
-                          href={profileData.twitter.startsWith('http') ? profileData.twitter : `https://x.com/${profileData.twitter.replace('@', '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#1DA1F2]/10 hover:bg-[#1DA1F2]/20 text-[#1DA1F2] border border-[#1DA1F2]/30 py-2.5 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-colors"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                          </svg>
-                          X
-                        </a>
-                      )}
-                      
-                      {profileData.telegram && (
-                        <a
-                          href={profileData.telegram.startsWith('http') ? profileData.telegram : `https://t.me/${profileData.telegram.replace('@', '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#0088cc]/10 hover:bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/30 py-2.5 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-colors"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.13-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .33z"/>
-                          </svg>
-                          TG
-                        </a>
-                      )}
-                      
-                      <button
-                        onClick={() => setIsEditing(true)}
-                        className={`${(profileData.twitter || profileData.telegram) ? 'w-auto px-4' : 'w-full'} bg-white/5 hover:bg-white/10 text-white/70 border border-white/10 py-2.5 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-colors`}
-                      >
-                        Edit
-                      </button>
-                    </div>
+                    {profileData.communities.filter(c => c.trim() !== '').length > 0 && (
+                      <div>
+                        <p className={labelStyle}>Communities</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {profileData.communities.filter(c => c.trim() !== '').map((community, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-[#C9A96E]/10 border border-[#C9A96E]/20 text-[#C9A96E] text-[0.65rem] font-['Josefin_Sans'] tracking-wide rounded-sm">
+                              {community}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="w-full mt-2 border border-[#C9A96E]/30 hover:bg-[#C9A96E]/10 text-[#C9A96E] py-3 rounded-sm font-['Josefin_Sans'] text-xs tracking-widest uppercase transition-all"
+                    >
+                      Edit Profile
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
           </div>
-          
-          {/* Close button inside modal */}
+
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-white/30 hover:text-white/80 transition-colors"
+            className="absolute top-4 right-4 text-white/30 hover:text-white/70 transition-colors"
+            aria-label="Close"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </motion.div>

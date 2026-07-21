@@ -65,6 +65,7 @@ export function MapSection() {
   const containerRef  = useRef(null)
   const fgRef         = useRef(null)
   const collapsedRef  = useRef(false)
+  const graphDataRef  = useRef(FALLBACK)
 
   const [dimensions,    setDimensions]    = useState({ width: 800, height: 700 })
   const [graphData,     setGraphData]     = useState(FALLBACK)
@@ -75,6 +76,10 @@ export function MapSection() {
   const [collapsed,     setCollapsed]     = useState(false)
   const [renderTrigger, setRenderTrigger] = useState(0)
   const [query, setQuery] = useState('')
+
+  useEffect(() => {
+    graphDataRef.current = graphData
+  }, [graphData])
 
   const {
     data: liveRows,
@@ -107,15 +112,46 @@ export function MapSection() {
     return () => ro.disconnect()
   }, [])
 
-  // Merge live rows into graph while preserving physics state
+  // Merge live rows into graph — mutate in place so physics / drag pins survive
   useEffect(() => {
     if (!liveRows?.length) return
     const fresh = buildLiveGraph(liveRows)
+
     setGraphData(old => {
-      if (!old?.nodes) return fresh
-      const nodeMap = new Map(old.nodes.map(n => [n.id, n]))
+      if (!old?.nodes?.length) return fresh
+
+      const oldMap = new Map(old.nodes.map(n => [n.id, n]))
+      const freshIds = new Set(fresh.nodes.map(n => n.id))
+      const membershipChanged =
+        old.nodes.length !== fresh.nodes.length ||
+        fresh.nodes.some(n => !oldMap.has(n.id)) ||
+        old.nodes.some(n => n.id !== 'main' && !freshIds.has(n.id))
+
+      // Soft update: keep the same node object references (preserves fx/fy/jelly)
+      if (!membershipChanged) {
+        for (const node of fresh.nodes) {
+          const existing = oldMap.get(node.id)
+          if (!existing) continue
+          existing.name = node.name
+          existing.discordHandle = node.discordHandle
+          existing.xHandle = node.xHandle
+          existing.group = node.group
+          existing.color = node.color
+          if (existing.avatar !== node.avatar) {
+            existing.avatar = node.avatar
+            existing._img = undefined
+          }
+        }
+        const main = oldMap.get('main')
+        if (main) {
+          main.fx = 0
+          main.fy = 0
+        }
+        return old
+      }
+
       const mergedNodes = fresh.nodes.map(node => {
-        const oldNode = nodeMap.get(node.id)
+        const oldNode = oldMap.get(node.id)
         if (!oldNode) return node
         return {
           ...node,
@@ -123,51 +159,95 @@ export function MapSection() {
           y: oldNode.y,
           vx: oldNode.vx,
           vy: oldNode.vy,
-          fx: oldNode.fx,
-          fy: oldNode.fy,
+          fx: node.id === 'main' ? 0 : oldNode.fx,
+          fy: node.id === 'main' ? 0 : oldNode.fy,
           _img: oldNode._img,
         }
       })
+      const main = mergedNodes.find(n => n.id === 'main')
+      if (main) {
+        main.fx = 0
+        main.fy = 0
+      }
       return { nodes: mergedNodes, links: fresh.links }
     })
   }, [liveRows])
 
-  // D3 physics + drift
-  useEffect(() => {
+  const applyJellyForces = useCallback((isC) => {
     const fg = fgRef.current
     if (!fg) return
 
-    const isC = collapsed
+    const charge = fg.d3Force('charge')
+    if (charge) {
+      charge.strength(n => {
+        if (n.id === 'main') return isC ? -120 : -2800
+        return isC ? -12 : -55
+      })
+    }
 
-    fg.d3Force('charge').strength(n => {
-      if (n.id === 'main') return isC ? -150 : -4000
-      return isC ? -15 : -80
-    })
-
-    fg.d3Force('link')
-      .distance(isC ? 22 : 160)
-      .strength(isC ? 0.8 : 0.35)
+    const link = fg.d3Force('link')
+    if (link) {
+      link.distance(isC ? 18 : 140).strength(isC ? 0.95 : 0.28)
+    }
 
     let nodeList = []
     const driftForce = Object.assign(
       (alpha) => {
         const t = Date.now() * 0.001
         nodeList.forEach((n, i) => {
-          if (n.id !== 'main' && !n.fx) {
-            n.vx += Math.sin(t * 0.35 + i * 0.53) * alpha * 0.4
-            n.vy += Math.cos(t * 0.28 + i * 0.79) * alpha * 0.4
+          if (n.id === 'main') {
+            n.fx = 0
+            n.fy = 0
+            return
           }
+          if (n.fx != null || n.fy != null) return
+          // jelly wobble
+          n.vx += Math.sin(t * 0.45 + i * 0.53) * alpha * 0.55
+          n.vy += Math.cos(t * 0.38 + i * 0.79) * alpha * 0.55
+          // gentle spring toward orbit radius
+          const dist = Math.hypot(n.x || 0, n.y || 0) || 0.001
+          const target = isC ? 26 : 155
+          const pull = (target - dist) * alpha * (isC ? 0.08 : 0.02)
+          n.vx += ((n.x || 0) / dist) * pull
+          n.vy += ((n.y || 0) / dist) * pull
         })
       },
-      { initialize: ns => { nodeList = ns } }
+      { initialize: (ns) => { nodeList = ns } },
     )
     fg.d3Force('drift', driftForce)
+    fg.d3ReheatSimulation()
+  }, [])
+
+  // D3 physics — do NOT rebind on every live graphData tick (that killed jelly/drag)
+  useEffect(() => {
+    const fg = fgRef.current
+    if (!fg) return
+
+    const boot = setTimeout(() => {
+      const main = graphDataRef.current.nodes?.find(n => n.id === 'main')
+      if (main) {
+        main.fx = 0
+        main.fy = 0
+        if (!Number.isFinite(main.x)) main.x = 0
+        if (!Number.isFinite(main.y)) main.y = 0
+      }
+      applyJellyForces(collapsedRef.current)
+      fg.centerAt(0, 0, 0)
+    }, 50)
 
     const id = setInterval(() => {
       fg.d3ReheatSimulation()
-    }, 3000)
-    return () => clearInterval(id)
-  }, [graphData, collapsed])
+    }, 2500)
+
+    return () => {
+      clearTimeout(boot)
+      clearInterval(id)
+    }
+  }, [applyJellyForces, dimensions.width, dimensions.height])
+
+  useEffect(() => {
+    applyJellyForces(collapsed)
+  }, [collapsed, applyJellyForces])
 
   // Profile from Supabase (+ Realtime updates while card is open)
   useEffect(() => {
@@ -307,21 +387,48 @@ export function MapSection() {
   const toggleCollapse = useCallback(() => {
     const fg = fgRef.current
     if (!fg) return
+    const nodes = graphDataRef.current.nodes || []
+    const hasPinned = nodes.some(n => n.id !== 'main' && (n.fx != null || n.fy != null))
 
-    if (!collapsedRef.current) {
-      graphData.nodes.forEach(n => {
-        if (n.id !== 'main') { n.fx = undefined; n.fy = undefined }
+    // If anyone was dragged out (or map is collapsed), center click RESETS to jelly circle
+    if (hasPinned || collapsedRef.current) {
+      nodes.forEach(n => {
+        if (n.id === 'main') {
+          n.fx = 0
+          n.fy = 0
+        } else {
+          n.fx = undefined
+          n.fy = undefined
+        }
       })
-      collapsedRef.current = true
-      setCollapsed(true)
-      setSelectedNode(null)
-      fg.d3ReheatSimulation()
-    } else {
       collapsedRef.current = false
       setCollapsed(false)
+      setSelectedNode(null)
+      applyJellyForces(false)
       fg.d3ReheatSimulation()
+      fg.centerAt(0, 0, 700)
+      fg.zoom(1, 700)
+      return
     }
-  }, [graphData])
+
+    // Otherwise collapse into a tight jelly ball
+    nodes.forEach(n => {
+      if (n.id === 'main') {
+        n.fx = 0
+        n.fy = 0
+      } else {
+        n.fx = undefined
+        n.fy = undefined
+      }
+    })
+    collapsedRef.current = true
+    setCollapsed(true)
+    setSelectedNode(null)
+    applyJellyForces(true)
+    fg.d3ReheatSimulation()
+    fg.centerAt(0, 0, 700)
+    fg.zoom(1.2, 700)
+  }, [applyJellyForces])
 
   const drawNode = useCallback((node, ctx, gs) => {
     if (!isFinite(node.x) || !isFinite(node.y)) return
@@ -469,8 +576,23 @@ export function MapSection() {
       : 'default'
   }, [])
 
+  const handleNodeDrag = useCallback((node) => {
+    if (!node || node.id === 'main') return
+    // While dragging, pin to cursor so the jelly doesn't yank them back mid-drag
+    node.fx = node.x
+    node.fy = node.y
+  }, [])
+
   const handleNodeDragEnd = useCallback(node => {
-    if (node.id === 'main' || collapsedRef.current) return
+    if (!node || node.id === 'main') return
+    if (collapsedRef.current) {
+      // Don't leave pins while collapsed — snap back into the ball
+      node.fx = undefined
+      node.fy = undefined
+      fgRef.current?.d3ReheatSimulation()
+      return
+    }
+    // Keep them where you dropped them until center reset
     node.fx = node.x
     node.fy = node.y
     fgRef.current?.d3ReheatSimulation()
@@ -524,7 +646,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag to move &nbsp; Click logo to retract &nbsp; Click node to inspect
+            Drag people out &nbsp; Click logo to reset &nbsp; Click node to inspect
           </p>
 
           <div className="relative max-w-md mx-auto">
@@ -603,11 +725,12 @@ export function MapSection() {
             enableZoomPanInteraction
             onNodeClick={handleNodeClick}
             onNodeHover={handleNodeHover}
+            onNodeDrag={handleNodeDrag}
             onNodeDragEnd={handleNodeDragEnd}
-            cooldownTicks={300}
-            d3AlphaDecay={0.015}
-            d3VelocityDecay={0.4}
-            warmupTicks={100}
+            cooldownTicks={400}
+            d3AlphaDecay={0.012}
+            d3VelocityDecay={0.28}
+            warmupTicks={80}
             nodeRelSize={1}
           />
 
@@ -628,7 +751,7 @@ export function MapSection() {
                   textTransform: 'uppercase',
                 }}
               >
-                Tap logo to expand
+                Tap logo to reset / expand
               </motion.div>
             )}
           </AnimatePresence>

@@ -19,6 +19,7 @@ import { Analytics } from '@vercel/analytics/react'
 import { supabase } from './lib/supabase'
 import { HoneypotTarpit } from './components/HoneypotTarpit'
 import { useSoundEffects } from './hooks/useSoundEffects'
+import { useWelcomeSound } from './hooks/useWelcomeSound'
 
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
   const device = useDeviceCapability()
   const lenisRef = useRef(null)
   const { playHover, playClick } = useSoundEffects()
+  useWelcomeSound()
 
   // Global Sound Event Listeners
   useEffect(() => {
