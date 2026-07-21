@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
 
-const WELCOME_SRC = '/welcome-conn3ctivity.ogg'
-const STORAGE_KEY = 'conn3ctivity_welcome_played_at'
+const WELCOME_SRC = '/welcome-conn3ctivity.mp3'
+const WELCOME_FALLBACK = '/welcome-conn3ctivity.ogg'
 
 /**
- * Plays the Discord soundboard "Welcome to connectivity" on each page load.
- * If the browser blocks autoplay, unlocks on the first user gesture.
+ * Auto-plays "Welcome to Conn3ctivity" when the site loads.
+ * Retries briefly after mount; if the browser blocks sound, plays on the first gesture.
  */
 export function useWelcomeSound({ enabled = true } = {}) {
   const playedRef = useRef(false)
@@ -15,45 +15,97 @@ export function useWelcomeSound({ enabled = true } = {}) {
 
     const audio = new Audio(WELCOME_SRC)
     audio.preload = 'auto'
-    audio.volume = 0.85
+    audio.volume = 0.9
+    audio.setAttribute('playsinline', 'true')
+
+    let cancelled = false
+    let retryTimer = null
+
+    const markPlayed = () => {
+      playedRef.current = true
+      cleanup()
+    }
 
     const play = async () => {
-      if (playedRef.current) return
+      if (cancelled || playedRef.current) return true
       try {
+        audio.muted = false
+        if (audio.readyState === 0) audio.load()
+        audio.currentTime = 0
         await audio.play()
-        playedRef.current = true
-        try {
-          sessionStorage.setItem(STORAGE_KEY, String(Date.now()))
-        } catch {
-          // ignore storage errors
-        }
-        cleanup()
+        markPlayed()
+        return true
       } catch {
-        // Autoplay blocked — wait for gesture
+        // Try OGG if MP3 failed to decode
+        if (audio.src && !audio.src.endsWith(WELCOME_FALLBACK)) {
+          audio.src = WELCOME_FALLBACK
+          try {
+            await audio.play()
+            markPlayed()
+            return true
+          } catch {
+            // still blocked
+          }
+        }
+        return false
       }
     }
 
-    const onGesture = () => {
-      play()
-    }
+    const onGesture = () => { play() }
+    const onReady = () => { play() }
 
     const cleanup = () => {
       window.removeEventListener('pointerdown', onGesture)
       window.removeEventListener('keydown', onGesture)
       window.removeEventListener('touchstart', onGesture)
+      window.removeEventListener('scroll', onGesture)
+      window.removeEventListener('pageshow', onReady)
+      document.removeEventListener('visibilitychange', onVis)
+      audio.removeEventListener('canplaythrough', onReady)
+      if (retryTimer) {
+        window.clearInterval(retryTimer)
+        retryTimer = null
+      }
     }
 
-    // Try immediately (works when browser allows autoplay with sound)
-    play()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') onReady()
+    }
 
+    audio.addEventListener('canplaythrough', onReady)
+    window.addEventListener('pageshow', onReady)
+    document.addEventListener('visibilitychange', onVis)
     window.addEventListener('pointerdown', onGesture, { passive: true })
     window.addEventListener('keydown', onGesture)
     window.addEventListener('touchstart', onGesture, { passive: true })
+    window.addEventListener('scroll', onGesture, { passive: true, once: true })
+
+    audio.load()
+    play()
+
+    // Retry for a few seconds while media decodes / policies settle
+    let ticks = 0
+    retryTimer = window.setInterval(() => {
+      ticks += 1
+      if (playedRef.current || cancelled || ticks > 20) {
+        window.clearInterval(retryTimer)
+        retryTimer = null
+        return
+      }
+      play()
+    }, 400)
+
+    const t1 = window.setTimeout(() => play(), 150)
+    const t2 = window.setTimeout(() => play(), 600)
 
     return () => {
+      cancelled = true
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
       cleanup()
       audio.pause()
-      audio.src = ''
+      audio.removeAttribute('src')
+      audio.load()
     }
   }, [enabled])
 }
