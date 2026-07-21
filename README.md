@@ -1,41 +1,71 @@
 # CONN3CTIVITY
 
-Welcome to the **CONN3CTIVITY** frontend application. This is a high-performance, cinematic Web3 landing page built with React, Vite, Framer Motion, and Force-Graph.
+Cinematic Web3 community landing page — Discord-centric CM network. Built with React 19, Vite, Framer Motion, and Force-Graph.
 
 ## Prerequisites
-- Node.js (v20+ recommended)
-- npm or pnpm
+
+- Node.js 20+
+- npm
 
 ## Getting Started
-1. Install dependencies:
+
+1. Copy `.env.example` → `.env` and fill in values:
+   - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — Discord OAuth + profiles
+   - `NEON_DATABASE_URL` — server-side only (APIs + Discord bot). Never use a `VITE_` prefix for Neon.
+   - Discord bot vars if you run the sync bot
+2. Install and run:
    ```bash
    npm install
-   ```
-2. Start the development server:
-   ```bash
    npm run dev
    ```
+   Local `/api/*` routes are served by Vite via `vite-plugin-local-api.js` (needs `NEON_DATABASE_URL`).
 
-## Managing the Conn3ctor Map
-The interactive "Conn3ction Map" visualizes live Discord server members who hold the "Conn3ctor" role.
+## Live data architecture
 
-To update the map data:
-1. Ensure your `.env` file contains your Discord bot credentials:
-   ```
-   DISCORD_BOT_TOKEN=your_token_here
-   DISCORD_GUILD_ID=your_server_id_here
-   ```
-2. Run the extraction script:
-   ```bash
-   node fetchDiscordMap.cjs
-   ```
-3. This will query the Discord API and overwrite `src/data/conn3ctors.json`. Commit the changes and push to automatically update the live site.
+| Data | Writer | Reader |
+|------|--------|--------|
+| Server stats, Conn3ctors map, MVC | `discord-bot.cjs` / `fetchDiscordMap.cjs` → **Neon** | Frontend via **`/api/stats`**, **`/api/conn3ctors`**, **`/api/mvc`** |
+| Auth + profiles | Supabase Auth | Supabase client |
+| Detectivity threats | `npm run update-scammers` → `scammers.json` | Static import (redeploy to refresh) |
 
-## Architecture
-- **Framework**: React 18 + Vite
-- **Animations**: Framer Motion
-- **Map Visualization**: react-force-graph-2d
-- **Analytics**: Vercel Analytics
+The Discord bot **must keep running** (or you must periodically run `node fetchDiscordMap.cjs`) for Live badges to stay green. Stale Neon rows show as “Last synced”.
 
-## Deployment
-This project is configured for seamless deployment on Vercel. Any push to the `main` branch will automatically trigger a production build.
+### One-shot map sync
+
+```bash
+node fetchDiscordMap.cjs
+```
+
+### Scammer snapshot
+
+```bash
+npm run update-scammers
+```
+
+### Profiles schema
+
+Run the `profiles` section of [`supabase-schema.sql`](supabase-schema.sql) in the Supabase SQL editor.
+
+## Deploy (Vercel)
+
+1. Set project env vars: `NEON_DATABASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+2. Push to `main` — Vite build + `/api` serverless functions deploy together
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Vite + local `/api` |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest smoke tests |
+| `npm run update-scammers` | Refresh Detectivity JSON |
+
+## Stack
+
+- React 19 + Vite 8
+- Tailwind CSS v4
+- Framer Motion + Lenis
+- Neon Postgres (live Discord data)
+- Supabase (Auth / profiles / Realtime game)
+- Vercel Analytics

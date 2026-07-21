@@ -1,33 +1,45 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { sql } from '../lib/neon'
+import { fetchMvc, resolveDataStatus, statusLabel, statusColor } from '../lib/api'
 import { SITE_DATA } from '../data/siteData'
 import { use3DTilt } from '../hooks/use3DTilt'
 
 export function MVCSection() {
   const [mvcProfile, setMvcProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState('cached')
   const { ref, rotateX, rotateY, handleMouseMove, handleMouseLeave } = use3DTilt({ damping: 20, stiffness: 200, mass: 0.5 }, 10)
 
   useEffect(() => {
-    async function fetchMVC() {
+    async function loadMVC() {
       setMvcProfile(SITE_DATA.fallbackMVC)
       try {
-        const rows = await sql`SELECT * FROM mvc_profile ORDER BY updated_at DESC LIMIT 1`
-        if (rows.length) {
-          setMvcProfile({ id: rows[0].id, discord_id: rows[0].id, username: rows[0].username, avatar_url: rows[0].avatar_url, twitter: rows[0].twitter })
+        const row = await fetchMvc()
+        if (row) {
+          setMvcProfile({
+            id: row.id,
+            discord_id: row.id,
+            username: row.username,
+            avatar_url: row.avatar_url,
+            twitter: row.twitter,
+          })
+          setStatus(resolveDataStatus(row.updated_at, { fetchedOk: true, hasData: true }))
+        } else {
+          setStatus(resolveDataStatus(null, { fetchedOk: true, hasData: false }))
         }
       } catch {
-        // Keep static fallback silently
+        setStatus(resolveDataStatus(null, { fetchedOk: false, hasData: true }))
       } finally {
         setLoading(false)
       }
     }
 
-    fetchMVC()
-    const id = setInterval(fetchMVC, 30000)
+    loadMVC()
+    const id = setInterval(loadMVC, 30000)
     return () => clearInterval(id)
   }, [])
+
+  const badgeColor = statusColor(status)
 
   return (
     <section id="mvc-spotlight" className="relative py-24 md:py-32 px-4 overflow-hidden">
@@ -48,10 +60,12 @@ export function MVCSection() {
           className="text-center mb-12"
         >
           <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full border border-[#C9A96E]/30 bg-[#C9A96E]/10 mb-6 backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-[#C9A96E] animate-pulse" />
-            <span className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase text-[#C9A96E]">Spotlight</span>
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: badgeColor }} />
+            <span className="font-josefin text-[0.65rem] tracking-[0.3em] uppercase" style={{ color: badgeColor }}>
+              {statusLabel(status)} · Spotlight
+            </span>
           </div>
-          <h2 className="font-['Orbitron'] font-black text-4xl md:text-6xl text-cream tracking-wide mb-4 drop-shadow-[0_0_20px_rgba(201,169,110,0.3)]">
+          <h2 className="font-orbitron font-black text-4xl md:text-6xl text-cream tracking-wide mb-4 drop-shadow-[0_0_20px_rgba(201,169,110,0.3)]">
             MVC OF THE WEEK
           </h2>
           <p className="font-space text-cream/50 text-sm max-w-xl mx-auto leading-relaxed">
@@ -72,7 +86,7 @@ export function MVCSection() {
           className="w-full max-w-3xl relative group cursor-pointer"
         >
           {/* Outer Glowing Border */}
-          <div className="absolute -inset-1 bg-gradient-to-br from-gold via-purple-500 to-[#00d4ff] rounded-[32px] opacity-20 group-hover:opacity-60 blur-xl transition-opacity duration-700" />
+          <div className="absolute -inset-1 bg-gradient-to-br from-gold via-[#C9A96E]/60 to-cream/30 rounded-[32px] opacity-20 group-hover:opacity-60 blur-xl transition-opacity duration-700" />
           
           <div className="relative bg-[#0B0A08]/80 backdrop-blur-3xl border border-gold/30 rounded-[30px] p-8 md:p-12 overflow-hidden shadow-2xl">
             {/* Animated Grid Background inside card */}
@@ -94,13 +108,13 @@ export function MVCSection() {
                     className="w-40 h-40 md:w-48 md:h-48 rounded-full border-4 border-gold/50 object-cover shadow-[0_0_40px_rgba(201,169,110,0.3)]"
                   />
                   <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-black border border-gold/50 rounded-full flex items-center justify-center shadow-lg">
-                    <span className="font-['Orbitron'] text-gold text-xs font-bold tracking-widest uppercase">👑 WINNER</span>
+                    <span className="font-orbitron text-gold text-xs font-bold tracking-widest uppercase">WINNER</span>
                   </div>
                 </div>
 
                 {/* Details Column */}
                 <div className="flex-1 text-center md:text-left">
-                  <h3 className="font-['Orbitron'] font-bold text-3xl md:text-4xl text-cream mb-2 drop-shadow-md">
+                  <h3 className="font-orbitron font-bold text-3xl md:text-4xl text-cream mb-2 drop-shadow-md">
                     {mvcProfile.username}
                   </h3>
                   

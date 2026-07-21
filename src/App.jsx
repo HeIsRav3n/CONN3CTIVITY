@@ -30,7 +30,6 @@ export default function App() {
     return () => clearTimeout(t)
   }, [])
 
-  const [navVisible, setNavVisible] = useState(true)
   const [gameOpen, setGameOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [discordUser, setDiscordUser] = useState(null)
@@ -60,76 +59,41 @@ export default function App() {
     }
   }, [playHover, playClick])
 
-  // Auth Handler: Supabase Auth (Secure) OR Discord Implicit Flow (Fallback)
+  // Auth — Supabase Discord OAuth only
   useEffect(() => {
-    if (supabase) {
-      // 1. Supabase Auth Flow
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          setDiscordUser({
-            id: session.user.id,
-            discord_id: session.user.user_metadata.provider_id,
-            username: session.user.user_metadata.custom_claims?.global_name || session.user.user_metadata.name || session.user.user_metadata.full_name,
-            avatar_url: session.user.user_metadata.avatar_url
-          });
-        }
-      });
+    if (!supabase) return
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) {
-          setDiscordUser({
-            id: session.user.id,
-            discord_id: session.user.user_metadata.provider_id,
-            username: session.user.user_metadata.custom_claims?.global_name || session.user.user_metadata.name || session.user.user_metadata.full_name,
-            avatar_url: session.user.user_metadata.avatar_url
-          });
-        } else {
-          setDiscordUser(null);
-        }
-      });
-
-      return () => subscription.unsubscribe();
-    } else {
-      // 2. Custom Fallback Flow
-      const fetchDiscordUser = async (token) => {
-        try {
-          const res = await fetch('https://discord.com/api/users/@me', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const user = await res.json();
-            setDiscordUser(user);
-          } else {
-            localStorage.removeItem('discord_token');
-          }
-        } catch (err) {
-          console.error("Failed to fetch Discord user", err);
-        }
-      };
-
-      const hash = window.location.hash;
-      if (hash && hash.includes('access_token')) {
-        const params = new URLSearchParams(hash.substring(1));
-        const token = params.get('access_token');
-        if (token) {
-          localStorage.setItem('discord_token', token);
-          window.history.replaceState(null, null, window.location.pathname + window.location.search);
-          fetchDiscordUser(token);
-        }
-      } else {
-        const storedToken = localStorage.getItem('discord_token');
-        if (storedToken) {
-          fetchDiscordUser(storedToken);
-        }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setDiscordUser({
+          id: session.user.id,
+          discord_id: session.user.user_metadata.provider_id,
+          username: session.user.user_metadata.custom_claims?.global_name || session.user.user_metadata.name || session.user.user_metadata.full_name,
+          avatar_url: session.user.user_metadata.avatar_url
+        });
       }
-    }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setDiscordUser({
+          id: session.user.id,
+          discord_id: session.user.user_metadata.provider_id,
+          username: session.user.user_metadata.custom_claims?.global_name || session.user.user_metadata.name || session.user.user_metadata.full_name,
+          avatar_url: session.user.user_metadata.avatar_url
+        });
+      } else {
+        setDiscordUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleLogout = async () => {
     if (supabase) {
       await supabase.auth.signOut();
     }
-    localStorage.removeItem('discord_token');
     setDiscordUser(null);
   };
 
@@ -174,7 +138,6 @@ export default function App() {
     <div className="relative min-h-screen" style={{ background: 'var(--void)' }}>
       <CursorGlow />
       <Navbar 
-        visible={navVisible} 
         user={discordUser}
         onLogout={handleLogout}
         onProfileClick={() => setProfileOpen(true)}

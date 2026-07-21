@@ -1,11 +1,9 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
 import { VennAtmosphere } from '../components/VennAtmosphere'
-import { DiscordPrism } from '../components/DiscordPrism'
-import { CryptoRadar } from '../components/CryptoRadar'
 import { SITE_DATA } from '../data/siteData'
 import { useCountUp } from '../hooks/useCountUp'
-import { sql } from '../lib/neon'
+import { fetchStats, resolveDataStatus, statusLabel, statusColor } from '../lib/api'
 import serverInsights from '../data/serverInsights.json'
 
 // ─── Scroll Progress Bar ──────────────────────────────────────────────────────
@@ -15,14 +13,14 @@ function ScrollProgressBar({ progress }) {
       className="fixed top-0 left-0 right-0 h-[2px] z-[100] origin-left"
       style={{
         scaleX: progress,
-        background: 'linear-gradient(90deg, #C9A96E, #EDE8DC, #a855f7)',
+        background: 'linear-gradient(90deg, #C9A96E, #EDE8DC)',
       }}
     />
   )
 }
 
 // ─── Animated Letter ──────────────────────────────────────────────────────────
-function AnimatedLetter({ char, index, total, onThreeClick }) {
+function AnimatedLetter({ char, index }) {
   return (
     <motion.span
       initial={{ opacity: 0, y: 60, rotateX: -90 }}
@@ -34,61 +32,8 @@ function AnimatedLetter({ char, index, total, onThreeClick }) {
       }}
       style={{ display: 'inline-block', transformOrigin: '50% 100%' }}
     >
-      {char === '3' ? (
-        <span 
-          onClick={onThreeClick}
-          style={{ 
-            color: '#C9A96E', 
-            textShadow: '0 0 40px rgba(201,169,110,0.7)',
-            cursor: 'pointer' 
-          }}
-          className="hover:text-white transition-colors"
-        >
-          {char}
-        </span>
-      ) : char === ' ' ? '\u00A0' : char}
+      {char === ' ' ? '\u00A0' : char}
     </motion.span>
-  )
-}
-
-// ─── Live Scroll Frame Counter ────────────────────────────────────────────────
-function ScrollFrameCounter({ scrollY }) {
-  const [frame, setFrame] = useState(0)
-  useEffect(() => {
-    const update = () => {
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight
-      const progress = Math.min(1, scrollY.current / Math.max(1, maxScroll))
-      setFrame(Math.round(progress * 999))
-    }
-    window.addEventListener('scroll', update)
-    return () => window.removeEventListener('scroll', update)
-  }, [scrollY])
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay: 2 }}
-      className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-1"
-    >
-      <div style={{
-        fontFamily: "'Josefin Sans', sans-serif",
-        fontSize: '0.55rem',
-        letterSpacing: '0.3em',
-        color: 'rgba(201,169,110,0.4)',
-        textTransform: 'uppercase',
-      }}>FRAME</div>
-      <div style={{
-        fontFamily: "'Josefin Sans', sans-serif",
-        fontSize: '1.1rem',
-        fontWeight: 200,
-        letterSpacing: '0.15em',
-        color: 'rgba(201,169,110,0.6)',
-        lineHeight: 1,
-      }}>
-        {String(frame).padStart(3, '0')}
-      </div>
-    </motion.div>
   )
 }
 
@@ -124,23 +69,31 @@ function ScrollCue() {
 // ─── Hero Live Stats Bar ──────────────────────────────────────────────────────
 function HeroLiveBar() {
   const [stats, setStats] = useState(serverInsights)
-  const [live, setLive]   = useState(false)
+  const [status, setStatus] = useState('cached')
 
   useEffect(() => {
-    async function fetch() {
+    async function load() {
       try {
-        const rows = await sql`SELECT approximate_presence_count, conn3ctor_count, total_members FROM server_stats ORDER BY updated_at DESC LIMIT 1`
-        if (rows.length) { setStats(rows[0]); setLive(true) }
-      } catch {}
+        const row = await fetchStats()
+        if (row) {
+          setStats(row)
+          setStatus(resolveDataStatus(row.updated_at, { fetchedOk: true, hasData: true }))
+        } else {
+          setStatus(resolveDataStatus(null, { fetchedOk: true, hasData: false }))
+        }
+      } catch {
+        setStatus(resolveDataStatus(null, { fetchedOk: false, hasData: true }))
+      }
     }
-    fetch()
-    const id = setInterval(fetch, 10000)
+    load()
+    const id = setInterval(load, 10000)
     return () => clearInterval(id)
   }, [])
 
   const online     = useCountUp(stats?.approximate_presence_count ?? 0, 1800)
   const conn3ctors = useCountUp(stats?.conn3ctor_count            ?? 0, 2000)
   const total      = useCountUp(stats?.total_members              ?? 0, 2200)
+  const color = statusColor(status)
 
   const items = [
     { label: 'Online',      value: online,     color: '#22c55e' },
@@ -167,15 +120,15 @@ function HeroLiveBar() {
         <span className="relative flex h-1.5 w-1.5">
           <span
             className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-70"
-            style={{ background: live ? '#22c55e' : '#C9A96E' }}
+            style={{ background: color }}
           />
-          <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: live ? '#22c55e' : '#C9A96E' }} />
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: color }} />
         </span>
         <span
           className="font-['Josefin_Sans'] text-[0.42rem] tracking-[0.3em] uppercase"
-          style={{ color: live ? '#22c55e' : '#C9A96E' }}
+          style={{ color }}
         >
-          {live ? 'Live' : 'Cache'}
+          {statusLabel(status)}
         </span>
       </div>
 
@@ -206,22 +159,13 @@ function HeroLiveBar() {
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 export function HeroSection({ onThreeClick }) {
-  const scrollY = useRef(0)
   const containerRef = useRef(null)
 
   const { scrollYProgress } = useScroll()
   const smoothProgress = useSpring(scrollYProgress, { damping: 30, stiffness: 100 })
 
-  // Track raw scrollY in a ref for Three.js (avoids React re-renders)
-  useEffect(() => {
-    const onScroll = () => { scrollY.current = window.scrollY }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
   const tagWords = ['SEARCH', 'FIND', 'CONN3CT']
 
-  // Parallax transforms on scroll
   const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -120])
   const heroOpacity = useTransform(scrollYProgress, [0, 0.35], [1, 0])
   const canvasScale = useTransform(scrollYProgress, [0, 0.4], [1, 1.12])
@@ -229,7 +173,6 @@ export function HeroSection({ onThreeClick }) {
   return (
     <>
       <ScrollProgressBar progress={smoothProgress} />
-      <ScrollFrameCounter scrollY={scrollY} />
 
       <section
         id="home"
@@ -238,8 +181,7 @@ export function HeroSection({ onThreeClick }) {
         style={{
           background: `
             radial-gradient(ellipse 120% 80% at 50% -10%, rgba(201,169,110,0.12) 0%, transparent 55%),
-            radial-gradient(ellipse 80% 60% at 80% 60%, rgba(168,85,247,0.07) 0%, transparent 50%),
-            radial-gradient(ellipse 60% 50% at 20% 80%, rgba(0,212,255,0.06) 0%, transparent 50%),
+            radial-gradient(ellipse 70% 50% at 85% 70%, rgba(237,232,220,0.04) 0%, transparent 50%),
             #0B0A08
           `,
         }}
@@ -359,16 +301,18 @@ export function HeroSection({ onThreeClick }) {
             {/* Left segment: CONN */}
             <span style={{ display: 'inline-flex' }}>
               {'CONN'.split('').map((char, i) => (
-                <AnimatedLetter key={i} char={char} index={i} total={12} />
+                <AnimatedLetter key={i} char={char} index={i} />
               ))}
             </span>
 
             {/* Center intersection: 3 (gold, clickable) */}
-            <motion.span
+            <motion.button
+              type="button"
               initial={{ opacity: 0, scale: 0.5, rotateY: -90 }}
               animate={{ opacity: 1, scale: 1, rotateY: 0 }}
               transition={{ duration: 1, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
               onClick={onThreeClick}
+              aria-label="Open Conn3ctivity game"
               style={{
                 color: '#C9A96E',
                 textShadow: '0 0 50px rgba(201,169,110,0.8), 0 0 100px rgba(201,169,110,0.3)',
@@ -376,16 +320,19 @@ export function HeroSection({ onThreeClick }) {
                 display: 'inline-block',
                 transformOrigin: '50% 50%',
                 padding: '0 0.05em',
+                background: 'none',
+                border: 'none',
+                font: 'inherit',
               }}
               whileHover={{ scale: 1.15, textShadow: '0 0 80px rgba(201,169,110,1)' }}
             >
               3
-            </motion.span>
+            </motion.button>
 
             {/* Right segment: CTIVITY */}
             <span style={{ display: 'inline-flex' }}>
               {'CTIVITY'.split('').map((char, i) => (
-                <AnimatedLetter key={i} char={char} index={i + 5} total={12} />
+                <AnimatedLetter key={i} char={char} index={i + 5} />
               ))}
             </span>
           </div>
@@ -506,12 +453,6 @@ export function HeroSection({ onThreeClick }) {
             </motion.a>
           </motion.div>
         </motion.div>
-
-        {/* ── 3D Market Radar (BTC, ETH, SOL) ── */}
-        <CryptoRadar />
-
-        {/* ── 3D Discord Server Insights Prism ── */}
-        <DiscordPrism />
 
         <ScrollCue />
       </section>

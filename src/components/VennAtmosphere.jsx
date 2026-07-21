@@ -32,12 +32,12 @@ export function VennAtmosphere() {
           <linearGradient id="vgL" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%"   stopColor="#EDE8DC" stopOpacity="0.9" />
             <stop offset="60%"  stopColor="#C9A96E" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#a855f7" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#E2DBD0" stopOpacity="0.2" />
           </linearGradient>
 
           {/* Right circle gradient */}
           <linearGradient id="vgR" x1="100%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%"   stopColor="#a855f7" stopOpacity="0.2" />
+            <stop offset="0%"   stopColor="#E2DBD0" stopOpacity="0.2" />
             <stop offset="40%"  stopColor="#C9A96E" stopOpacity="0.5" />
             <stop offset="100%" stopColor="#EDE8DC" stopOpacity="0.9" />
           </linearGradient>

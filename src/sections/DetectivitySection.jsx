@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import scammers from '../data/scammers.json'
 
@@ -63,6 +63,13 @@ function ScammerCard({ item, index, onView }) {
 }
 
 function InvestigationModal({ item, onClose }) {
+  useEffect(() => {
+    if (!item) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [item, onClose])
+
   if (!item) return null;
 
   return (
@@ -71,6 +78,10 @@ function InvestigationModal({ item, onClose }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 backdrop-blur-xl bg-black/80"
+      role="dialog"
+      aria-modal="true"
+      aria-label={item.title}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <motion.div 
         initial={{ scale: 0.9, y: 20 }}
@@ -232,6 +243,19 @@ export function DetectivitySection() {
           >
             To keep our community safe, we actively track and expose scammers, imposters, and malicious actors operating in the Web3 space. Verified reports from the Detectivity Discord channel.
           </motion.p>
+
+          {(() => {
+            const newest = scammers.reduce((max, s) => {
+              const t = s.timestamp ? new Date(s.timestamp).getTime() : 0
+              return t > max ? t : max
+            }, 0)
+            if (!newest) return null
+            return (
+              <p className="mt-4 font-josefin text-[0.55rem] tracking-[0.25em] uppercase text-cream/30">
+                Snapshot · {new Date(newest).toLocaleDateString()} · refresh with npm run update-scammers
+              </p>
+            )
+          })()}
         </div>
 
         {/* Scammers Grid */}

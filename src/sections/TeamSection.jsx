@@ -35,8 +35,8 @@ export function TeamSection() {
               border: '1px solid rgba(168, 85, 247, 0.2)',
             }}
           >
-            <span className="w-2 h-2 rounded-full animate-pulse-glow" style={{ background: '#a855f7' }} />
-            <span className="font-space text-xs tracking-widest" style={{ color: '#a855f7' }}>
+            <span className="w-2 h-2 rounded-full animate-pulse-glow" style={{ background: '#C9A96E' }} />
+            <span className="font-space text-xs tracking-widest" style={{ color: '#C9A96E' }}>
               THE CREW
             </span>
           </motion.div>
@@ -76,7 +76,7 @@ export function TeamSection() {
               border: '1px solid rgba(168,85,247,0.15)',
             }}
           >
-            <span className="font-orbitron font-bold text-xs" style={{ color: '#a855f7' }}>
+            <span className="font-orbitron font-bold text-xs" style={{ color: '#C9A96E' }}>
               {TEAM.length}
             </span>
             <span className="font-space text-xs" style={{ color: 'rgba(240,244,255,0.4)' }}>

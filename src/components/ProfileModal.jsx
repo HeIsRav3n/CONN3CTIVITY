@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 
@@ -38,7 +38,9 @@ export function ProfileModal({ isOpen, onClose, user }) {
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
+
+        if (error) console.warn('Profile load:', error.message);
 
         if (data) {
           setProfileData({
@@ -117,11 +119,23 @@ export function ProfileModal({ isOpen, onClose, user }) {
   const inputStyle = "w-full bg-black/40 border border-[#C9A96E]/20 rounded-sm px-3 py-2 text-[#EDE8DC] text-xs font-['Josefin_Sans'] focus:outline-none focus:border-[#C9A96E]/60 transition-colors placeholder:text-white/20";
   const labelStyle = "block text-[0.65rem] uppercase tracking-[0.15em] text-[#C9A96E]/80 mb-1 font-['Josefin_Sans'] font-light";
 
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen, onClose])
+
   if (!isOpen || !user) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Your profile"
+      >
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

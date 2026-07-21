@@ -1,8 +1,15 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 
+const PLACEHOLDER = [
+  { id: 'BTC', name: 'Bitcoin', data: { usd: 65420.00, usd_24h_change: 2.4 }, color: '#F7931A' },
+  { id: 'ETH', name: 'Ethereum', data: { usd: 3450.00, usd_24h_change: -1.2 }, color: '#627EEA' },
+  { id: 'SOL', name: 'Solana', data: { usd: 145.20, usd_24h_change: 5.6 }, color: '#14F195' },
+]
+
 export function CryptoRadar() {
   const [prices, setPrices] = useState([])
+  const [isLive, setIsLive] = useState(false)
   const hasDataRef = useRef(false)
 
   useEffect(() => {
@@ -12,18 +19,16 @@ export function CryptoRadar() {
         if (!res.ok) throw new Error('API Error')
         const data = await res.json()
         hasDataRef.current = true
+        setIsLive(true)
         setPrices([
           { id: 'BTC', name: 'Bitcoin', data: data.bitcoin, color: '#F7931A' },
           { id: 'ETH', name: 'Ethereum', data: data.ethereum, color: '#627EEA' },
           { id: 'SOL', name: 'Solana', data: data.solana, color: '#14F195' }
         ])
-      } catch (err) {
+      } catch {
+        setIsLive(false)
         if (!hasDataRef.current) {
-          setPrices([
-            { id: 'BTC', name: 'Bitcoin', data: { usd: 65420.00, usd_24h_change: 2.4 }, color: '#F7931A' },
-            { id: 'ETH', name: 'Ethereum', data: { usd: 3450.00, usd_24h_change: -1.2 }, color: '#627EEA' },
-            { id: 'SOL', name: 'Solana', data: { usd: 145.20, usd_24h_change: 5.6 }, color: '#14F195' }
-          ])
+          setPrices(PLACEHOLDER)
         }
       }
     }
@@ -42,14 +47,19 @@ export function CryptoRadar() {
       transition={{ delay: 2, duration: 1, type: 'spring' }}
       className="hidden md:flex absolute bottom-24 left-4 md:left-12 lg:left-24 z-[90] pointer-events-auto flex-col gap-3"
     >
-      {/* Radar header */}
       <div className="flex items-center gap-2 mb-1 px-2">
         <div className="relative flex items-center justify-center w-4 h-4">
-          <div className="absolute inset-0 border border-[#00d4ff] rounded-full animate-[ping_2s_linear_infinite]" />
-          <div className="w-1.5 h-1.5 bg-[#00d4ff] rounded-full shadow-[0_0_8px_#00d4ff]" />
+          <div
+            className="absolute inset-0 border rounded-full animate-[ping_2s_linear_infinite]"
+            style={{ borderColor: isLive ? '#C9A96E' : 'rgba(201,169,110,0.35)' }}
+          />
+          <div
+            className="w-1.5 h-1.5 rounded-full"
+            style={{ background: isLive ? '#C9A96E' : 'rgba(201,169,110,0.5)', boxShadow: isLive ? '0 0 8px #C9A96E' : 'none' }}
+          />
         </div>
-        <span className="font-['Josefin_Sans'] text-[0.6rem] tracking-[0.3em] uppercase text-[#00d4ff]/80">
-          Market Radar
+        <span className="font-josefin text-[0.6rem] tracking-[0.3em] uppercase text-gold/80">
+          {isLive ? 'Market Radar' : 'Market · Placeholder'}
         </span>
       </div>
 
@@ -65,18 +75,18 @@ export function CryptoRadar() {
             style={{
               background: 'linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
               border: '1px solid rgba(255,255,255,0.05)',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+              opacity: isLive ? 1 : 0.75,
             }}
           >
-            {/* Hover glow line */}
             <div 
-              className="absolute left-0 top-0 bottom-0 w-[2px] transition-all duration-300 opacity-50 group-hover:opacity-100 group-hover:w-1 group-hover:shadow-[0_0_10px_currentColor]"
-              style={{ backgroundColor: coin.color, color: coin.color }}
+              className="absolute left-0 top-0 bottom-0 w-[2px] transition-all duration-300 opacity-50 group-hover:opacity-100 group-hover:w-1"
+              style={{ backgroundColor: coin.color }}
             />
 
             <div className="flex justify-between items-end pl-2">
               <div className="flex flex-col">
-                <span className="font-['Orbitron'] font-bold text-sm text-cream tracking-wider">
+                <span className="font-orbitron font-bold text-sm text-cream tracking-wider">
                   {coin.id}
                 </span>
                 <span className="font-space text-[10px] text-cream/40">
@@ -85,7 +95,7 @@ export function CryptoRadar() {
               </div>
               
               <div className="flex flex-col items-end">
-                <span className="font-['Josefin_Sans'] text-base text-white tracking-wide">
+                <span className="font-josefin text-base text-white tracking-wide">
                   ${coin.data.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <span 

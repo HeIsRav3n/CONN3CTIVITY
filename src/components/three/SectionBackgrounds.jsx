@@ -9,7 +9,7 @@ function NetworkWeb({ count = 35 }) {
   const { positions, nodeColors } = useMemo(() => {
     const positions = []
     const nodeColors = []
-    const palette = ['#00d4ff', '#0047ff', '#a855f7', '#C9A96E', '#EDE8DC']
+    const palette = ['#C9A96E', '#EDE8DC', '#E2DBD0', '#C8C2B6', '#F5F2EC']
     for (let i = 0; i < count; i++) {
       positions.push({
         x: (Math.random() - 0.5) * 20,
@@ -83,7 +83,7 @@ function NetworkWeb({ count = 35 }) {
       {/* Lines */}
       <lineSegments ref={lineRef}>
         <bufferGeometry />
-        <lineBasicMaterial color="#00d4ff" transparent opacity={0.12} />
+        <lineBasicMaterial color="#C9A96E" transparent opacity={0.12} />
       </lineSegments>
     </group>
   )
@@ -97,9 +97,9 @@ export function PartnershipsBackground() {
       style={{ background: 'transparent' }}
       dpr={[0.8, 1]}
     >
-      <ambientLight intensity={0.2} color="#00d4ff" />
-      <pointLight position={[3, 2, 4]} color="#00d4ff" intensity={1.5} distance={20} />
-      <pointLight position={[-4, -2, 3]} color="#a855f7" intensity={1} distance={15} />
+      <ambientLight intensity={0.2} color="#EDE8DC" />
+      <pointLight position={[3, 2, 4]} color="#C9A96E" intensity={1.5} distance={20} />
+      <pointLight position={[-4, -2, 3]} color="#EDE8DC" intensity={1} distance={15} />
       <NetworkWeb count={35} />
     </Canvas>
   )
@@ -113,7 +113,7 @@ function PurpleGalaxy({ count = 500 }) {
     const positions = new Float32Array(count * 3)
     const colors = new Float32Array(count * 3)
     const palette = [
-      new THREE.Color('#a855f7'),
+      new THREE.Color('#C9A96E'),
       new THREE.Color('#e879f9'),
       new THREE.Color('#7c3aed'),
       new THREE.Color('#EDE8DC'),
@@ -167,8 +167,8 @@ export function TeamBackground() {
       style={{ background: 'transparent' }}
       dpr={[0.8, 1]}
     >
-      <ambientLight intensity={0.1} color="#a855f7" />
-      <pointLight position={[0, 3, 4]} color="#a855f7" intensity={1.2} distance={18} />
+      <ambientLight intensity={0.1} color="#C9A96E" />
+      <pointLight position={[0, 3, 4]} color="#C9A96E" intensity={1.2} distance={18} />
       <PurpleGalaxy count={500} />
     </Canvas>
   )
@@ -185,7 +185,7 @@ function GoldDrift({ count = 350 }) {
     const palette = [
       new THREE.Color('#C9A96E'),
       new THREE.Color('#EDE8DC'),
-      new THREE.Color('#a855f7'),
+      new THREE.Color('#C9A96E'),
     ]
     for (let i = 0; i < count; i++) {
       // Drift upward like embers

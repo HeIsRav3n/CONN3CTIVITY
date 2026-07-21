@@ -156,19 +156,19 @@ const ACTION_CARDS = [
     icon: '🔍',
     title: 'SEARCH',
     desc: 'We find projects and communities ready to grow together',
-    color: '#00d4ff',
+    color: '#EDE8DC',
   },
   {
     icon: '🎯',
     title: 'FIND',
     desc: 'We identify strong connections between projects',
-    color: '#a855f7',
+    color: '#C9A96E',
   },
   {
     icon: '🔗',
     title: 'CONN3CT',
     desc: 'We build partnerships that help communities grow',
-    color: '#e879f9',
+    color: '#C9A96E',
   },
 ]
 

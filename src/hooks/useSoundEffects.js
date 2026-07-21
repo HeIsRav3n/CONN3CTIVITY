@@ -40,7 +40,9 @@ export function useSoundEffects() {
       
       osc.start();
       osc.stop(ctx.currentTime + 0.05);
-    } catch(e) {}
+    } catch {
+      // AudioContext may be blocked until a user gesture
+    }
   }, []);
 
   const playClick = useCallback(() => {
@@ -69,7 +71,9 @@ export function useSoundEffects() {
       
       osc.start();
       osc.stop(ctx.currentTime + 0.1);
-    } catch(e) {}
+    } catch {
+      // AudioContext may be blocked until a user gesture
+    }
   }, []);
 
   return { playHover, playClick };

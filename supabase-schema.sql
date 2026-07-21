@@ -1,32 +1,24 @@
--- CONN3CTIVITY Supabase Schema
--- Run this in the Supabase SQL editor (https://supabase.com/dashboard)
+-- CONN3CTIVITY database schema notes
+-- Live Discord stats / map / MVC live in Neon (written by discord-bot.cjs).
+-- Auth + profiles live in Supabase.
+-- Run the profiles section in the Supabase SQL editor.
+-- Neon tables are created/assumed by the bot (see below for reference DDL).
 
--- ──────────────────────────────────────────────────────
---  server_stats
---  Written by discord-bot.cjs, read by DiscordPrism.jsx
--- ──────────────────────────────────────────────────────
+-- ══════════════════════════════════════════════════════
+--  NEON (reference — already present in production)
+-- ══════════════════════════════════════════════════════
+
 CREATE TABLE IF NOT EXISTS public.server_stats (
-  id                        TEXT PRIMARY KEY,          -- Discord guild snowflake
-  name                      TEXT,
-  conn3ctor_count           INTEGER DEFAULT 0,
+  id                         TEXT PRIMARY KEY,
+  name                       TEXT,
+  conn3ctor_count            INTEGER DEFAULT 0,
   approximate_presence_count INTEGER DEFAULT 0,
-  total_members             INTEGER DEFAULT 0,
-  updated_at                TIMESTAMPTZ DEFAULT NOW()
+  total_members              INTEGER DEFAULT 0,
+  updated_at                 TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Allow public read, deny public write (bot uses service-role key)
-ALTER TABLE public.server_stats ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "public read server_stats"
-  ON public.server_stats FOR SELECT
-  USING (true);
-
--- ──────────────────────────────────────────────────────
---  conn3ctors
---  Written by discord-bot.cjs, read by MapSection.jsx
--- ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.conn3ctors (
-  id              TEXT PRIMARY KEY,   -- Discord user snowflake
+  id              TEXT PRIMARY KEY,
   name            TEXT,
   discord_handle  TEXT,
   avatar          TEXT,
@@ -36,34 +28,52 @@ CREATE TABLE IF NOT EXISTS public.conn3ctors (
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE public.conn3ctors ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "public read conn3ctors"
-  ON public.conn3ctors FOR SELECT
-  USING (true);
-
--- ──────────────────────────────────────────────────────
---  mvc_profile
---  Written by discord-bot.cjs, read by MVCSection.jsx
--- ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.mvc_profile (
-  id          TEXT PRIMARY KEY,   -- Discord user snowflake
+  id          TEXT PRIMARY KEY,
   username    TEXT,
   avatar_url  TEXT,
   twitter     TEXT,
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE public.mvc_profile ENABLE ROW LEVEL SECURITY;
+-- ══════════════════════════════════════════════════════
+--  SUPABASE — profiles (Auth users)
+--  Run in: https://supabase.com/dashboard → SQL Editor
+-- ══════════════════════════════════════════════════════
 
-CREATE POLICY "public read mvc_profile"
-  ON public.mvc_profile FOR SELECT
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id           UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username     TEXT,
+  discord_id   TEXT UNIQUE,
+  avatar_url   TEXT,
+  twitter      TEXT,
+  telegram     TEXT,
+  cm_type      TEXT,
+  services     TEXT,
+  experience   TEXT,
+  communities  TEXT[] DEFAULT '{}',
+  role         TEXT,
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS profiles_discord_id_idx ON public.profiles (discord_id);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Public can read profiles (map panel)
+DROP POLICY IF EXISTS "public read profiles" ON public.profiles;
+CREATE POLICY "public read profiles"
+  ON public.profiles FOR SELECT
   USING (true);
 
--- ──────────────────────────────────────────────────────
---  Enable Realtime on both bot-synced tables
---  (allows supabase.channel() subscriptions to fire)
--- ──────────────────────────────────────────────────────
-ALTER PUBLICATION supabase_realtime ADD TABLE public.server_stats;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.conn3ctors;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.mvc_profile;
+-- Authenticated users can insert/update only their own row
+DROP POLICY IF EXISTS "users upsert own profile" ON public.profiles;
+CREATE POLICY "users upsert own profile"
+  ON public.profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+DROP POLICY IF EXISTS "users update own profile" ON public.profiles;
+CREATE POLICY "users update own profile"
+  ON public.profiles FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);

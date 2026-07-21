@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ForceGraph2D from 'react-force-graph-2d'
 import STATIC_DATA from '../data/conn3ctors.json'
-import { sql } from '../lib/neon'
+import { fetchConn3ctors, resolveDataStatus, statusLabel, statusColor } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
 const FALLBACK = STATIC_DATA?.nodes ? STATIC_DATA : { nodes: [], links: [] }
@@ -29,7 +29,7 @@ export function MapSection() {
 
   const [dimensions,    setDimensions]    = useState({ width: 800, height: 700 })
   const [graphData,     setGraphData]     = useState(FALLBACK)
-  const [isLive,        setIsLive]        = useState(false)
+  const [status,        setStatus]        = useState('cached')
   const [hoveredNode,   setHoveredNode]   = useState(null)
   const [selectedNode,  setSelectedNode]  = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
@@ -49,15 +49,11 @@ export function MapSection() {
     return () => ro.disconnect()
   }, [])
 
-  // Live data — 30 s refresh
+  // Live data — 30 s refresh via /api/conn3ctors
   useEffect(() => {
     async function load() {
       try {
-        const rows = await sql`
-          SELECT id, name, discord_handle, avatar, color, "group", x_handle
-          FROM conn3ctors
-          ORDER BY name
-        `
+        const rows = await fetchConn3ctors()
         if (rows?.length) {
           const fresh = buildLiveGraph(rows)
           setGraphData(old => {
@@ -80,9 +76,17 @@ export function MapSection() {
             })
             return { nodes: mergedNodes, links: fresh.links }
           })
-          setIsLive(true)
+          const newest = rows.reduce((max, r) => {
+            const t = r.updated_at ? new Date(r.updated_at).getTime() : 0
+            return t > max ? t : max
+          }, 0)
+          setStatus(resolveDataStatus(newest || null, { fetchedOk: true, hasData: true }))
+        } else {
+          setStatus(resolveDataStatus(null, { fetchedOk: true, hasData: false }))
         }
-      } catch {}
+      } catch {
+        setStatus(resolveDataStatus(null, { fetchedOk: false, hasData: true }))
+      }
     }
     load()
     const id = setInterval(load, 30000)
@@ -138,11 +142,14 @@ export function MapSection() {
     async function loadProfile() {
       if (supabase) {
         try {
+          // Map nodes use Discord snowflake IDs; profiles are keyed by discord_id
           const { data, error } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', selectedNode.id)
+            .eq('discord_id', selectedNode.id)
             .maybeSingle()
+
+          if (error) console.warn('Profile lookup:', error.message)
 
           if (active && data) {
             setSelectedProfile({
@@ -403,13 +410,13 @@ export function MapSection() {
             <div
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-['Josefin_Sans'] text-[0.55rem] tracking-widest uppercase"
               style={{
-                background: isLive ? 'rgba(34,197,94,0.08)' : 'rgba(201,169,110,0.08)',
-                border: `1px solid ${isLive ? 'rgba(34,197,94,0.25)' : 'rgba(201,169,110,0.2)'}`,
-                color: isLive ? '#22c55e' : '#C9A96E',
+                background: `${statusColor(status)}14`,
+                border: `1px solid ${statusColor(status)}40`,
+                color: statusColor(status),
               }}
             >
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: isLive ? '#22c55e' : '#C9A96E' }} />
-              {isLive ? 'Live' : 'Static'}
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: statusColor(status) }} />
+              {statusLabel(status)}
             </div>
           </div>
 

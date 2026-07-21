@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { sql } from '../lib/neon'
+import { fetchStats, resolveDataStatus, statusLabel, statusColor } from '../lib/api'
 import { useCountUp } from '../hooks/useCountUp'
 import serverInsights from '../data/serverInsights.json'
 
@@ -39,21 +39,23 @@ function PulsingDot({ color = '#22c55e' }) {
 }
 
 export function DiscordPrism() {
-  const [data, setData]       = useState(serverInsights)
-  const [isLive, setIsLive]   = useState(false)
+  const [data, setData] = useState(serverInsights)
+  const [status, setStatus] = useState('cached')
   const [lastPing, setLastPing] = useState(null)
-  const pollRef               = useRef(null)
+  const pollRef = useRef(null)
 
   async function fetchLive() {
     try {
-      const rows = await sql`SELECT name, conn3ctor_count, approximate_presence_count, total_members FROM server_stats ORDER BY updated_at DESC LIMIT 1`
-      if (rows.length) {
-        setData(rows[0])
-        setIsLive(true)
-        setLastPing(new Date())
+      const row = await fetchStats()
+      if (row) {
+        setData(row)
+        setStatus(resolveDataStatus(row.updated_at, { fetchedOk: true, hasData: true }))
+        setLastPing(row.updated_at ? new Date(row.updated_at) : new Date())
+      } else {
+        setStatus(resolveDataStatus(null, { fetchedOk: true, hasData: false }))
       }
     } catch {
-      // keep fallback silently
+      setStatus(resolveDataStatus(null, { fetchedOk: false, hasData: true }))
     }
   }
 
@@ -66,6 +68,7 @@ export function DiscordPrism() {
   const online     = data?.approximate_presence_count ?? 0
   const conn3ctors = data?.conn3ctor_count             ?? 0
   const total      = data?.total_members               ?? 0
+  const color = statusColor(status)
 
   return (
     <motion.div
@@ -79,13 +82,11 @@ export function DiscordPrism() {
         animate={{ y: [-6, 6, -6] }}
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       >
-        {/* Glow backdrop */}
         <div
           className="absolute -inset-6 rounded-[44px] blur-3xl opacity-30 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse, #C9A96E 0%, #a855f7 50%, transparent 70%)' }}
+          style={{ background: 'radial-gradient(ellipse, #C9A96E 0%, transparent 70%)' }}
         />
 
-        {/* Card */}
         <div
           className="relative w-[300px] rounded-[28px] overflow-hidden"
           style={{
@@ -95,14 +96,12 @@ export function DiscordPrism() {
             backdropFilter: 'blur(28px)',
           }}
         >
-          {/* Prismatic sheen */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[28px]">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#C9A96E]/8 via-transparent to-[#a855f7]/8" />
+            <div className="absolute inset-0 bg-gradient-to-br from-[#C9A96E]/8 via-transparent to-transparent" />
             <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
             <div className="absolute top-0 left-0 right-0 h-32 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, transparent 100%)' }} />
           </div>
 
-          {/* Header */}
           <div className="relative flex items-center justify-between px-5 pt-5 pb-3">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(88,101,242,0.2)', border: '1px solid rgba(88,101,242,0.3)' }}>
@@ -115,29 +114,27 @@ export function DiscordPrism() {
                   {data?.name || 'CONN3CTIVITY'}
                 </div>
                 <div className="font-['Josefin_Sans'] text-[0.42rem] tracking-[0.3em] uppercase mt-0.5" style={{ color: 'rgba(237,232,220,0.35)' }}>
-                  Live Server Insights
+                  Server Insights
                 </div>
               </div>
             </div>
 
-            {/* Live badge */}
             <div
               className="flex items-center gap-1.5 px-2 py-1 rounded-full"
               style={{
-                background: isLive ? 'rgba(34,197,94,0.12)' : 'rgba(201,169,110,0.10)',
-                border: `1px solid ${isLive ? 'rgba(34,197,94,0.3)' : 'rgba(201,169,110,0.2)'}`,
+                background: `${color}1F`,
+                border: `1px solid ${color}4D`,
               }}
             >
-              <PulsingDot color={isLive ? '#22c55e' : '#C9A96E'} />
-              <span className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase font-semibold" style={{ color: isLive ? '#22c55e' : '#C9A96E' }}>
-                {isLive ? 'Live' : 'Cached'}
+              <PulsingDot color={color} />
+              <span className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase font-semibold" style={{ color }}>
+                {statusLabel(status)}
               </span>
             </div>
           </div>
 
           <div className="mx-5 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
 
-          {/* Stats */}
           <div className="grid grid-cols-3 gap-px px-5 py-5">
             <StatBlock label="Online"     value={online}     color="#22c55e"              accent />
             <StatBlock label="Conn3ctors" value={conn3ctors} color="#C9A96E"              accent />
@@ -146,11 +143,10 @@ export function DiscordPrism() {
 
           <div className="mx-5 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
 
-          {/* Footer */}
           <div className="flex items-center justify-between px-5 py-3">
             <span className="font-['Josefin_Sans'] text-[0.4rem] tracking-[0.25em] uppercase" style={{ color: 'rgba(237,232,220,0.25)' }}>
               {lastPing
-                ? `Updated ${lastPing.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+                ? `Synced ${lastPing.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                 : 'Connecting…'}
             </span>
             <div className="flex items-center gap-1">
@@ -160,7 +156,7 @@ export function DiscordPrism() {
                   animate={{ scaleY: [0.4, 1, 0.4] }}
                   transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
                   className="w-0.5 rounded-full"
-                  style={{ height: 8, background: isLive ? '#22c55e' : 'rgba(201,169,110,0.4)' }}
+                  style={{ height: 8, background: color }}
                 />
               ))}
             </div>

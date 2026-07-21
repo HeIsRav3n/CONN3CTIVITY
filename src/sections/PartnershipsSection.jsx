@@ -37,7 +37,7 @@ export function PartnershipsSection() {
             }}
           >
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse-glow" />
-            <span className="font-space text-xs tracking-widest" style={{ color: '#00d4ff' }}>
+            <span className="font-space text-xs tracking-widest" style={{ color: '#C9A96E' }}>
               PARTNER NETWORK
             </span>
           </motion.div>

@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+@theme {
+  --color-cream: #EDE8DC;
+  --color-cream-warm: #E2DBD0;
+  --color-cream-muted: #C8C2B6;
+  --color-ink: #1A1915;
+  --color-void: #0B0A08;
+  --color-surface: #131210;
+  --color-surface-2: #1C1B18;
+  --color-gold: #C9A96E;
+  --color-white: #F5F2EC;
+  --font-josefin: "Josefin Sans", sans-serif;
+  --font-cormorant: "Cormorant Garamond", serif;
+  --font-inter: "Inter", sans-serif;
+}
+
 /* ── Google Fonts loaded via index.html <link> tags ── */
 
 @layer base {
@@ -98,13 +113,13 @@
   .text-gradient-ink   { color: var(--text-muted); }
 
   .text-gradient-cyan {
-    background: linear-gradient(135deg, #00d4ff, #7b61ff);
+    background: linear-gradient(135deg, #C9A96E, #EDE8DC);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   .text-gradient-purple {
-    background: linear-gradient(135deg, #a855f7, #ec4899);
+    background: linear-gradient(135deg, #EDE8DC, #C9A96E);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -323,7 +338,7 @@
     top: 0;
     left: 0;
     height: 2px;
-    background: linear-gradient(90deg, #C9A96E, #EDE8DC, #a855f7);
+    background: linear-gradient(90deg, #C9A96E, #EDE8DC);
     transform-origin: left;
     z-index: 100;
   }

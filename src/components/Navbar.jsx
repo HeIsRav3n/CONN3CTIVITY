@@ -90,7 +90,7 @@ function NavLogo() {
   )
 }
 
-export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
+export function Navbar({ user, onLogout, onProfileClick }) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState('home')
@@ -132,30 +132,27 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
   }
 
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.nav
-          id="navbar"
-          initial={{ y: -80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -80, opacity: 0 }}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed top-0 left-0 right-0 z-50"
-          style={{
-            background: scrolled
-              ? 'rgba(11,10,8,0.88)'
-              : 'transparent',
-            backdropFilter: scrolled ? 'blur(28px) saturate(1.4)' : 'none',
-            WebkitBackdropFilter: scrolled ? 'blur(28px) saturate(1.4)' : 'none',
-            borderBottom: scrolled
-              ? '1px solid rgba(201,169,110,0.12)'
-              : 'none',
-            boxShadow: scrolled
-              ? '0 1px 0 0 rgba(201,169,110,0.06), 0 8px 32px rgba(0,0,0,0.3)'
-              : 'none',
-            transition: 'all 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
-          }}
-        >
+    <motion.nav
+      id="navbar"
+      initial={{ y: -80, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      className="fixed top-0 left-0 right-0 z-50"
+      style={{
+        background: scrolled
+          ? 'rgba(11,10,8,0.88)'
+          : 'transparent',
+        backdropFilter: scrolled ? 'blur(28px) saturate(1.4)' : 'none',
+        WebkitBackdropFilter: scrolled ? 'blur(28px) saturate(1.4)' : 'none',
+        borderBottom: scrolled
+          ? '1px solid rgba(201,169,110,0.12)'
+          : 'none',
+        boxShadow: scrolled
+          ? '0 1px 0 0 rgba(201,169,110,0.06), 0 8px 32px rgba(0,0,0,0.3)'
+          : 'none',
+        transition: 'all 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
+      }}
+    >
           {/* Gold top accent line — appears on scroll */}
           <motion.div
             animate={{ scaleX: scrolled ? 1 : 0, opacity: scrolled ? 1 : 0 }}
@@ -272,20 +269,18 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
               ) : (
                 <motion.button
                   onClick={async () => {
+                    if (!supabase) {
+                      console.error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
+                      return
+                    }
                     const redirectUrl = window.location.hostname === 'localhost' 
                       ? window.location.origin 
                       : 'https://conn3ctivity-eight.vercel.app/';
 
-                    if (supabase) {
-                      await supabase.auth.signInWithOAuth({
-                        provider: 'discord',
-                        options: { redirectTo: redirectUrl }
-                      });
-                    } else {
-                      const clientId = '1462687769594826774';
-                      const encodedRedirect = encodeURIComponent(redirectUrl);
-                      window.location.href = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodedRedirect}&scope=identify%20guilds`;
-                    }
+                    await supabase.auth.signInWithOAuth({
+                      provider: 'discord',
+                      options: { redirectTo: redirectUrl }
+                    });
                   }}
                   className="hidden md:flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs px-4 py-2.5 rounded-sm transition-colors"
                   style={{ fontSize: '0.65rem', letterSpacing: '0.18em', fontFamily: "'Josefin Sans', sans-serif", fontWeight: 600 }}
@@ -304,6 +299,9 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
                 id="mobile-menu-button"
                 className="md:hidden p-2"
                 onClick={() => setMenuOpen(!menuOpen)}
+                aria-expanded={menuOpen}
+                aria-controls="mobile-nav-menu"
+                aria-label={menuOpen ? 'Close menu' : 'Open menu'}
                 style={{ color: 'rgba(237,232,220,0.7)' }}
               >
                 <MenuIcon open={menuOpen} />
@@ -315,6 +313,7 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
           <AnimatePresence>
             {menuOpen && (
               <motion.div
+                id="mobile-nav-menu"
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
@@ -370,8 +369,6 @@ export function Navbar({ visible = false, user, onLogout, onProfileClick }) {
             )}
           </AnimatePresence>
         </motion.nav>
-      )}
-    </AnimatePresence>
   )
 }
 

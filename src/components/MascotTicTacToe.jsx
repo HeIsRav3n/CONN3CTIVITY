@@ -233,7 +233,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
   const [isMultiplayer, setIsMultiplayer] = useState(false)
   const [mySymbol, setMySymbol] = useState('GM') // GM starts
   const [opponent, setOpponent] = useState(null)
-  const [roomId, setRoomId] = useState(null)
+  const [, setRoomId] = useState(null)
   
   // Realtime Lobby States
   const [onlineUsers, setOnlineUsers] = useState([])
@@ -460,6 +460,13 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
     }
   }
 
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen, onClose])
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -470,6 +477,9 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
           onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mascot tic-tac-toe"
           style={{
             position: 'fixed', inset: 0,
             background: 'rgba(0,0,0,0.88)',
