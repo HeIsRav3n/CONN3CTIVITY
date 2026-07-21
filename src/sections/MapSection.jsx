@@ -32,7 +32,45 @@ const buildLiveGraph = (rows) => {
     avatar: r.avatar || `https://cdn.discordapp.com/embed/avatars/0.png`,
   }))]
   const links = rows.map(r => ({ source: 'main', target: r.id, color: r.color }))
+  assignArkhamOrbits(nodes)
   return { nodes, links }
+}
+
+/** Concentric disc layout like the Arkham-style CONN3CTIVITY map */
+function assignArkhamOrbits(nodes) {
+  const members = nodes.filter(n => n.id !== 'main')
+  const main = nodes.find(n => n.id === 'main')
+  if (main) {
+    main.x = 0
+    main.y = 0
+    main.fx = 0
+    main.fy = 0
+  }
+
+  let idx = 0
+  let ring = 0
+  const baseR = 78
+  const ringGap = 36
+  const spacing = 24
+
+  while (idx < members.length) {
+    const r = baseR + ring * ringGap
+    const capacity = Math.max(10, Math.floor((2 * Math.PI * r) / spacing))
+    const count = Math.min(capacity, members.length - idx)
+    const angleOffset = ring * 0.17
+    for (let i = 0; i < count; i++) {
+      const n = members[idx + i]
+      const jitter = ((i * 17) % 7) - 3
+      n._ringR = r + jitter
+      n._baseA = (i / count) * Math.PI * 2 + angleOffset
+      n.x = Math.cos(n._baseA) * n._ringR
+      n.y = Math.sin(n._baseA) * n._ringR
+      n.vx = 0
+      n.vy = 0
+    }
+    idx += count
+    ring++
+  }
 }
 
 function applyConn3ctorChange(payload, prev) {
@@ -66,6 +104,8 @@ export function MapSection() {
   const fgRef         = useRef(null)
   const collapsedRef  = useRef(false)
   const graphDataRef  = useRef(FALLBACK)
+  const rotationRef   = useRef(0)
+  const lastTickRef   = useRef(typeof performance !== 'undefined' ? performance.now() : 0)
 
   const [dimensions,    setDimensions]    = useState({ width: 800, height: 700 })
   const [graphData,     setGraphData]     = useState(FALLBACK)
@@ -142,10 +182,15 @@ export function MapSection() {
             existing._img = undefined
           }
         }
+        if (old.nodes.some(n => n.id !== 'main' && n._baseA == null)) {
+          assignArkhamOrbits(old.nodes)
+        }
         const main = oldMap.get('main')
         if (main) {
           main.fx = 0
           main.fy = 0
+          main.x = 0
+          main.y = 0
         }
         return old
       }
@@ -162,12 +207,29 @@ export function MapSection() {
           fx: node.id === 'main' ? 0 : oldNode.fx,
           fy: node.id === 'main' ? 0 : oldNode.fy,
           _img: oldNode._img,
+          _ringR: oldNode._ringR,
+          _baseA: oldNode._baseA,
         }
       })
+      // New members need orbit slots — re-pack the disc
+      assignArkhamOrbits(mergedNodes)
+      // Restore positions for nodes that already had coordinates
+      for (const node of mergedNodes) {
+        if (node.id === 'main') continue
+        const oldNode = oldMap.get(node.id)
+        if (oldNode && Number.isFinite(oldNode.x)) {
+          node.x = oldNode.x
+          node.y = oldNode.y
+          node.vx = oldNode.vx || 0
+          node.vy = oldNode.vy || 0
+        }
+      }
       const main = mergedNodes.find(n => n.id === 'main')
       if (main) {
         main.fx = 0
         main.fy = 0
+        main.x = 0
+        main.y = 0
       }
       return { nodes: mergedNodes, links: fresh.links }
     })
@@ -177,54 +239,84 @@ export function MapSection() {
     const fg = fgRef.current
     if (!fg) return
 
+    // Kill default centering / strong charge that warps the disc
+    fg.d3Force('center', null)
     const charge = fg.d3Force('charge')
     if (charge) {
-      charge.strength(n => {
-        if (n.id === 'main') return isC ? -80 : -2200
-        return isC ? -8 : -35
-      })
-      if (typeof charge.distanceMax === 'function') charge.distanceMax(420)
+      charge.strength(n => (n.id === 'main' ? 0 : (isC ? -6 : -18)))
+      if (typeof charge.distanceMax === 'function') charge.distanceMax(90)
     }
 
     const link = fg.d3Force('link')
     if (link) {
-      // Strong elastic cords = yoyo snap when you fling a node
       link
-        .distance(isC ? 16 : 120)
-        .strength(isC ? 1.1 : 0.85)
+        .distance(l => {
+          const t = typeof l.target === 'object' ? l.target : null
+          if (isC) return 22
+          return (t?._ringR || 140) * 0.92
+        })
+        .strength(isC ? 0.9 : 0.35)
     }
 
-    // Keep simulation simmering so links stay stretchy
+    // Always simmer — Arkham jelly never fully freezes
     if (typeof fg.d3AlphaTarget === 'function') {
-      fg.d3AlphaTarget(isC ? 0.08 : 0.12)
+      fg.d3AlphaTarget(isC ? 0.15 : 0.22)
     }
 
     let nodeList = []
-    const driftForce = Object.assign(
+    const orbitForce = Object.assign(
       (alpha) => {
-        const t = Date.now() * 0.001
+        const now = performance.now()
+        const dt = Math.min(40, Math.max(0, now - lastTickRef.current))
+        lastTickRef.current = now
+
+        // Slow continuous disc rotation (paused while collapsed)
+        if (!collapsedRef.current) {
+          rotationRef.current += dt * 0.00018
+        }
+
+        const rot = rotationRef.current
+        const collapsed = collapsedRef.current
+
         nodeList.forEach((n, i) => {
           if (n.id === 'main') {
             n.fx = 0
             n.fy = 0
+            n.x = 0
+            n.y = 0
             n.vx = 0
             n.vy = 0
             return
           }
-          // Soft orbit spring (lets links do the yoyo; this just keeps the ring)
-          const dist = Math.hypot(n.x || 0, n.y || 0) || 0.001
-          const target = isC ? 22 : 130
-          const pull = (target - dist) * alpha * (isC ? 0.12 : 0.035)
-          n.vx += ((n.x || 0) / dist) * pull
-          n.vy += ((n.y || 0) / dist) * pull
-          // Ambient jelly wobble
-          n.vx += Math.sin(t * 0.7 + i * 0.61) * alpha * 0.85
-          n.vy += Math.cos(t * 0.55 + i * 0.47) * alpha * 0.85
+
+          // Being dragged — leave alone
+          if (n.fx != null || n.fy != null) return
+
+          if (n._baseA == null || n._ringR == null) {
+            n._baseA = (i / Math.max(1, nodeList.length)) * Math.PI * 2
+            n._ringR = 120
+          }
+
+          const R = collapsed ? 26 : n._ringR
+          const A = n._baseA + rot
+          const tx = Math.cos(A) * R
+          const ty = Math.sin(A) * R
+
+          // Soft spring → target slot (elastic jelly / overshoot)
+          const k = collapsed ? 0.22 : 0.065
+          n.vx += (tx - (n.x || 0)) * k * (alpha + 0.15) * 14
+          n.vy += (ty - (n.y || 0)) * k * (alpha + 0.15) * 14
+
+          // Living micro-wobble (Arkham jelly shimmer)
+          const wobble = collapsed ? 0.15 : 0.55
+          n.vx += Math.sin(now * 0.0018 + i * 0.73) * wobble * alpha
+          n.vy += Math.cos(now * 0.0015 + i * 0.51) * wobble * alpha
         })
       },
       { initialize: (ns) => { nodeList = ns } },
     )
-    fg.d3Force('drift', driftForce)
+    fg.d3Force('orbit', orbitForce)
+    fg.d3Force('drift', null)
     fg.d3ReheatSimulation()
   }, [])
 
@@ -234,20 +326,30 @@ export function MapSection() {
     if (!fg) return
 
     const boot = setTimeout(() => {
-      const main = graphDataRef.current.nodes?.find(n => n.id === 'main')
+      const nodes = graphDataRef.current.nodes || []
+      if (nodes.length && nodes.every(n => n.id === 'main' || n._baseA == null)) {
+        assignArkhamOrbits(nodes)
+      }
+      const main = nodes.find(n => n.id === 'main')
       if (main) {
         main.fx = 0
         main.fy = 0
-        if (!Number.isFinite(main.x)) main.x = 0
-        if (!Number.isFinite(main.y)) main.y = 0
+        main.x = 0
+        main.y = 0
       }
       applyJellyForces(collapsedRef.current)
       fg.centerAt(0, 0, 0)
-    }, 50)
+      // Fit the full Arkham disc in view
+      try {
+        fg.zoomToFit(600, 48)
+      } catch {
+        fg.zoom(0.55, 0)
+      }
+    }, 80)
 
     const id = setInterval(() => {
       fg.d3ReheatSimulation()
-    }, 2500)
+    }, 1800)
 
     return () => {
       clearTimeout(boot)
@@ -437,13 +539,13 @@ export function MapSection() {
     const isHovered  = hoveredNode?.id  === node.id
     const isSelected = selectedNode?.id === node.id
     const isC        = collapsedRef.current
-    const r          = isMain ? 30 : (isHovered || isSelected) ? 17 : 13
+    const r          = isMain ? 34 : (isHovered || isSelected) ? 16 : 11
 
     if (isMain || isHovered || isSelected) {
-      const glowR  = r + (isMain ? (isC ? 18 : 8) : 5)
-      const glowCol = isMain && isC ? '#22c55e' : node.color
-      const grd = ctx.createRadialGradient(node.x, node.y, r * 0.5, node.x, node.y, glowR)
-      grd.addColorStop(0, `${glowCol}55`)
+      const glowR  = r + (isMain ? (isC ? 20 : 14) : 5)
+      const glowCol = isMain ? '#C9A96E' : node.color
+      const grd = ctx.createRadialGradient(node.x, node.y, r * 0.4, node.x, node.y, glowR)
+      grd.addColorStop(0, `${glowCol}66`)
       grd.addColorStop(1, `${glowCol}00`)
       ctx.beginPath()
       ctx.arc(node.x, node.y, glowR, 0, Math.PI * 2)
@@ -451,13 +553,14 @@ export function MapSection() {
       ctx.fill()
     }
 
-    if (isMain && isC) {
-      const t    = Date.now() * 0.003
-      const pulR = r + 12 + Math.sin(t) * 4
+    // Pulsing ring on main (collapsed or always subtle)
+    if (isMain) {
+      const t    = Date.now() * 0.0025
+      const pulR = r + 10 + Math.sin(t) * (isC ? 5 : 3)
       ctx.beginPath()
       ctx.arc(node.x, node.y, pulR, 0, Math.PI * 2)
-      ctx.strokeStyle = 'rgba(34,197,94,0.35)'
-      ctx.lineWidth   = 1.2
+      ctx.strokeStyle = isC ? 'rgba(34,197,94,0.4)' : 'rgba(201,169,110,0.35)'
+      ctx.lineWidth   = 1.4
       ctx.stroke()
     }
 
@@ -483,11 +586,21 @@ export function MapSection() {
 
     ctx.beginPath()
     ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
-    ctx.strokeStyle = isMain
-      ? (isC ? '#22c55e' : '#C9A96E')
-      : (isHovered || isSelected) ? node.color : `${node.color}55`
-    ctx.lineWidth   = isMain ? 2.5 : (isHovered || isSelected) ? 2 : 1
-    ctx.stroke()
+    if (isMain) {
+      // Double gold ring like the reference disc hub
+      ctx.strokeStyle = '#C9A96E'
+      ctx.lineWidth = 3
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(node.x, node.y, r + 4, 0, Math.PI * 2)
+      ctx.strokeStyle = 'rgba(201,169,110,0.55)'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    } else {
+      ctx.strokeStyle = (isHovered || isSelected) ? node.color : `${node.color}66`
+      ctx.lineWidth   = (isHovered || isSelected) ? 2 : 1
+      ctx.stroke()
+    }
 
     if (isMain) {
       const fs = Math.max(11 / gs, 5)
@@ -532,30 +645,32 @@ export function MapSection() {
     const isC       = collapsedRef.current
     const isHighlit = hoveredNode?.id === t.id || selectedNode?.id === t.id
 
+    // Arkham spokes: mostly straight radial lines, jelly bend only when active
     const nx = -dy / len
     const ny =  dx / len
     const seed = (typeof t.id === 'string' ? t.id.charCodeAt(0) : 0) * 0.19
     const now  = Date.now() * 0.001
-    const amp  = isC ? 0 : (isHighlit ? 8 : 2.5)
-    const wave = Math.sin(now * 2.0 + seed) * amp
+    const amp  = isC ? 0 : (isHighlit ? 10 : 1.2)
+    const wave = Math.sin(now * 1.6 + seed) * amp
     const cpx = (s.x + t.x) / 2 + nx * wave
     const cpy = (s.y + t.y) / 2 + ny * wave
-    const baseAlpha  = isC ? 0.15 : (isHighlit ? 1 : 0.28)
-    const grd        = ctx.createLinearGradient(s.x, s.y, t.x, t.y)
 
+    const grd = ctx.createLinearGradient(s.x, s.y, t.x, t.y)
     if (isHighlit) {
-      grd.addColorStop(0, `rgba(201,169,110,0.9)`)
-      grd.addColorStop(1, `${t.color}cc`)
+      grd.addColorStop(0, 'rgba(201,169,110,0.95)')
+      grd.addColorStop(1, `${t.color}dd`)
     } else {
-      grd.addColorStop(0, `rgba(201,169,110,${0.22 * baseAlpha / 0.28})`)
-      grd.addColorStop(1, `${t.color}${Math.round(baseAlpha * 0x28).toString(16).padStart(2, '0')}`)
+      const tip = Math.round((isC ? 0.12 : 0.38) * 255).toString(16).padStart(2, '0')
+      grd.addColorStop(0, `rgba(201,169,110,${isC ? 0.12 : 0.28})`)
+      grd.addColorStop(1, `${t.color}${tip}`)
     }
 
     ctx.beginPath()
     ctx.moveTo(s.x, s.y)
-    ctx.quadraticCurveTo(cpx, cpy, t.x, t.y)
+    if (amp > 0.5) ctx.quadraticCurveTo(cpx, cpy, t.x, t.y)
+    else ctx.lineTo(t.x, t.y)
     ctx.strokeStyle = grd
-    ctx.lineWidth   = isHighlit ? 1.5 : 0.6
+    ctx.lineWidth   = isHighlit ? 1.6 : 0.55
     ctx.stroke()
   }, [hoveredNode, selectedNode])
 
@@ -586,18 +701,24 @@ export function MapSection() {
 
   const handleNodeDragEnd = useCallback(node => {
     if (!node || node.id === 'main') return
-    // Release pin → elastic link yoyos them back with overshoot
+    // Release → spring back into rotating disc slot (Arkham yoyo)
     node.fx = undefined
     node.fy = undefined
+    // Keep angular slot so the disc stays even; radius snaps home via orbit force
+    if (Number.isFinite(node.x) && Number.isFinite(node.y)) {
+      const a = Math.atan2(node.y, node.x)
+      // Blend dropped angle into base so rejoin feels natural, then rotation carries it
+      node._baseA = a - rotationRef.current
+    }
     const fg = fgRef.current
     if (!fg) return
     if (typeof fg.d3AlphaTarget === 'function') {
-      fg.d3AlphaTarget(0.25)
+      fg.d3AlphaTarget(0.45)
       setTimeout(() => {
         if (typeof fg.d3AlphaTarget === 'function') {
-          fg.d3AlphaTarget(collapsedRef.current ? 0.08 : 0.12)
+          fg.d3AlphaTarget(collapsedRef.current ? 0.15 : 0.22)
         }
-      }, 900)
+      }, 1100)
     }
     fg.d3ReheatSimulation()
   }, [])
@@ -650,7 +771,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag nodes — they yoyo back &nbsp; Click logo to retract/expand &nbsp; Click node to inspect
+            Drag · jelly yoyo · slow spin &nbsp; Click logo to retract &nbsp; Click node to inspect
           </p>
 
           <div className="relative max-w-md mx-auto">
@@ -731,10 +852,10 @@ export function MapSection() {
             onNodeHover={handleNodeHover}
             onNodeDrag={handleNodeDrag}
             onNodeDragEnd={handleNodeDragEnd}
-            cooldownTicks={800}
-            d3AlphaDecay={0.008}
-            d3VelocityDecay={0.18}
-            warmupTicks={60}
+            cooldownTicks={1200}
+            d3AlphaDecay={0.005}
+            d3VelocityDecay={0.22}
+            warmupTicks={40}
             nodeRelSize={1}
           />
 
