@@ -6,7 +6,6 @@ import { fetchConn3ctors, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
 import { supabase } from '../lib/supabase'
 
-const FALLBACK = STATIC_DATA?.nodes ? STATIC_DATA : { nodes: [], links: [] }
 const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
   .filter(n => n.id !== 'main')
   .map(n => ({
@@ -22,7 +21,7 @@ const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
 
 const buildLiveGraph = (rows) => {
   const main = { id: 'main', name: 'CONN3CTIVITY', group: 0, color: '#C9A96E', avatar: '/map-logo.png' }
-  const nodes = [main, ...rows.map(r => ({
+  const members = rows.map(r => ({
     id: r.id,
     name: r.name,
     discordHandle: r.discord_handle,
@@ -30,9 +29,51 @@ const buildLiveGraph = (rows) => {
     group: r.group || 1,
     color: r.color || '#C9A96E',
     avatar: r.avatar || `https://cdn.discordapp.com/embed/avatars/0.png`,
-  }))]
-  const links = rows.map(r => ({ source: 'main', target: r.id, color: r.color }))
+  }))
+  const nodes = [main, ...members]
   assignArkhamOrbits(nodes)
+
+  // Hub spokes
+  const links = members.map(m => ({
+    source: 'main',
+    target: m.id,
+    color: m.color,
+    kind: 'spoke',
+  }))
+
+  // Neighbor mesh along each ring — this is what gives Arkham rubber-band jelly
+  const byRing = new Map()
+  for (const m of members) {
+    const key = Math.round((m._ringR || 100) / 36)
+    if (!byRing.has(key)) byRing.set(key, [])
+    byRing.get(key).push(m)
+  }
+  for (const ringNodes of byRing.values()) {
+    ringNodes.sort((a, b) => (a._baseA || 0) - (b._baseA || 0))
+    const n = ringNodes.length
+    if (n < 2) continue
+    for (let i = 0; i < n; i++) {
+      const a = ringNodes[i]
+      const b = ringNodes[(i + 1) % n]
+      links.push({
+        source: a.id,
+        target: b.id,
+        color: a.color,
+        kind: 'mesh',
+      })
+      // Skip-one chord for denser jelly web (every 3rd)
+      if (n > 6 && i % 3 === 0) {
+        const c = ringNodes[(i + 2) % n]
+        links.push({
+          source: a.id,
+          target: c.id,
+          color: a.color,
+          kind: 'mesh',
+        })
+      }
+    }
+  }
+
   return { nodes, links }
 }
 
@@ -99,16 +140,19 @@ function normalizeCommunities(value) {
   return []
 }
 
+const INITIAL_GRAPH = buildLiveGraph(FALLBACK_ROWS)
+
 export function MapSection() {
   const containerRef  = useRef(null)
   const fgRef         = useRef(null)
   const collapsedRef  = useRef(false)
-  const graphDataRef  = useRef(FALLBACK)
+  const graphDataRef  = useRef(INITIAL_GRAPH)
   const rotationRef   = useRef(0)
   const lastTickRef   = useRef(typeof performance !== 'undefined' ? performance.now() : 0)
+  const dragVelRef    = useRef({ x: 0, y: 0, t: 0 })
 
   const [dimensions,    setDimensions]    = useState({ width: 800, height: 700 })
-  const [graphData,     setGraphData]     = useState(FALLBACK)
+  const [graphData,     setGraphData]     = useState(INITIAL_GRAPH)
   const [hoveredNode,   setHoveredNode]   = useState(null)
   const [selectedNode,  setSelectedNode]  = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
@@ -185,6 +229,12 @@ export function MapSection() {
         if (old.nodes.some(n => n.id !== 'main' && n._baseA == null)) {
           assignArkhamOrbits(old.nodes)
         }
+        // Upgrade to mesh links once if needed
+        if (!old.links?.some(l => l.kind === 'mesh') && fresh.links.some(l => l.kind === 'mesh')) {
+          const main = oldMap.get('main')
+          if (main) { main.fx = 0; main.fy = 0; main.x = 0; main.y = 0 }
+          return { nodes: old.nodes, links: fresh.links }
+        }
         const main = oldMap.get('main')
         if (main) {
           main.fx = 0
@@ -239,44 +289,58 @@ export function MapSection() {
     const fg = fgRef.current
     if (!fg) return
 
-    // Kill default centering / strong charge that warps the disc
+    // True Arkham feel = soft free body, NOT hard orbit slots
     fg.d3Force('center', null)
+    fg.d3Force('x', null)
+    fg.d3Force('y', null)
+
     const charge = fg.d3Force('charge')
     if (charge) {
-      charge.strength(n => (n.id === 'main' ? 0 : (isC ? -6 : -18)))
-      if (typeof charge.distanceMax === 'function') charge.distanceMax(90)
+      // Members push apart so the disc stays airy; hub is neutral
+      charge.strength(n => (n.id === 'main' ? 0 : (isC ? -14 : -42)))
+      if (typeof charge.distanceMax === 'function') charge.distanceMax(isC ? 80 : 160)
     }
 
     const link = fg.d3Force('link')
     if (link) {
       link
         .distance(l => {
+          const kind = l.kind
           const t = typeof l.target === 'object' ? l.target : null
-          if (isC) return 22
-          return (t?._ringR || 140) * 0.92
+          const s = typeof l.source === 'object' ? l.source : null
+          if (isC) return kind === 'spoke' ? 20 : 14
+          if (kind === 'mesh') {
+            // Chord length between neighbors on the ring
+            const r = t?._ringR || s?._ringR || 120
+            return Math.max(18, r * 0.28)
+          }
+          return (t?._ringR || 140) * 0.98
         })
-        .strength(isC ? 0.9 : 0.35)
+        .strength(l => {
+          if (isC) return l.kind === 'spoke' ? 1.05 : 0.7
+          // Spokes are elastic rubber bands; mesh couples neighbors into jelly
+          return l.kind === 'spoke' ? 0.55 : 0.25
+        })
     }
 
-    // Always simmer — Arkham jelly never fully freezes
+    // Keep the soup alive — Arkham never fully freezes
     if (typeof fg.d3AlphaTarget === 'function') {
-      fg.d3AlphaTarget(isC ? 0.15 : 0.22)
+      fg.d3AlphaTarget(isC ? 0.12 : 0.08)
     }
 
     let nodeList = []
-    const orbitForce = Object.assign(
+    const jellyForce = Object.assign(
       (alpha) => {
         const now = performance.now()
         const dt = Math.min(40, Math.max(0, now - lastTickRef.current))
         lastTickRef.current = now
-
-        // Slow continuous disc rotation (paused while collapsed)
-        if (!collapsedRef.current) {
-          rotationRef.current += dt * 0.00018
-        }
-
-        const rot = rotationRef.current
         const collapsed = collapsedRef.current
+
+        // Gentle global spin (tangential velocity) — free, not slot-locked
+        if (!collapsed) {
+          rotationRef.current += dt * 0.00012
+        }
+        const spin = collapsed ? 0 : 0.00055
 
         nodeList.forEach((n, i) => {
           if (n.id === 'main') {
@@ -288,34 +352,33 @@ export function MapSection() {
             n.vy = 0
             return
           }
-
-          // Being dragged — leave alone
           if (n.fx != null || n.fy != null) return
 
-          if (n._baseA == null || n._ringR == null) {
-            n._baseA = (i / Math.max(1, nodeList.length)) * Math.PI * 2
-            n._ringR = 120
-          }
+          const x = n.x || 0
+          const y = n.y || 0
+          const dist = Math.hypot(x, y) || 0.001
+          const homeR = collapsed ? 28 : (n._ringR || 130)
 
-          const R = collapsed ? 26 : n._ringR
-          const A = n._baseA + rot
-          const tx = Math.cos(A) * R
-          const ty = Math.sin(A) * R
+          // Soft radial leash (keeps disc shape without freezing angles)
+          const radialK = collapsed ? 0.16 : 0.028
+          const pull = (homeR - dist) * radialK * (alpha + 0.05)
+          n.vx += (x / dist) * pull * 10
+          n.vy += (y / dist) * pull * 10
 
-          // Soft spring → target slot (elastic jelly / overshoot)
-          const k = collapsed ? 0.22 : 0.065
-          n.vx += (tx - (n.x || 0)) * k * (alpha + 0.15) * 14
-          n.vy += (ty - (n.y || 0)) * k * (alpha + 0.15) * 14
+          // Continuous rotation via tangential push
+          n.vx += (-y / dist) * spin * dist * (alpha + 0.2)
+          n.vy += (x / dist) * spin * dist * (alpha + 0.2)
 
-          // Living micro-wobble (Arkham jelly shimmer)
-          const wobble = collapsed ? 0.15 : 0.55
-          n.vx += Math.sin(now * 0.0018 + i * 0.73) * wobble * alpha
-          n.vy += Math.cos(now * 0.0015 + i * 0.51) * wobble * alpha
+          // Living shimmer
+          const wobble = collapsed ? 0.12 : 0.7
+          n.vx += Math.sin(now * 0.0021 + i * 0.67) * wobble * alpha
+          n.vy += Math.cos(now * 0.0017 + i * 0.53) * wobble * alpha
         })
       },
       { initialize: (ns) => { nodeList = ns } },
     )
-    fg.d3Force('orbit', orbitForce)
+    fg.d3Force('orbit', null)
+    fg.d3Force('jelly', jellyForce)
     fg.d3Force('drift', null)
     fg.d3ReheatSimulation()
   }, [])
@@ -360,6 +423,11 @@ export function MapSection() {
   useEffect(() => {
     applyJellyForces(collapsed)
   }, [collapsed, applyJellyForces])
+
+  // Rebind link force when mesh topology changes
+  useEffect(() => {
+    applyJellyForces(collapsedRef.current)
+  }, [graphData.links.length, applyJellyForces])
 
   // Profile from Supabase (+ Realtime updates while card is open)
   useEffect(() => {
@@ -643,34 +711,40 @@ export function MapSection() {
     if (len < 1) return
 
     const isC       = collapsedRef.current
+    const isMesh    = link.kind === 'mesh'
     const isHighlit = hoveredNode?.id === t.id || selectedNode?.id === t.id
+      || hoveredNode?.id === s.id || selectedNode?.id === s.id
 
-    // Arkham spokes: mostly straight radial lines, jelly bend only when active
+    // Rubber-band bend grows as the link stretches past rest length
+    const rest = isMesh ? 40 : 120
+    const stretch = Math.max(0, len / rest - 1)
     const nx = -dy / len
     const ny =  dx / len
-    const seed = (typeof t.id === 'string' ? t.id.charCodeAt(0) : 0) * 0.19
-    const now  = Date.now() * 0.001
-    const amp  = isC ? 0 : (isHighlit ? 10 : 1.2)
-    const wave = Math.sin(now * 1.6 + seed) * amp
+    const now = Date.now() * 0.001
+    const seed = (typeof (t.id || s.id) === 'string' ? String(t.id || s.id).charCodeAt(0) : 0) * 0.19
+    const amp = isC ? 0 : ((isHighlit ? 12 : 3) + stretch * 10)
+    const wave = Math.sin(now * 2.2 + seed) * amp * 0.35 + stretch * (isMesh ? 4 : 8) * Math.sin(seed)
     const cpx = (s.x + t.x) / 2 + nx * wave
     const cpy = (s.y + t.y) / 2 + ny * wave
 
+    const tipColor = t.color || s.color || '#C9A96E'
     const grd = ctx.createLinearGradient(s.x, s.y, t.x, t.y)
     if (isHighlit) {
       grd.addColorStop(0, 'rgba(201,169,110,0.95)')
-      grd.addColorStop(1, `${t.color}dd`)
+      grd.addColorStop(1, `${tipColor}ee`)
+    } else if (isMesh) {
+      grd.addColorStop(0, `${s.color || tipColor}22`)
+      grd.addColorStop(1, `${tipColor}33`)
     } else {
-      const tip = Math.round((isC ? 0.12 : 0.38) * 255).toString(16).padStart(2, '0')
-      grd.addColorStop(0, `rgba(201,169,110,${isC ? 0.12 : 0.28})`)
-      grd.addColorStop(1, `${t.color}${tip}`)
+      grd.addColorStop(0, `rgba(201,169,110,${isC ? 0.14 : 0.32})`)
+      grd.addColorStop(1, `${tipColor}${isC ? '30' : '66'}`)
     }
 
     ctx.beginPath()
     ctx.moveTo(s.x, s.y)
-    if (amp > 0.5) ctx.quadraticCurveTo(cpx, cpy, t.x, t.y)
-    else ctx.lineTo(t.x, t.y)
+    ctx.quadraticCurveTo(cpx, cpy, t.x, t.y)
     ctx.strokeStyle = grd
-    ctx.lineWidth   = isHighlit ? 1.6 : 0.55
+    ctx.lineWidth = isHighlit ? 1.7 : (isMesh ? 0.35 : 0.6)
     ctx.stroke()
   }, [hoveredNode, selectedNode])
 
@@ -693,32 +767,41 @@ export function MapSection() {
 
   const handleNodeDrag = useCallback((node) => {
     if (!node || node.id === 'main') return
-    // Follow the pointer while dragging (temporary pin)
+    const now = performance.now()
+    if (dragVelRef.current.t) {
+      const dt = Math.max(1, now - dragVelRef.current.t)
+      dragVelRef.current.x = ((node.x || 0) - (node.__prevX ?? node.x)) / dt * 16
+      dragVelRef.current.y = ((node.y || 0) - (node.__prevY ?? node.y)) / dt * 16
+    }
+    node.__prevX = node.x
+    node.__prevY = node.y
+    dragVelRef.current.t = now
     node.fx = node.x
     node.fy = node.y
+    // Reheat so neighbors stretch live while dragging (Arkham rubber band)
     fgRef.current?.d3ReheatSimulation()
   }, [])
 
   const handleNodeDragEnd = useCallback(node => {
     if (!node || node.id === 'main') return
-    // Release → spring back into rotating disc slot (Arkham yoyo)
+    // Fling with throw velocity, then rubber bands yank the mesh back
     node.fx = undefined
     node.fy = undefined
-    // Keep angular slot so the disc stays even; radius snaps home via orbit force
-    if (Number.isFinite(node.x) && Number.isFinite(node.y)) {
-      const a = Math.atan2(node.y, node.x)
-      // Blend dropped angle into base so rejoin feels natural, then rotation carries it
-      node._baseA = a - rotationRef.current
-    }
+    node.vx = (dragVelRef.current.x || 0) * 8
+    node.vy = (dragVelRef.current.y || 0) * 8
+    node.__prevX = undefined
+    node.__prevY = undefined
+    dragVelRef.current = { x: 0, y: 0, t: 0 }
+
     const fg = fgRef.current
     if (!fg) return
     if (typeof fg.d3AlphaTarget === 'function') {
-      fg.d3AlphaTarget(0.45)
+      fg.d3AlphaTarget(0.55)
       setTimeout(() => {
         if (typeof fg.d3AlphaTarget === 'function') {
-          fg.d3AlphaTarget(collapsedRef.current ? 0.15 : 0.22)
+          fg.d3AlphaTarget(collapsedRef.current ? 0.12 : 0.08)
         }
-      }, 1100)
+      }, 1400)
     }
     fg.d3ReheatSimulation()
   }, [])
@@ -771,7 +854,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag · jelly yoyo · slow spin &nbsp; Click logo to retract &nbsp; Click node to inspect
+            Drag · throw · rubber-band jelly &nbsp; Click logo to retract &nbsp; Click node to inspect
           </p>
 
           <div className="relative max-w-md mx-auto">
@@ -852,10 +935,10 @@ export function MapSection() {
             onNodeHover={handleNodeHover}
             onNodeDrag={handleNodeDrag}
             onNodeDragEnd={handleNodeDragEnd}
-            cooldownTicks={1200}
-            d3AlphaDecay={0.005}
-            d3VelocityDecay={0.22}
-            warmupTicks={40}
+            cooldownTicks={1600}
+            d3AlphaDecay={0.004}
+            d3VelocityDecay={0.14}
+            warmupTicks={30}
             nodeRelSize={1}
           />
 
