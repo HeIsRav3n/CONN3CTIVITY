@@ -1,10 +1,11 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import ForceGraph2D from 'react-force-graph-2d'
 import STATIC_DATA from '../data/conn3ctors.json'
 import { fetchConn3ctors, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
+import { useDeviceCapability } from '../hooks/useDeviceCapability'
 import { supabase } from '../lib/supabase'
+import { Conn3ctorOrb } from '../components/map/Conn3ctorOrb'
 
 const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
   .filter(n => n.id !== 'main')
@@ -19,65 +20,16 @@ const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
     updated_at: null,
   }))
 
-const buildLiveGraph = (rows) => {
-  const main = { id: 'main', name: 'CONN3CTIVITY', group: 0, color: '#C9A96E', avatar: '/map-logo.png' }
-  const members = rows.map(r => ({
+function rowsToMembers(rows) {
+  return (rows || []).map(r => ({
     id: r.id,
     name: r.name,
     discordHandle: r.discord_handle,
     xHandle: r.x_handle || null,
     group: r.group || 1,
     color: r.color || '#C9A96E',
-    avatar: r.avatar || `https://cdn.discordapp.com/embed/avatars/0.png`,
+    avatar: r.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png',
   }))
-  const nodes = [main, ...members]
-  assignArkhamOrbits(nodes)
-
-  // Hub spokes only — mesh links blew the layout apart
-  const links = members.map(m => ({
-    source: 'main',
-    target: m.id,
-    color: m.color,
-  }))
-
-  return { nodes, links }
-}
-
-/** Concentric disc layout like the Arkham-style CONN3CTIVITY map */
-function assignArkhamOrbits(nodes) {
-  const members = nodes.filter(n => n.id !== 'main')
-  const main = nodes.find(n => n.id === 'main')
-  if (main) {
-    main.x = 0
-    main.y = 0
-    main.fx = 0
-    main.fy = 0
-  }
-
-  let idx = 0
-  let ring = 0
-  const baseR = 78
-  const ringGap = 36
-  const spacing = 24
-
-  while (idx < members.length) {
-    const r = baseR + ring * ringGap
-    const capacity = Math.max(10, Math.floor((2 * Math.PI * r) / spacing))
-    const count = Math.min(capacity, members.length - idx)
-    const angleOffset = ring * 0.17
-    for (let i = 0; i < count; i++) {
-      const n = members[idx + i]
-      const jitter = ((i * 17) % 7) - 3
-      n._ringR = r + jitter
-      n._baseA = (i / count) * Math.PI * 2 + angleOffset
-      n.x = Math.cos(n._baseA) * n._ringR
-      n.y = Math.sin(n._baseA) * n._ringR
-      n.vx = 0
-      n.vy = 0
-    }
-    idx += count
-    ring++
-  }
 }
 
 function applyConn3ctorChange(payload, prev) {
@@ -106,29 +58,19 @@ function normalizeCommunities(value) {
   return []
 }
 
-const INITIAL_GRAPH = buildLiveGraph(FALLBACK_ROWS)
-
 export function MapSection() {
-  const containerRef  = useRef(null)
-  const fgRef         = useRef(null)
-  const collapsedRef  = useRef(false)
-  const graphDataRef  = useRef(INITIAL_GRAPH)
-  const rotationRef   = useRef(0)
-  const lastTickRef   = useRef(typeof performance !== 'undefined' ? performance.now() : 0)
+  const containerRef = useRef(null)
+  const device = useDeviceCapability()
 
-  const [dimensions,    setDimensions]    = useState({ width: 800, height: 700 })
-  const [graphData,     setGraphData]     = useState(INITIAL_GRAPH)
-  const [hoveredNode,   setHoveredNode]   = useState(null)
-  const [selectedNode,  setSelectedNode]  = useState(null)
+  const [members, setMembers] = useState(() => rowsToMembers(FALLBACK_ROWS))
+  const [hoveredNode, setHoveredNode] = useState(null)
+  const [selectedNode, setSelectedNode] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profileState, setProfileState] = useState('idle')
-  const [collapsed,     setCollapsed]     = useState(false)
-  const [renderTrigger, setRenderTrigger] = useState(0)
+  const [collapsed, setCollapsed] = useState(false)
   const [query, setQuery] = useState('')
-
-  useEffect(() => {
-    graphDataRef.current = graphData
-  }, [graphData])
+  const [focusId, setFocusId] = useState(null)
+  const [inView, setInView] = useState(true)
 
   const {
     data: liveRows,
@@ -148,230 +90,42 @@ export function MapSection() {
     },
   })
 
-  // Container dimensions
-  useEffect(() => {
-    if (!containerRef.current) return
-    const measure = () => {
-      const r = containerRef.current?.getBoundingClientRect()
-      if (r?.width) setDimensions({ width: r.width, height: r.height })
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(containerRef.current)
-    return () => ro.disconnect()
-  }, [])
-
-  // Merge live rows into graph — mutate in place so physics / drag pins survive
+  // Sync live rows → members (preserve selected/hovered object identity when possible)
   useEffect(() => {
     if (!liveRows?.length) return
-    const fresh = buildLiveGraph(liveRows)
-
-    setGraphData(old => {
-      if (!old?.nodes?.length) return fresh
-
-      const oldMap = new Map(old.nodes.map(n => [n.id, n]))
-      const freshIds = new Set(fresh.nodes.map(n => n.id))
-      const membershipChanged =
-        old.nodes.length !== fresh.nodes.length ||
-        fresh.nodes.some(n => !oldMap.has(n.id)) ||
-        old.nodes.some(n => n.id !== 'main' && !freshIds.has(n.id))
-
-      // Soft update: keep the same node object references (preserves fx/fy/jelly)
-      if (!membershipChanged) {
-        for (const node of fresh.nodes) {
-          const existing = oldMap.get(node.id)
-          if (!existing) continue
-          existing.name = node.name
-          existing.discordHandle = node.discordHandle
-          existing.xHandle = node.xHandle
-          existing.group = node.group
-          existing.color = node.color
-          if (existing.avatar !== node.avatar) {
-            existing.avatar = node.avatar
-            existing._img = undefined
-          }
-        }
-        if (old.nodes.some(n => n.id !== 'main' && n._baseA == null)) {
-          assignArkhamOrbits(old.nodes)
-        }
-        // Drop any leftover mesh topology from the broken jelly pass
-        if (old.links?.length !== fresh.links.length || old.links?.some(l => l.kind === 'mesh')) {
-          const main = oldMap.get('main')
-          if (main) { main.fx = 0; main.fy = 0; main.x = 0; main.y = 0 }
-          return { nodes: old.nodes, links: fresh.links }
-        }
-        const main = oldMap.get('main')
-        if (main) {
-          main.fx = 0
-          main.fy = 0
-          main.x = 0
-          main.y = 0
-        }
-        return old
-      }
-
-      const mergedNodes = fresh.nodes.map(node => {
-        const oldNode = oldMap.get(node.id)
-        if (!oldNode) return node
+    const next = rowsToMembers(liveRows)
+    setMembers(old => {
+      if (!old.length) return next
+      const oldMap = new Map(old.map(m => [m.id, m]))
+      return next.map(m => {
+        const prev = oldMap.get(m.id)
+        if (!prev) return m
         return {
-          ...node,
-          x: oldNode.x,
-          y: oldNode.y,
-          vx: oldNode.vx,
-          vy: oldNode.vy,
-          fx: node.id === 'main' ? 0 : oldNode.fx,
-          fy: node.id === 'main' ? 0 : oldNode.fy,
-          _img: oldNode._img,
-          _ringR: oldNode._ringR,
-          _baseA: oldNode._baseA,
+          ...prev,
+          name: m.name,
+          discordHandle: m.discordHandle,
+          xHandle: m.xHandle,
+          group: m.group,
+          color: m.color,
+          avatar: m.avatar,
         }
       })
-      // New members need orbit slots — re-pack the disc
-      assignArkhamOrbits(mergedNodes)
-      // Restore positions for nodes that already had coordinates
-      for (const node of mergedNodes) {
-        if (node.id === 'main') continue
-        const oldNode = oldMap.get(node.id)
-        if (oldNode && Number.isFinite(oldNode.x)) {
-          node.x = oldNode.x
-          node.y = oldNode.y
-          node.vx = oldNode.vx || 0
-          node.vy = oldNode.vy || 0
-        }
-      }
-      const main = mergedNodes.find(n => n.id === 'main')
-      if (main) {
-        main.fx = 0
-        main.fy = 0
-        main.x = 0
-        main.y = 0
-      }
-      return { nodes: mergedNodes, links: fresh.links }
     })
   }, [liveRows])
 
-  const applyOrbitForces = useCallback((isC) => {
-    const fg = fgRef.current
-    if (!fg) return
-
-    fg.d3Force('center', null)
-    fg.d3Force('x', null)
-    fg.d3Force('y', null)
-    fg.d3Force('jelly', null)
-    fg.d3Force('drift', null)
-
-    const charge = fg.d3Force('charge')
-    if (charge) {
-      charge.strength(n => (n.id === 'main' ? 0 : (isC ? -8 : -22)))
-      if (typeof charge.distanceMax === 'function') charge.distanceMax(isC ? 70 : 110)
-    }
-
-    const link = fg.d3Force('link')
-    if (link) {
-      link
-        .distance(l => {
-          const t = typeof l.target === 'object' ? l.target : null
-          return isC ? 22 : (t?._ringR || 140) * 0.95
-        })
-        .strength(isC ? 0.95 : 0.28)
-    }
-
-    // Gentle simmer for slow spin — not a permanent boil
-    if (typeof fg.d3AlphaTarget === 'function') {
-      fg.d3AlphaTarget(isC ? 0.06 : 0.04)
-    }
-
-    let nodeList = []
-    const orbitForce = Object.assign(
-      (alpha) => {
-        const now = performance.now()
-        const dt = Math.min(40, Math.max(0, now - lastTickRef.current))
-        lastTickRef.current = now
-
-        if (!collapsedRef.current) {
-          rotationRef.current += dt * 0.00014
-        }
-
-        const rot = rotationRef.current
-        const collapsed = collapsedRef.current
-
-        nodeList.forEach((n, i) => {
-          if (n.id === 'main') {
-            n.fx = 0
-            n.fy = 0
-            n.x = 0
-            n.y = 0
-            n.vx = 0
-            n.vy = 0
-            return
-          }
-          if (n.fx != null || n.fy != null) return
-
-          if (n._baseA == null || n._ringR == null) {
-            n._baseA = (i / Math.max(1, nodeList.length)) * Math.PI * 2
-            n._ringR = 120
-          }
-
-          const R = collapsed ? 26 : n._ringR
-          const A = n._baseA + rot
-          const tx = Math.cos(A) * R
-          const ty = Math.sin(A) * R
-
-          // Soft spring to orbit slot — stretch on drag, snap home on release
-          const k = collapsed ? 0.28 : 0.09
-          n.vx += (tx - (n.x || 0)) * k * (alpha + 0.12) * 12
-          n.vy += (ty - (n.y || 0)) * k * (alpha + 0.12) * 12
-
-          const wobble = collapsed ? 0.08 : 0.28
-          n.vx += Math.sin(now * 0.0016 + i * 0.73) * wobble * alpha
-          n.vy += Math.cos(now * 0.0013 + i * 0.51) * wobble * alpha
-        })
-      },
-      { initialize: (ns) => { nodeList = ns } },
+  // Pause WebGL when map section is off-screen
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting && entry.intersectionRatio > 0.08),
+      { threshold: [0, 0.08, 0.2] },
     )
-    fg.d3Force('orbit', orbitForce)
-    fg.d3ReheatSimulation()
+    io.observe(el)
+    return () => io.disconnect()
   }, [])
 
-  // Boot physics once; do not rebind on every live tick
-  useEffect(() => {
-    const fg = fgRef.current
-    if (!fg) return
-
-    const boot = setTimeout(() => {
-      const nodes = graphDataRef.current.nodes || []
-      if (nodes.length && nodes.some(n => n.id !== 'main' && n._baseA == null)) {
-        assignArkhamOrbits(nodes)
-      }
-      const main = nodes.find(n => n.id === 'main')
-      if (main) {
-        main.fx = 0
-        main.fy = 0
-        main.x = 0
-        main.y = 0
-      }
-      applyOrbitForces(collapsedRef.current)
-      fg.centerAt(0, 0, 0)
-      try {
-        fg.zoomToFit(700, 56)
-      } catch {
-        fg.zoom(0.5, 0)
-      }
-    }, 80)
-
-    return () => clearTimeout(boot)
-  }, [applyOrbitForces, dimensions.width, dimensions.height])
-
-  useEffect(() => {
-    applyOrbitForces(collapsed)
-  }, [collapsed, applyOrbitForces])
-
-  // When spoke count changes (members join/leave), rebind link distances
-  useEffect(() => {
-    applyOrbitForces(collapsedRef.current)
-  }, [graphData.links.length, applyOrbitForces])
-
-  // Profile from Supabase (+ Realtime updates while card is open)
+  // Profile from Supabase (+ Realtime while card is open)
   useEffect(() => {
     if (!selectedNode) {
       setSelectedProfile(null)
@@ -494,250 +248,43 @@ export function MapSection() {
   }, [liveRows, query])
 
   const focusNodeById = useCallback((id) => {
-    const node = graphData.nodes.find(n => n.id === id)
+    const node = members.find(n => n.id === id)
     if (!node) return
+    setCollapsed(false)
     setSelectedNode(node)
+    setFocusId(id)
     setQuery('')
-    if (collapsedRef.current) {
-      collapsedRef.current = false
-      setCollapsed(false)
-    }
-    fgRef.current?.centerAt(node.x, node.y, 800)
-    fgRef.current?.zoom(2.8, 800)
-  }, [graphData])
+  }, [members])
 
   const toggleCollapse = useCallback(() => {
-    const fg = fgRef.current
-    if (!fg) return
-    const nodes = graphDataRef.current.nodes || []
-
-    nodes.forEach(n => {
-      if (n.id === 'main') {
-        n.fx = 0
-        n.fy = 0
-      } else {
-        n.fx = undefined
-        n.fy = undefined
-      }
-    })
-
-    if (collapsedRef.current) {
-      collapsedRef.current = false
-      setCollapsed(false)
-      setSelectedNode(null)
-      applyOrbitForces(false)
-      fg.d3ReheatSimulation()
-      fg.centerAt(0, 0, 700)
-      try { fg.zoomToFit(700, 56) } catch { fg.zoom(0.5, 700) }
-      return
-    }
-
-    collapsedRef.current = true
-    setCollapsed(true)
+    setCollapsed(c => !c)
     setSelectedNode(null)
-    applyOrbitForces(true)
-    fg.d3ReheatSimulation()
-    fg.centerAt(0, 0, 700)
-    fg.zoom(1.35, 700)
-  }, [applyOrbitForces])
-
-  const drawNode = useCallback((node, ctx, gs) => {
-    if (!isFinite(node.x) || !isFinite(node.y)) return
-
-    const isMain     = node.id === 'main'
-    const isHovered  = hoveredNode?.id  === node.id
-    const isSelected = selectedNode?.id === node.id
-    const isC        = collapsedRef.current
-    const r          = isMain ? 34 : (isHovered || isSelected) ? 16 : 11
-
-    if (isMain || isHovered || isSelected) {
-      const glowR  = r + (isMain ? (isC ? 20 : 14) : 5)
-      const glowCol = isMain ? '#C9A96E' : node.color
-      const grd = ctx.createRadialGradient(node.x, node.y, r * 0.4, node.x, node.y, glowR)
-      grd.addColorStop(0, `${glowCol}66`)
-      grd.addColorStop(1, `${glowCol}00`)
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, glowR, 0, Math.PI * 2)
-      ctx.fillStyle = grd
-      ctx.fill()
-    }
-
-    // Pulsing ring on main (collapsed or always subtle)
-    if (isMain) {
-      const t    = Date.now() * 0.0025
-      const pulR = r + 10 + Math.sin(t) * (isC ? 5 : 3)
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, pulR, 0, Math.PI * 2)
-      ctx.strokeStyle = isC ? 'rgba(34,197,94,0.4)' : 'rgba(201,169,110,0.35)'
-      ctx.lineWidth   = 1.4
-      ctx.stroke()
-    }
-
-    ctx.save()
-    ctx.beginPath()
-    ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
-    ctx.fillStyle = '#0d0d14'
-    ctx.fill()
-    ctx.clip()
-    if (!node._img && node.avatar) {
-      const img       = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        setRenderTrigger(prev => prev + 1)
-      }
-      img.src         = node.avatar
-      node._img       = img
-    }
-    if (node._img?.complete && node._img.naturalWidth > 0) {
-      ctx.drawImage(node._img, node.x - r, node.y - r, r * 2, r * 2)
-    }
-    ctx.restore()
-
-    ctx.beginPath()
-    ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
-    if (isMain) {
-      // Double gold ring like the reference disc hub
-      ctx.strokeStyle = '#C9A96E'
-      ctx.lineWidth = 3
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, r + 4, 0, Math.PI * 2)
-      ctx.strokeStyle = 'rgba(201,169,110,0.55)'
-      ctx.lineWidth = 1.5
-      ctx.stroke()
-    } else {
-      ctx.strokeStyle = (isHovered || isSelected) ? node.color : `${node.color}66`
-      ctx.lineWidth   = (isHovered || isSelected) ? 2 : 1
-      ctx.stroke()
-    }
-
-    if (isMain) {
-      const fs = Math.max(11 / gs, 5)
-      ctx.font          = `600 ${fs}px 'Josefin Sans', sans-serif`
-      ctx.textAlign     = 'center'
-      ctx.textBaseline  = 'middle'
-      ctx.fillStyle     = isC ? 'rgba(34,197,94,0.85)' : 'rgba(201,169,110,0.6)'
-      ctx.fillText(isC ? '+' : '', node.x, node.y + r + fs + 2 / gs)
-    }
-
-    if (!isMain) {
-      ctx.beginPath()
-      ctx.arc(node.x + r * 0.68, node.y + r * 0.68, 3.5, 0, Math.PI * 2)
-      ctx.fillStyle   = node.color
-      ctx.fill()
-      ctx.strokeStyle = '#07070b'
-      ctx.lineWidth   = 1
-      ctx.stroke()
-    }
-
-    if (isMain || isHovered || isSelected || gs > 4) {
-      const fs = Math.max(isMain ? 10 / gs : 8 / gs, isMain ? 6 : 4)
-      ctx.font         = `500 ${fs}px 'Josefin Sans', sans-serif`
-      ctx.textAlign    = 'center'
-      ctx.textBaseline = 'top'
-      ctx.fillStyle    = isMain ? '#C9A96E' : 'rgba(237,232,220,0.9)'
-      ctx.fillText(node.name, node.x, node.y + r + 3 / gs)
-    }
-  }, [hoveredNode, selectedNode, renderTrigger])
-
-  const drawLink = useCallback((link, ctx) => {
-    const s = link.source
-    const t = link.target
-    if (typeof s !== 'object' || typeof t !== 'object') return
-    if (!isFinite(s.x) || !isFinite(s.y) || !isFinite(t.x) || !isFinite(t.y)) return
-
-    const dx  = t.x - s.x
-    const dy  = t.y - s.y
-    const len = Math.hypot(dx, dy)
-    if (len < 1) return
-
-    const isC       = collapsedRef.current
-    const isHighlit = hoveredNode?.id === t.id || selectedNode?.id === t.id
-      || hoveredNode?.id === s.id || selectedNode?.id === s.id
-
-    // Soft curve — stretches visually when a node is pulled out
-    const rest = t._ringR || 120
-    const stretch = Math.max(0, Math.min(1.4, len / rest - 1))
-    const nx = -dy / len
-    const ny =  dx / len
-    const bend = (isHighlit ? 10 : 4) + stretch * 14
-    const cpx = (s.x + t.x) / 2 + nx * bend
-    const cpy = (s.y + t.y) / 2 + ny * bend
-
-    const tipColor = t.color || '#C9A96E'
-    const grd = ctx.createLinearGradient(s.x, s.y, t.x, t.y)
-    if (isHighlit) {
-      grd.addColorStop(0, 'rgba(201,169,110,0.9)')
-      grd.addColorStop(1, `${tipColor}ee`)
-    } else {
-      grd.addColorStop(0, `rgba(201,169,110,${isC ? 0.12 : 0.28})`)
-      grd.addColorStop(1, `${tipColor}${isC ? '28' : '55'}`)
-    }
-
-    ctx.beginPath()
-    ctx.moveTo(s.x, s.y)
-    ctx.quadraticCurveTo(cpx, cpy, t.x, t.y)
-    ctx.strokeStyle = grd
-    ctx.lineWidth = isHighlit ? 1.6 : 0.55
-    ctx.stroke()
-  }, [hoveredNode, selectedNode])
-
-  const handleNodeClick = useCallback(node => {
-    if (!node || node.id === 'main') {
-      toggleCollapse()
-      return
-    }
-    setSelectedNode(prev => prev?.id === node.id ? null : node)
-    fgRef.current?.centerAt(node.x, node.y, 800)
-    fgRef.current?.zoom(2.8, 800)
-  }, [toggleCollapse])
-
-  const handleNodeHover = useCallback(node => {
-    setHoveredNode(node || null)
-    document.body.style.cursor = node
-      ? (node.id === 'main' ? 'zoom-in' : 'pointer')
-      : 'default'
+    setFocusId(null)
   }, [])
 
-  const handleNodeDrag = useCallback((node) => {
-    if (!node || node.id === 'main') return
-    node.fx = node.x
-    node.fy = node.y
-    fgRef.current?.d3ReheatSimulation()
+  const handleSelect = useCallback((member) => {
+    if (!member) return
+    setCollapsed(false)
+    setSelectedNode(prev => (prev?.id === member.id ? null : member))
+    setFocusId(member.id)
   }, [])
 
-  const handleNodeDragEnd = useCallback(node => {
-    if (!node || node.id === 'main') return
-    // Release pin — orbit spring snaps node home (yoyo)
-    node.fx = undefined
-    node.fy = undefined
-    node.vx = (node.vx || 0) * 0.35
-    node.vy = (node.vy || 0) * 0.35
-
-    const fg = fgRef.current
-    if (!fg) return
-    if (typeof fg.d3AlphaTarget === 'function') {
-      fg.d3AlphaTarget(0.35)
-      setTimeout(() => {
-        if (typeof fg.d3AlphaTarget === 'function') {
-          fg.d3AlphaTarget(collapsedRef.current ? 0.06 : 0.04)
-        }
-      }, 900)
-    }
-    fg.d3ReheatSimulation()
+  const handleHover = useCallback((member) => {
+    setHoveredNode(member)
   }, [])
 
   const badgeLabel = statusLabel(status, { realtime })
 
   return (
     <section id="map" className="relative py-24 px-4 overflow-hidden" style={{ background: '#07070b' }}>
-
-      <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(201,169,110,0.04) 0%, transparent 70%)'
-      }} />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse 80% 60% at 50% 45%, rgba(201,169,110,0.05) 0%, transparent 70%)',
+        }}
+      />
 
       <div className="max-w-7xl mx-auto relative z-10">
-
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -775,7 +322,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag · stretch · snap home &nbsp; Click logo to retract &nbsp; Click node to inspect
+            Drag to orbit · Scroll to zoom · Click logo to collapse · Click avatar to inspect
           </p>
 
           <div className="relative max-w-md mx-auto">
@@ -828,39 +375,30 @@ export function MapSection() {
           initial={{ opacity: 0, scale: 0.97 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 1, delay: 0.2 }}
+          transition={{ duration: 1, delay: 0.15 }}
           ref={containerRef}
           className="w-full relative"
           style={{
-            height: 'clamp(500px, 75vh, 840px)',
+            height: 'clamp(520px, 78vh, 880px)',
             borderRadius: 28,
             overflow: 'hidden',
-            background: 'radial-gradient(ellipse at center, rgba(18,18,30,0.92) 0%, #07070b 100%)',
-            border: '1px solid rgba(201,169,110,0.1)',
-            boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset, 0 40px 80px rgba(0,0,0,0.7)',
+            background: 'radial-gradient(ellipse at center, rgba(18,18,30,0.95) 0%, #050508 100%)',
+            border: '1px solid rgba(201,169,110,0.12)',
+            boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset, 0 40px 80px rgba(0,0,0,0.75)',
           }}
         >
-          <ForceGraph2D
-            ref={fgRef}
-            width={dimensions.width}
-            height={dimensions.height}
-            graphData={graphData}
-            nodeCanvasObject={drawNode}
-            nodeCanvasObjectMode={() => 'replace'}
-            linkCanvasObject={drawLink}
-            linkCanvasObjectMode={() => 'replace'}
-            backgroundColor="transparent"
-            enableNodeDrag
-            enableZoomPanInteraction
-            onNodeClick={handleNodeClick}
-            onNodeHover={handleNodeHover}
-            onNodeDrag={handleNodeDrag}
-            onNodeDragEnd={handleNodeDragEnd}
-            cooldownTicks={400}
-            d3AlphaDecay={0.022}
-            d3VelocityDecay={0.28}
-            warmupTicks={40}
-            nodeRelSize={1}
+          <Conn3ctorOrb
+            members={members}
+            collapsed={collapsed}
+            selectedId={selectedNode?.id || null}
+            hoveredId={hoveredNode?.id || null}
+            focusId={focusId}
+            onHover={handleHover}
+            onSelect={handleSelect}
+            onHubClick={toggleCollapse}
+            active={inView}
+            isMobile={device.isMobile}
+            pixelRatio={device.pixelRatio}
           />
 
           <AnimatePresence>
@@ -871,16 +409,16 @@ export function MapSection() {
                 exit={{ opacity: 0, y: -8 }}
                 className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full pointer-events-none"
                 style={{
-                  background: 'rgba(34,197,94,0.08)',
-                  border: '1px solid rgba(34,197,94,0.25)',
-                  color: '#22c55e',
+                  background: 'rgba(201,169,110,0.1)',
+                  border: '1px solid rgba(201,169,110,0.3)',
+                  color: '#C9A96E',
                   fontFamily: "'Josefin Sans', sans-serif",
                   fontSize: '0.55rem',
                   letterSpacing: '0.28em',
                   textTransform: 'uppercase',
                 }}
               >
-                Tap logo to reset / expand
+                Tap logo to expand orbit
               </motion.div>
             )}
           </AnimatePresence>
@@ -892,10 +430,23 @@ export function MapSection() {
               fontSize: '0.45rem',
               letterSpacing: '0.28em',
               textTransform: 'uppercase',
-              color: 'rgba(201,169,110,0.3)',
+              color: 'rgba(201,169,110,0.35)',
             }}
           >
-            {Math.max(0, graphData.nodes.length - 1)} Conn3ctors
+            {members.length} Conn3ctors · 3D Orbit
+          </div>
+
+          <div
+            className="absolute bottom-4 left-4 pointer-events-none hidden sm:block"
+            style={{
+              fontFamily: "'Josefin Sans', sans-serif",
+              fontSize: '0.42rem',
+              letterSpacing: '0.22em',
+              textTransform: 'uppercase',
+              color: 'rgba(237,232,220,0.22)',
+            }}
+          >
+            Orbital shells · live roster
           </div>
 
           <AnimatePresence>
