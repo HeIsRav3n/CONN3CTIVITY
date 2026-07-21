@@ -180,14 +180,23 @@ export function MapSection() {
     const charge = fg.d3Force('charge')
     if (charge) {
       charge.strength(n => {
-        if (n.id === 'main') return isC ? -120 : -2800
-        return isC ? -12 : -55
+        if (n.id === 'main') return isC ? -80 : -2200
+        return isC ? -8 : -35
       })
+      if (typeof charge.distanceMax === 'function') charge.distanceMax(420)
     }
 
     const link = fg.d3Force('link')
     if (link) {
-      link.distance(isC ? 18 : 140).strength(isC ? 0.95 : 0.28)
+      // Strong elastic cords = yoyo snap when you fling a node
+      link
+        .distance(isC ? 16 : 120)
+        .strength(isC ? 1.1 : 0.85)
+    }
+
+    // Keep simulation simmering so links stay stretchy
+    if (typeof fg.d3AlphaTarget === 'function') {
+      fg.d3AlphaTarget(isC ? 0.08 : 0.12)
     }
 
     let nodeList = []
@@ -198,18 +207,19 @@ export function MapSection() {
           if (n.id === 'main') {
             n.fx = 0
             n.fy = 0
+            n.vx = 0
+            n.vy = 0
             return
           }
-          if (n.fx != null || n.fy != null) return
-          // jelly wobble
-          n.vx += Math.sin(t * 0.45 + i * 0.53) * alpha * 0.55
-          n.vy += Math.cos(t * 0.38 + i * 0.79) * alpha * 0.55
-          // gentle spring toward orbit radius
+          // Soft orbit spring (lets links do the yoyo; this just keeps the ring)
           const dist = Math.hypot(n.x || 0, n.y || 0) || 0.001
-          const target = isC ? 26 : 155
-          const pull = (target - dist) * alpha * (isC ? 0.08 : 0.02)
+          const target = isC ? 22 : 130
+          const pull = (target - dist) * alpha * (isC ? 0.12 : 0.035)
           n.vx += ((n.x || 0) / dist) * pull
           n.vy += ((n.y || 0) / dist) * pull
+          // Ambient jelly wobble
+          n.vx += Math.sin(t * 0.7 + i * 0.61) * alpha * 0.85
+          n.vy += Math.cos(t * 0.55 + i * 0.47) * alpha * 0.85
         })
       },
       { initialize: (ns) => { nodeList = ns } },
@@ -388,19 +398,19 @@ export function MapSection() {
     const fg = fgRef.current
     if (!fg) return
     const nodes = graphDataRef.current.nodes || []
-    const hasPinned = nodes.some(n => n.id !== 'main' && (n.fx != null || n.fy != null))
 
-    // If anyone was dragged out (or map is collapsed), center click RESETS to jelly circle
-    if (hasPinned || collapsedRef.current) {
-      nodes.forEach(n => {
-        if (n.id === 'main') {
-          n.fx = 0
-          n.fy = 0
-        } else {
-          n.fx = undefined
-          n.fy = undefined
-        }
-      })
+    // Always clear any leftover pins, then toggle jelly ball ↔ expanded ring
+    nodes.forEach(n => {
+      if (n.id === 'main') {
+        n.fx = 0
+        n.fy = 0
+      } else {
+        n.fx = undefined
+        n.fy = undefined
+      }
+    })
+
+    if (collapsedRef.current) {
       collapsedRef.current = false
       setCollapsed(false)
       setSelectedNode(null)
@@ -411,16 +421,6 @@ export function MapSection() {
       return
     }
 
-    // Otherwise collapse into a tight jelly ball
-    nodes.forEach(n => {
-      if (n.id === 'main') {
-        n.fx = 0
-        n.fy = 0
-      } else {
-        n.fx = undefined
-        n.fy = undefined
-      }
-    })
     collapsedRef.current = true
     setCollapsed(true)
     setSelectedNode(null)
@@ -578,24 +578,28 @@ export function MapSection() {
 
   const handleNodeDrag = useCallback((node) => {
     if (!node || node.id === 'main') return
-    // While dragging, pin to cursor so the jelly doesn't yank them back mid-drag
+    // Follow the pointer while dragging (temporary pin)
     node.fx = node.x
     node.fy = node.y
+    fgRef.current?.d3ReheatSimulation()
   }, [])
 
   const handleNodeDragEnd = useCallback(node => {
     if (!node || node.id === 'main') return
-    if (collapsedRef.current) {
-      // Don't leave pins while collapsed — snap back into the ball
-      node.fx = undefined
-      node.fy = undefined
-      fgRef.current?.d3ReheatSimulation()
-      return
+    // Release pin → elastic link yoyos them back with overshoot
+    node.fx = undefined
+    node.fy = undefined
+    const fg = fgRef.current
+    if (!fg) return
+    if (typeof fg.d3AlphaTarget === 'function') {
+      fg.d3AlphaTarget(0.25)
+      setTimeout(() => {
+        if (typeof fg.d3AlphaTarget === 'function') {
+          fg.d3AlphaTarget(collapsedRef.current ? 0.08 : 0.12)
+        }
+      }, 900)
     }
-    // Keep them where you dropped them until center reset
-    node.fx = node.x
-    node.fy = node.y
-    fgRef.current?.d3ReheatSimulation()
+    fg.d3ReheatSimulation()
   }, [])
 
   const badgeLabel = statusLabel(status, { realtime })
@@ -646,7 +650,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag people out &nbsp; Click logo to reset &nbsp; Click node to inspect
+            Drag nodes — they yoyo back &nbsp; Click logo to retract/expand &nbsp; Click node to inspect
           </p>
 
           <div className="relative max-w-md mx-auto">
@@ -727,10 +731,10 @@ export function MapSection() {
             onNodeHover={handleNodeHover}
             onNodeDrag={handleNodeDrag}
             onNodeDragEnd={handleNodeDragEnd}
-            cooldownTicks={400}
-            d3AlphaDecay={0.012}
-            d3VelocityDecay={0.28}
-            warmupTicks={80}
+            cooldownTicks={800}
+            d3AlphaDecay={0.008}
+            d3VelocityDecay={0.18}
+            warmupTicks={60}
             nodeRelSize={1}
           />
 
