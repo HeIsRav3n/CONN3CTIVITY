@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 
 const GOLD = '#C9A96E'
