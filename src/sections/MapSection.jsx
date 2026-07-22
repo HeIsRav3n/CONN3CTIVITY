@@ -311,7 +311,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Scroll to zoom · Drag empty space to pan · Drag near bubbles to stretch · Double-click to reset
+            Drag to pan · Scroll to zoom · Shift+drag to stretch · Double-click to reset
           </p>
 
           <div className="relative max-w-md mx-auto">
