@@ -299,7 +299,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag nodes · Scroll zoom · Click logo to collapse · Click avatar to inspect
+            Drag nodes like a yoyo · Strings flow live · Click logo to collapse
           </p>
 
           <div className="relative max-w-md mx-auto">
