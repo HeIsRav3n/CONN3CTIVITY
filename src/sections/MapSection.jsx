@@ -372,19 +372,17 @@ export function MapSection() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
+          initial={{ opacity: 0, scale: 0.94 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 1, delay: 0.15 }}
+          transition={{ duration: 1.1, delay: 0.15, type: 'spring', stiffness: 80, damping: 18 }}
           ref={containerRef}
-          className="w-full relative"
+          className="w-full relative map-jelly"
           style={{
             height: 'clamp(520px, 78vh, 880px)',
-            borderRadius: 28,
             overflow: 'hidden',
             background: 'radial-gradient(ellipse at center, rgba(18,18,30,0.95) 0%, #050508 100%)',
             border: '1px solid rgba(201,169,110,0.12)',
-            boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset, 0 40px 80px rgba(0,0,0,0.75)',
           }}
         >
           <Conn3ctorOrb

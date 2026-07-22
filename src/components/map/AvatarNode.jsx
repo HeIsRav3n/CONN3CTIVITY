@@ -35,6 +35,18 @@ export function AvatarNode({
   const matRef = useRef()
   const [ready, setReady] = useState(false)
 
+  // Per-node jelly spring (squash-stretch on hover/select)
+  const jellyScale = useRef({ sx: 1, sy: 1, sz: 1 })
+  const jellyVel   = useRef({ sx: 0, sy: 0, sz: 0 })
+  const prevActive = useRef(false)
+  // Deterministic per-node phase for organic micro-wobble
+  const phase = useMemo(() => {
+    let h = 0
+    for (let i = 0; i < (member.id?.length || 0); i++) h = (h * 31 + member.id.charCodeAt(i)) & 0xffffff
+    return h / 0xffffff * Math.PI * 2
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member.id])
+
   const texture = useMemo(() => {
     if (!detailed) return null
     return loadAvatarTexture(member.avatar)
@@ -67,23 +79,53 @@ export function AvatarNode({
   const base = member._base || { x: 0, y: 0, z: 0 }
   const color = member.color || '#C9A96E'
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const g = groupRef.current
     if (!g) return
     const t = state.clock.elapsedTime
     const collapse = collapsed ? 0.18 : 1
-    const breathe = 1 + Math.sin(t * 1.4 + (member._shell || 0)) * 0.015
-    const targetScale = (hovered || selected ? 1.35 : 1) * breathe
+    const isActive = hovered || selected
 
+    // ── Jelly press spring ──────────────────────────────────
+    // On activate: squash Y, bulge X/Z (Arkham press)
+    // On release:  over-stretch Y briefly, then settle
+    const STIFF = 260, DAMP = 14
+    const jp = jellyScale.current
+    const jv = jellyVel.current
+    const dt = Math.min(delta, 0.05)
+
+    // Trigger kick when activation state changes
+    if (isActive && !prevActive.current) {
+      jv.sy -= 0.8   // impulse: squash Y
+      jv.sx += 0.4   // bulge X
+      jv.sz += 0.4   // bulge Z
+    } else if (!isActive && prevActive.current) {
+      jv.sy += 0.5   // release: stretch Y
+      jv.sx -= 0.25
+      jv.sz -= 0.25
+    }
+    prevActive.current = isActive
+
+    // Integrate spring toward rest=1
+    jv.sx += (-(jp.sx - 1) * STIFF - jv.sx * DAMP) * dt
+    jv.sy += (-(jp.sy - 1) * STIFF - jv.sy * DAMP) * dt
+    jv.sz += (-(jp.sz - 1) * STIFF - jv.sz * DAMP) * dt
+    jp.sx += jv.sx * dt
+    jp.sy += jv.sy * dt
+    jp.sz += jv.sz * dt
+
+    // ── Micro-wobble (per-node organic sway) ────────────────
+    const wobble = Math.sin(t * 1.1 + phase) * 0.008
+    const wobbleBreath = 1 + Math.sin(t * 1.4 + phase + (member._shell || 0)) * 0.015
+
+    // ── Position lerp ────────────────────────────────────────
+    const baseScale = (isActive ? 1.35 : 1) * wobbleBreath
     const tx = base.x * collapse
     const ty = base.y * collapse
     const tz = base.z * collapse
 
-    // Ease toward home (and pull slightly toward camera when hovered)
-    let hx = tx
-    let hy = ty
-    let hz = tz
-    if (hovered || selected) {
+    let hx = tx, hy = ty, hz = tz
+    if (isActive) {
       const cam = state.camera.position
       const pull = 0.22
       hx = tx + (cam.x - tx) * pull * 0.08
@@ -92,13 +134,18 @@ export function AvatarNode({
     }
 
     g.position.x += (hx - g.position.x) * 0.12
-    g.position.y += (hy - g.position.y) * 0.12
+    g.position.y += (hy + wobble - g.position.y) * 0.12
     g.position.z += (hz - g.position.z) * 0.12
-    const s = g.scale.x + (targetScale - g.scale.x) * 0.15
-    g.scale.setScalar(s)
+
+    // Apply jelly scale on top of base scale
+    g.scale.set(
+      jp.sx * baseScale,
+      jp.sy * baseScale,
+      jp.sz * baseScale,
+    )
 
     if (matRef.current) {
-      matRef.current.emissiveIntensity = hovered || selected ? 0.55 : 0.18
+      matRef.current.emissiveIntensity = isActive ? 0.55 : 0.18
     }
   })
 

@@ -146,10 +146,62 @@ function ShellField({
 }) {
   const groupRef = useRef()
 
-  useFrame((_, delta) => {
-    if (!groupRef.current || collapsed) return
-    groupRef.current.rotation.y += delta * 0.08
-    groupRef.current.rotation.x = Math.sin(performance.now() * 0.00015) * 0.08
+  // Jelly spring state
+  const jellyVel = useRef({ sx: 0, sy: 0, sz: 0 })   // spring velocity per axis
+  const jellyPos = useRef({ sx: 1, sy: 1, sz: 1 })   // current scale
+  const prevRotY = useRef(0)
+  const angularVel = useRef(0)
+
+  // Arkham-style jelly physics on the whole orb
+  // squash along Y when spinning fast, stretch on X/Z; elastic spring decay
+  const STIFFNESS = 140
+  const DAMPING   = 10
+  const REST      = 1
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return
+    const g = groupRef.current
+    const t = state.clock.elapsedTime
+
+    if (!collapsed) {
+      g.rotation.y += delta * 0.08
+      g.rotation.x = Math.sin(t * 0.15) * 0.08
+    }
+
+    // Measure angular velocity
+    const dRotY = g.rotation.y - prevRotY.current
+    prevRotY.current = g.rotation.y
+    // Low-pass smooth the angular velocity
+    angularVel.current += (Math.abs(dRotY / delta) - angularVel.current) * 0.18
+
+    // Jelly targets: fast spin → squash Y, bulge X/Z; slow → all REST
+    const spin = Math.min(angularVel.current / 0.15, 1.0)   // normalise 0..1
+    const targetX = REST + spin * 0.12
+    const targetY = REST - spin * 0.10
+    const targetZ = REST + spin * 0.06
+
+    // Spring-damper integration (semi-implicit Euler)
+    const dt = Math.min(delta, 0.05)
+    const jp = jellyPos.current
+    const jv = jellyVel.current
+
+    jv.sx += (-(jp.sx - targetX) * STIFFNESS - jv.sx * DAMPING) * dt
+    jv.sy += (-(jp.sy - targetY) * STIFFNESS - jv.sy * DAMPING) * dt
+    jv.sz += (-(jp.sz - targetZ) * STIFFNESS - jv.sz * DAMPING) * dt
+
+    jp.sx += jv.sx * dt
+    jp.sy += jv.sy * dt
+    jp.sz += jv.sz * dt
+
+    // Subtle lateral breath sway on top of jelly
+    const swayX = Math.sin(t * 0.42 + 1.1) * 0.012
+    const swayZ = Math.cos(t * 0.37 + 0.7) * 0.008
+
+    g.scale.set(
+      jp.sx + swayX,
+      jp.sy,
+      jp.sz + swayZ,
+    )
   })
 
   // Prefer selected/hovered + deterministic sample for textured nodes
