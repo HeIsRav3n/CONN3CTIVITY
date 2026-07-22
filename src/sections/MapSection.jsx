@@ -4,7 +4,7 @@ import STATIC_DATA from '../data/conn3ctors.json'
 import { fetchConn3ctors, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
 import { supabase } from '../lib/supabase'
-import { ArkhamGraph } from '../components/map/ArkhamGraph'
+import { RadialBubbleMap } from '../components/map/RadialBubbleMap'
 
 const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
   .filter(n => n.id !== 'main')
@@ -68,6 +68,7 @@ export function MapSection() {
   const [collapsed, setCollapsed] = useState(false)
   const [query, setQuery] = useState('')
   const [focusId, setFocusId] = useState(null)
+  const [inView, setInView] = useState(true)
 
   const {
     data: liveRows,
@@ -102,6 +103,17 @@ export function MapSection() {
     const ro = new ResizeObserver(measure)
     ro.observe(containerRef.current)
     return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting && entry.intersectionRatio > 0.05),
+      { threshold: [0, 0.05, 0.15] },
+    )
+    io.observe(el)
+    return () => io.disconnect()
   }, [])
 
   useEffect(() => {
@@ -299,7 +311,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag nodes like a yoyo · Strings flow live · Click logo to collapse
+            Drag to stretch the constellation · Release to settle · Click logo to retract · Click avatar to inspect
           </p>
 
           <div className="relative max-w-md mx-auto">
@@ -375,14 +387,14 @@ export function MapSection() {
             }}
           />
 
-          <ArkhamGraph
+          <RadialBubbleMap
             members={members}
             width={dimensions.width}
             height={dimensions.height}
             collapsed={collapsed}
             selectedId={selectedNode?.id || null}
-            hoveredId={hoveredNode?.id || null}
             focusId={focusId}
+            active={inView}
             onHover={handleHover}
             onSelect={handleSelect}
             onHubClick={toggleCollapse}
@@ -421,8 +433,7 @@ export function MapSection() {
             }}
           >
             <span>{members.length} Conn3ctors</span>
-            <span style={{ color: 'rgba(61,214,140,0.55)' }}>● in</span>
-            <span style={{ color: 'rgba(240,113,120,0.55)' }}>● out</span>
+            <span style={{ color: 'rgba(201,169,110,0.45)' }}>radial constellation</span>
           </div>
 
           <AnimatePresence>
