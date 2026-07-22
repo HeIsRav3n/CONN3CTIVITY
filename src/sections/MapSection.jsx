@@ -3,9 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import STATIC_DATA from '../data/conn3ctors.json'
 import { fetchConn3ctors, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
-import { useDeviceCapability } from '../hooks/useDeviceCapability'
 import { supabase } from '../lib/supabase'
-import { Conn3ctorOrb } from '../components/map/Conn3ctorOrb'
+import { ArkhamGraph } from '../components/map/ArkhamGraph'
 
 const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
   .filter(n => n.id !== 'main')
@@ -60,8 +59,7 @@ function normalizeCommunities(value) {
 
 export function MapSection() {
   const containerRef = useRef(null)
-  const device = useDeviceCapability()
-
+  const [dimensions, setDimensions] = useState({ width: 900, height: 700 })
   const [members, setMembers] = useState(() => rowsToMembers(FALLBACK_ROWS))
   const [hoveredNode, setHoveredNode] = useState(null)
   const [selectedNode, setSelectedNode] = useState(null)
@@ -70,7 +68,6 @@ export function MapSection() {
   const [collapsed, setCollapsed] = useState(false)
   const [query, setQuery] = useState('')
   const [focusId, setFocusId] = useState(null)
-  const [inView, setInView] = useState(true)
 
   const {
     data: liveRows,
@@ -90,42 +87,23 @@ export function MapSection() {
     },
   })
 
-  // Sync live rows → members (preserve selected/hovered object identity when possible)
   useEffect(() => {
     if (!liveRows?.length) return
-    const next = rowsToMembers(liveRows)
-    setMembers(old => {
-      if (!old.length) return next
-      const oldMap = new Map(old.map(m => [m.id, m]))
-      return next.map(m => {
-        const prev = oldMap.get(m.id)
-        if (!prev) return m
-        return {
-          ...prev,
-          name: m.name,
-          discordHandle: m.discordHandle,
-          xHandle: m.xHandle,
-          group: m.group,
-          color: m.color,
-          avatar: m.avatar,
-        }
-      })
-    })
+    setMembers(rowsToMembers(liveRows))
   }, [liveRows])
 
-  // Pause WebGL when map section is off-screen
   useEffect(() => {
-    const el = containerRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return undefined
-    const io = new IntersectionObserver(
-      ([entry]) => setInView(entry.isIntersecting && entry.intersectionRatio > 0.08),
-      { threshold: [0, 0.08, 0.2] },
-    )
-    io.observe(el)
-    return () => io.disconnect()
+    if (!containerRef.current) return
+    const measure = () => {
+      const r = containerRef.current?.getBoundingClientRect()
+      if (r?.width) setDimensions({ width: r.width, height: r.height })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(containerRef.current)
+    return () => ro.disconnect()
   }, [])
 
-  // Profile from Supabase (+ Realtime while card is open)
   useEffect(() => {
     if (!selectedNode) {
       setSelectedProfile(null)
@@ -157,7 +135,6 @@ export function MapSection() {
             .maybeSingle()
 
           if (error) console.warn('Profile lookup:', error.message)
-
           if (active && data) {
             setSelectedProfile(mapProfile(data))
             setProfileState('ready')
@@ -280,7 +257,7 @@ export function MapSection() {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse 80% 60% at 50% 45%, rgba(201,169,110,0.05) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse 80% 60% at 50% 45%, rgba(201,169,110,0.04) 0%, transparent 70%)',
         }}
       />
 
@@ -322,7 +299,7 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag to orbit · Scroll to zoom · Click logo to collapse · Click avatar to inspect
+            Drag nodes · Scroll zoom · Click logo to collapse · Click avatar to inspect
           </p>
 
           <div className="relative max-w-md mx-auto">
@@ -372,21 +349,36 @@ export function MapSection() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.94 }}
+          initial={{ opacity: 0, scale: 0.98 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 1.1, delay: 0.15, type: 'spring', stiffness: 80, damping: 18 }}
+          transition={{ duration: 0.9, delay: 0.12 }}
           ref={containerRef}
-          className="w-full relative map-jelly"
+          className="w-full relative"
           style={{
             height: 'clamp(520px, 78vh, 880px)',
+            borderRadius: 20,
             overflow: 'hidden',
-            background: 'radial-gradient(ellipse at center, rgba(18,18,30,0.95) 0%, #050508 100%)',
-            border: '1px solid rgba(201,169,110,0.12)',
+            background: '#0a0a0e',
+            border: '1px solid rgba(255,255,255,0.06)',
+            boxShadow: '0 40px 80px rgba(0,0,0,0.7)',
           }}
         >
-          <Conn3ctorOrb
+          {/* Arkham-style depth polygon behind the graph */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: `
+                radial-gradient(ellipse 55% 50% at 50% 48%, rgba(40,40,52,0.55) 0%, transparent 70%),
+                radial-gradient(ellipse 30% 28% at 50% 48%, rgba(201,169,110,0.04) 0%, transparent 70%)
+              `,
+            }}
+          />
+
+          <ArkhamGraph
             members={members}
+            width={dimensions.width}
+            height={dimensions.height}
             collapsed={collapsed}
             selectedId={selectedNode?.id || null}
             hoveredId={hoveredNode?.id || null}
@@ -394,9 +386,6 @@ export function MapSection() {
             onHover={handleHover}
             onSelect={handleSelect}
             onHubClick={toggleCollapse}
-            active={inView}
-            isMobile={device.isMobile}
-            pixelRatio={device.pixelRatio}
           />
 
           <AnimatePresence>
@@ -407,44 +396,33 @@ export function MapSection() {
                 exit={{ opacity: 0, y: -8 }}
                 className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full pointer-events-none"
                 style={{
-                  background: 'rgba(201,169,110,0.1)',
-                  border: '1px solid rgba(201,169,110,0.3)',
-                  color: '#C9A96E',
+                  background: 'rgba(61,214,140,0.1)',
+                  border: '1px solid rgba(61,214,140,0.3)',
+                  color: '#3dd68c',
                   fontFamily: "'Josefin Sans', sans-serif",
                   fontSize: '0.55rem',
                   letterSpacing: '0.28em',
                   textTransform: 'uppercase',
                 }}
               >
-                Tap logo to expand orbit
+                Tap logo to expand
               </motion.div>
             )}
           </AnimatePresence>
 
           <div
-            className="absolute top-4 left-4 pointer-events-none"
+            className="absolute top-4 left-4 pointer-events-none flex items-center gap-2"
             style={{
               fontFamily: "'Josefin Sans', sans-serif",
               fontSize: '0.45rem',
               letterSpacing: '0.28em',
               textTransform: 'uppercase',
-              color: 'rgba(201,169,110,0.35)',
+              color: 'rgba(201,169,110,0.4)',
             }}
           >
-            {members.length} Conn3ctors · Orbital Rings
-          </div>
-
-          <div
-            className="absolute bottom-4 left-4 pointer-events-none hidden sm:block"
-            style={{
-              fontFamily: "'Josefin Sans', sans-serif",
-              fontSize: '0.42rem',
-              letterSpacing: '0.22em',
-              textTransform: 'uppercase',
-              color: 'rgba(237,232,220,0.22)',
-            }}
-          >
-            Orbital shells · live roster
+            <span>{members.length} Conn3ctors</span>
+            <span style={{ color: 'rgba(61,214,140,0.55)' }}>● in</span>
+            <span style={{ color: 'rgba(240,113,120,0.55)' }}>● out</span>
           </div>
 
           <AnimatePresence>
@@ -569,10 +547,7 @@ export function MapSection() {
 
                     {profileState === 'loading' && (
                       <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div
-                          className="font-['Josefin_Sans'] text-[0.52rem] tracking-widest uppercase"
-                          style={{ color: 'rgba(237,232,220,0.45)' }}
-                        >
+                        <div className="font-['Josefin_Sans'] text-[0.52rem] tracking-widest uppercase" style={{ color: 'rgba(237,232,220,0.45)' }}>
                           Loading profile...
                         </div>
                       </div>
@@ -582,26 +557,22 @@ export function MapSection() {
                       <div className="space-y-2 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                         {selectedProfile.role && (
                           <div className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest" style={{ color: 'rgba(237,232,220,0.45)' }}>
-                            <span style={{ color: '#C9A96E' }}>ROLE </span>
-                            {selectedProfile.role}
+                            <span style={{ color: '#C9A96E' }}>ROLE </span>{selectedProfile.role}
                           </div>
                         )}
                         {selectedProfile.cm_type && (
                           <div className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest" style={{ color: 'rgba(237,232,220,0.45)' }}>
-                            <span style={{ color: '#C9A96E' }}>CM TYPE </span>
-                            {selectedProfile.cm_type}
+                            <span style={{ color: '#C9A96E' }}>CM TYPE </span>{selectedProfile.cm_type}
                           </div>
                         )}
                         {selectedProfile.experience && (
                           <div className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest" style={{ color: 'rgba(237,232,220,0.45)' }}>
-                            <span style={{ color: '#C9A96E' }}>EXP </span>
-                            {selectedProfile.experience}
+                            <span style={{ color: '#C9A96E' }}>EXP </span>{selectedProfile.experience}
                           </div>
                         )}
                         {selectedProfile.services && (
                           <div className="font-['Josefin_Sans'] text-[0.53rem] tracking-widest" style={{ color: 'rgba(237,232,220,0.45)' }}>
-                            <span style={{ color: '#C9A96E' }}>SERVICES </span>
-                            {selectedProfile.services}
+                            <span style={{ color: '#C9A96E' }}>SERVICES </span>{selectedProfile.services}
                           </div>
                         )}
                         {selectedProfile.telegram && (
@@ -637,10 +608,7 @@ export function MapSection() {
 
                     {profileState !== 'loading' && !selectedProfile && (
                       <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div
-                          className="font-['Josefin_Sans'] text-[0.52rem] tracking-widest uppercase"
-                          style={{ color: 'rgba(237,232,220,0.35)' }}
-                        >
+                        <div className="font-['Josefin_Sans'] text-[0.52rem] tracking-widest uppercase" style={{ color: 'rgba(237,232,220,0.35)' }}>
                           No extended profile yet
                         </div>
                       </div>
