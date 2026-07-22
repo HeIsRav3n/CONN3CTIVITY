@@ -431,7 +431,7 @@ export function MapSection() {
               color: 'rgba(201,169,110,0.35)',
             }}
           >
-            {members.length} Conn3ctors · 3D Orbit
+            {members.length} Conn3ctors · Orbital Rings
           </div>
 
           <div
