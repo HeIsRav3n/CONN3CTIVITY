@@ -10,6 +10,31 @@
     <title>CONN3CTIVITY — Search • Find • Conn3ct</title>
   </head>
   <body>
+    <audio
+      id="welcome-audio"
+      src="/welcome-conn3ctivity.mp3"
+      preload="auto"
+      autoplay
+      playsinline
+      webkit-playsinline
+    ></audio>
+    <script>
+      // Kick welcome audio as early as possible (before React mounts)
+      (function () {
+        var a = document.getElementById('welcome-audio')
+        if (!a) return
+        a.volume = 0.9
+        var tryPlay = function () {
+          var p = a.play()
+          if (p && p.catch) p.catch(function () {})
+        }
+        tryPlay()
+        a.addEventListener('canplaythrough', tryPlay, { once: true })
+        setTimeout(tryPlay, 100)
+        setTimeout(tryPlay, 500)
+        setTimeout(tryPlay, 1500)
+      })()
+    </script>
     <div id="root">
       <!-- Skeleton shown before React mounts — hides itself once root is populated -->
       <div id="app-loading" style="position:fixed;inset:0;background:#0B0A08;display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:16px">

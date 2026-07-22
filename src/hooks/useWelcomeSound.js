@@ -1,111 +1,106 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
+
+/**
+ * Module-level singleton so React Strict Mode remounts don't kill playback mid-play.
+ */
+let welcomeAudio = null
+let welcomePlayed = false
+let welcomePlaying = false
 
 const WELCOME_SRC = '/welcome-conn3ctivity.mp3'
 const WELCOME_FALLBACK = '/welcome-conn3ctivity.ogg'
 
-/**
- * Auto-plays "Welcome to Conn3ctivity" when the site loads.
- * Retries briefly after mount; if the browser blocks sound, plays on the first gesture.
- */
-export function useWelcomeSound({ enabled = true } = {}) {
-  const playedRef = useRef(false)
+function getWelcomeAudio() {
+  if (typeof window === 'undefined') return null
+  if (welcomeAudio) return welcomeAudio
 
-  useEffect(() => {
-    if (!enabled || typeof window === 'undefined') return undefined
+  const el = document.getElementById('welcome-audio')
+  if (el) {
+    welcomeAudio = el
+    welcomeAudio.volume = 0.9
+    return welcomeAudio
+  }
 
-    const audio = new Audio(WELCOME_SRC)
-    audio.preload = 'auto'
-    audio.volume = 0.9
-    audio.setAttribute('playsinline', 'true')
+  welcomeAudio = new Audio(WELCOME_SRC)
+  welcomeAudio.preload = 'auto'
+  welcomeAudio.volume = 0.9
+  welcomeAudio.setAttribute('playsinline', 'true')
+  welcomeAudio.setAttribute('webkit-playsinline', 'true')
+  return welcomeAudio
+}
 
-    let cancelled = false
-    let retryTimer = null
+async function tryPlayWelcome() {
+  if (welcomePlayed || welcomePlaying) return welcomePlayed
+  const audio = getWelcomeAudio()
+  if (!audio) return false
 
-    const markPlayed = () => {
-      playedRef.current = true
-      cleanup()
+  welcomePlaying = true
+  try {
+    audio.muted = false
+    if (audio.readyState < 2) {
+      try { audio.load() } catch { /* ignore */ }
     }
-
-    const play = async () => {
-      if (cancelled || playedRef.current) return true
+    try { audio.currentTime = 0 } catch { /* ignore */ }
+    await audio.play()
+    welcomePlayed = true
+    welcomePlaying = false
+    return true
+  } catch {
+    if (audio.src && !String(audio.src).includes('.ogg')) {
       try {
-        audio.muted = false
-        if (audio.readyState === 0) audio.load()
-        audio.currentTime = 0
+        audio.src = WELCOME_FALLBACK
         await audio.play()
-        markPlayed()
+        welcomePlayed = true
+        welcomePlaying = false
         return true
       } catch {
-        // Try OGG if MP3 failed to decode
-        if (audio.src && !audio.src.endsWith(WELCOME_FALLBACK)) {
-          audio.src = WELCOME_FALLBACK
-          try {
-            await audio.play()
-            markPlayed()
-            return true
-          } catch {
-            // still blocked
-          }
-        }
+        welcomePlaying = false
         return false
       }
     }
+    welcomePlaying = false
+    return false
+  }
+}
 
-    const onGesture = () => { play() }
-    const onReady = () => { play() }
+/**
+ * Auto-plays welcome on load via singleton + early HTML audio.
+ * Does not pause/destroy audio on effect cleanup (fixes Strict Mode killing playback).
+ */
+export function useWelcomeSound({ enabled = true } = {}) {
+  useEffect(() => {
+    if (!enabled) return undefined
 
-    const cleanup = () => {
-      window.removeEventListener('pointerdown', onGesture)
-      window.removeEventListener('keydown', onGesture)
-      window.removeEventListener('touchstart', onGesture)
-      window.removeEventListener('scroll', onGesture)
-      window.removeEventListener('pageshow', onReady)
-      document.removeEventListener('visibilitychange', onVis)
-      audio.removeEventListener('canplaythrough', onReady)
-      if (retryTimer) {
-        window.clearInterval(retryTimer)
-        retryTimer = null
-      }
-    }
+    getWelcomeAudio()
+    tryPlayWelcome()
 
-    const onVis = () => {
-      if (document.visibilityState === 'visible') onReady()
-    }
+    const times = [0, 80, 250, 600, 1200, 2500, 5000]
+    const timers = times.map((ms) => window.setTimeout(() => tryPlayWelcome(), ms))
 
-    audio.addEventListener('canplaythrough', onReady)
-    window.addEventListener('pageshow', onReady)
-    document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('pointerdown', onGesture, { passive: true })
-    window.addEventListener('keydown', onGesture)
-    window.addEventListener('touchstart', onGesture, { passive: true })
-    window.addEventListener('scroll', onGesture, { passive: true, once: true })
+    const onCanPlay = () => tryPlayWelcome()
+    const audio = getWelcomeAudio()
+    audio?.addEventListener('canplaythrough', onCanPlay)
 
-    audio.load()
-    play()
+    const onPageShow = () => tryPlayWelcome()
+    window.addEventListener('pageshow', onPageShow)
 
-    // Retry for a few seconds while media decodes / policies settle
-    let ticks = 0
-    retryTimer = window.setInterval(() => {
-      ticks += 1
-      if (playedRef.current || cancelled || ticks > 20) {
-        window.clearInterval(retryTimer)
-        retryTimer = null
-        return
-      }
-      play()
-    }, 400)
-
-    const t1 = window.setTimeout(() => play(), 150)
-    const t2 = window.setTimeout(() => play(), 600)
+    // Invisible unlock: many browsers count document visibility / focus as engagement
+    const onFocus = () => tryPlayWelcome()
+    window.addEventListener('focus', onFocus)
 
     return () => {
-      cancelled = true
-      window.clearTimeout(t1)
-      window.clearTimeout(t2)
-      cleanup()
-      audio.pause()
-      audio.removeAttribute('src')
-      audio.load()
+      timers.forEach(clearTimeout)
+      audio?.removeEventListener('canplaythrough', onCanPlay)
+      window.removeEventListener('pageshow', onPageShow)
+      window.removeEventListener('focus', onFocus)
+      // Never pause the singleton here
     }
   }, [enabled])
+}
+
+/** Call from index.html inline script as early as possible */
+export function bootWelcomeSound() {
+  if (typeof window === 'undefined') return
+  getWelcomeAudio()
+  tryPlayWelcome()
 }

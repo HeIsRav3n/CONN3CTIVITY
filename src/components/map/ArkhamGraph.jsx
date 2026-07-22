@@ -15,7 +15,6 @@ function hash01(id) {
   return ((h >>> 0) % 10000) / 10000
 }
 
-/** Pack members onto concentric rings (circular pattern). */
 function assignCircularOrbits(members) {
   let idx = 0
   let ring = 0
@@ -73,17 +72,8 @@ function buildGraph(members) {
   return { nodes: [main, ...kids], links }
 }
 
-/** Sample a point on a quadratic bezier */
-function quadAt(sx, sy, cpx, cpy, tx, ty, t) {
-  const u = 1 - t
-  return {
-    x: u * u * sx + 2 * u * t * cpx + t * t * tx,
-    y: u * u * sy + 2 * u * t * cpy + t * t * ty,
-  }
-}
-
 /**
- * Circular yoyo map — orbit slots, elastic drag, animated moving strings.
+ * Circular yoyo map with jellyfish strings — performant redraw loop.
  */
 export function ArkhamGraph({
   members = [],
@@ -99,13 +89,19 @@ export function ArkhamGraph({
 }) {
   const fgRef = useRef(null)
   const collapsedRef = useRef(collapsed)
+  const hoveredRef = useRef(hoveredId)
+  const selectedRef = useRef(selectedId)
+  const draggingIdRef = useRef(null)
   const rotationRef = useRef(0)
   const lastTickRef = useRef(typeof performance !== 'undefined' ? performance.now() : 0)
   const graphDataRef = useRef(null)
+  const timeRef = useRef(0)
   const [graphData, setGraphData] = useState(() => buildGraph(members))
   const [imgTick, setImgTick] = useState(0)
 
   useEffect(() => { collapsedRef.current = collapsed }, [collapsed])
+  useEffect(() => { hoveredRef.current = hoveredId }, [hoveredId])
+  useEffect(() => { selectedRef.current = selectedId }, [selectedId])
   useEffect(() => { graphDataRef.current = graphData }, [graphData])
 
   useEffect(() => {
@@ -158,8 +154,9 @@ export function ArkhamGraph({
           _baseA: n._baseA ?? prev._baseA,
         }
       })
-      const needOrbit = nodes.some(n => !n.isHub && n._baseA == null)
-      if (needOrbit) assignCircularOrbits(nodes.filter(n => !n.isHub))
+      if (nodes.some(n => !n.isHub && n._baseA == null)) {
+        assignCircularOrbits(nodes.filter(n => !n.isHub))
+      }
       const hub = nodes.find(n => n.isHub)
       if (hub) { hub.fx = 0; hub.fy = 0; hub.x = 0; hub.y = 0 }
       return { nodes, links: fresh.links }
@@ -176,8 +173,8 @@ export function ArkhamGraph({
 
     const charge = fg.d3Force('charge')
     if (charge) {
-      charge.strength(n => (n.isHub ? 0 : (isCollapsed ? -8 : -22)))
-      if (typeof charge.distanceMax === 'function') charge.distanceMax(isCollapsed ? 70 : 110)
+      charge.strength(n => (n.isHub ? 0 : (isCollapsed ? -6 : -18)))
+      if (typeof charge.distanceMax === 'function') charge.distanceMax(isCollapsed ? 60 : 100)
     }
 
     const link = fg.d3Force('link')
@@ -185,15 +182,14 @@ export function ArkhamGraph({
       link
         .distance(l => {
           const t = typeof l.target === 'object' ? l.target : null
-          return isCollapsed ? 24 : (t?._ringR || 120)
+          return isCollapsed ? 22 : (t?._ringR || 120)
         })
-        // Soft enough to stretch on drag (yoyo string), strong enough to snap home
-        .strength(isCollapsed ? 0.95 : 0.22)
+        .strength(isCollapsed ? 0.9 : 0.18)
     }
 
-    // Keep simmering so strings keep animating + orbit spins
+    // Low simmer — enough for slow spin, not a permanent CPU boil
     if (typeof fg.d3AlphaTarget === 'function') {
-      fg.d3AlphaTarget(isCollapsed ? 0.12 : 0.06)
+      fg.d3AlphaTarget(isCollapsed ? 0.05 : 0.025)
     }
 
     let nodeList = []
@@ -204,7 +200,7 @@ export function ArkhamGraph({
         lastTickRef.current = now
         const collapsedNow = collapsedRef.current
 
-        if (!collapsedNow) rotationRef.current += dt * 0.00016
+        if (!collapsedNow) rotationRef.current += dt * 0.00014
 
         const rot = rotationRef.current
         nodeList.forEach((n, i) => {
@@ -217,7 +213,6 @@ export function ArkhamGraph({
             n.vy = 0
             return
           }
-          // Being dragged — leave pin alone (string stretches)
           if (n.fx != null || n.fy != null) return
 
           if (n._baseA == null || n._ringR == null) {
@@ -225,20 +220,14 @@ export function ArkhamGraph({
             n._ringR = 120
           }
 
-          const R = collapsedNow ? 28 : n._ringR
+          const R = collapsedNow ? 26 : n._ringR
           const A = n._baseA + rot
           const tx = Math.cos(A) * R
           const ty = Math.sin(A) * R
 
-          // Yoyo spring back to circular slot
-          const k = collapsedNow ? 0.28 : 0.11
-          n.vx += (tx - (n.x || 0)) * k * (alpha + 0.14) * 14
-          n.vy += (ty - (n.y || 0)) * k * (alpha + 0.14) * 14
-
-          // Living shimmer
-          const wobble = collapsedNow ? 0.08 : 0.35
-          n.vx += Math.sin(now * 0.0017 + i * 0.71) * wobble * alpha
-          n.vy += Math.cos(now * 0.0014 + i * 0.53) * wobble * alpha
+          const k = collapsedNow ? 0.26 : 0.1
+          n.vx += (tx - (n.x || 0)) * k * (alpha + 0.12) * 12
+          n.vy += (ty - (n.y || 0)) * k * (alpha + 0.12) * 12
         })
       },
       { initialize: (ns) => { nodeList = ns } },
@@ -246,6 +235,23 @@ export function ArkhamGraph({
 
     fg.d3Force('orbit', orbitForce)
     fg.d3ReheatSimulation()
+  }, [])
+
+  // Lightweight visual refresh (~30fps) so strings keep jelly-waving without
+  // forcing the physics engine to run at full tilt forever.
+  useEffect(() => {
+    let raf = 0
+    let last = 0
+    const loop = (ts) => {
+      raf = requestAnimationFrame(loop)
+      if (ts - last < 33) return
+      last = ts
+      timeRef.current = ts * 0.001
+      const fg = fgRef.current
+      if (fg && typeof fg.refresh === 'function') fg.refresh()
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
   }, [])
 
   useEffect(() => {
@@ -267,11 +273,11 @@ export function ArkhamGraph({
     applyYoyoForces(collapsed)
     const fg = fgRef.current
     if (!fg) return
-    // Clear leftover drag pins on collapse toggle
     ;(graphDataRef.current?.nodes || []).forEach(n => {
       if (n.isHub) { n.fx = 0; n.fy = 0 }
       else { n.fx = undefined; n.fy = undefined }
     })
+    draggingIdRef.current = null
     fg.centerAt(0, 0, 550)
     if (collapsed) fg.zoom(1.55, 550)
     else {
@@ -290,7 +296,9 @@ export function ArkhamGraph({
   const drawNode = useCallback((node, ctx, globalScale) => {
     if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return
     const isHub = node.isHub
-    const isHot = node.id === hoveredId || node.id === selectedId
+    const hid = hoveredRef.current
+    const sid = selectedRef.current
+    const isHot = node.id === hid || node.id === sid || node.id === draggingIdRef.current
     const r = isHub ? 30 : (isHot ? 13 : 8.5)
 
     if (isHub || isHot) {
@@ -336,7 +344,7 @@ export function ArkhamGraph({
       ctx.fillStyle = isHub ? GOLD : 'rgba(237,232,220,0.92)'
       ctx.fillText(node.name || '', node.x, node.y + r + 3 / globalScale)
     }
-  }, [hoveredId, selectedId, imgTick])
+  }, [imgTick])
 
   const drawLink = useCallback((link, ctx) => {
     const s = link.source
@@ -347,62 +355,81 @@ export function ArkhamGraph({
     const dx = t.x - s.x
     const dy = t.y - s.y
     const len = Math.hypot(dx, dy) || 1
-    const isHot =
-      t.id === hoveredId || t.id === selectedId ||
-      s.id === hoveredId || s.id === selectedId
+    const tid = t.id
+    const isDrag = tid === draggingIdRef.current
+    const isHot = tid === hoveredRef.current || tid === selectedRef.current || isDrag
     const rest = t._ringR || 120
-    const stretch = Math.max(0, Math.min(2, len / rest - 1))
-
+    const stretch = Math.max(0, Math.min(2.5, len / rest - 1))
+    const speed = Math.hypot(t.vx || 0, t.vy || 0)
     const nx = -dy / len
     const ny = dx / len
-    const now = performance.now() * 0.001
-    const seed = hash01(typeof t.id === 'string' ? t.id : String(t.id || 0)) * Math.PI * 2
+    const now = timeRef.current
+    const seed = hash01(typeof tid === 'string' ? tid : String(tid || 0)) * Math.PI * 2
 
-    // Moving string: wave travels along the spoke
-    const wave = Math.sin(now * 3.2 + seed) * (4 + stretch * 10) + (isHot ? 8 : 0)
-    const bend = (isHot ? 14 : 6) + stretch * 18 + wave
-    const cpx = (s.x + t.x) / 2 + nx * bend
-    const cpy = (s.y + t.y) / 2 + ny * bend
+    // Jellyfish amplitude — big when dragging / stretched
+    const amp =
+      (isDrag ? 22 : 3) +
+      stretch * 32 +
+      (isHot ? 8 : 0) +
+      Math.min(speed * 1.8, 18)
+
+    const jelly = isDrag || stretch > 0.08 || isHot
+    const segs = jelly ? 14 : 5
 
     const grd = ctx.createLinearGradient(s.x, s.y, t.x, t.y)
-    if (isHot || stretch > 0.15) {
+    if (isDrag || stretch > 0.12) {
       grd.addColorStop(0, 'rgba(201,169,110,0.95)')
+      grd.addColorStop(0.5, link.flow === 'in' ? 'rgba(61,214,140,0.85)' : 'rgba(240,113,120,0.85)')
       grd.addColorStop(1, `${t.color || GOLD}ee`)
     } else if (link.flow === 'in') {
-      grd.addColorStop(0, `${IN_FLOW}0.08)`)
-      grd.addColorStop(1, `${IN_FLOW}0.55)`)
+      grd.addColorStop(0, `${IN_FLOW}0.07)`)
+      grd.addColorStop(1, `${IN_FLOW}0.5)`)
     } else {
-      grd.addColorStop(0, `${OUT_FLOW}0.08)`)
-      grd.addColorStop(1, `${OUT_FLOW}0.52)`)
+      grd.addColorStop(0, `${OUT_FLOW}0.07)`)
+      grd.addColorStop(1, `${OUT_FLOW}0.48)`)
     }
 
     ctx.beginPath()
-    ctx.moveTo(s.x, s.y)
-    ctx.quadraticCurveTo(cpx, cpy, t.x, t.y)
+    for (let i = 0; i <= segs; i++) {
+      const u = i / segs
+      // Envelope: 0 at hub & node, max in middle (true rubber string)
+      const envelope = Math.sin(u * Math.PI)
+      const wave =
+        Math.sin(u * Math.PI * 3 + now * (isDrag ? 9 : 4.2) + seed) * amp * envelope +
+        Math.sin(u * Math.PI * 5.5 - now * (isDrag ? 7 : 2.8) + seed * 1.7) * amp * 0.35 * envelope
+      const x = s.x + dx * u + nx * wave
+      const y = s.y + dy * u + ny * wave
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
     ctx.strokeStyle = grd
-    ctx.lineWidth = isHot || stretch > 0.2 ? 1.8 : 0.7
-    ctx.globalAlpha = collapsedRef.current ? 0.28 : 1
+    ctx.lineWidth = isDrag || stretch > 0.2 ? 2.1 : (isHot ? 1.4 : 0.6)
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
+    ctx.globalAlpha = collapsedRef.current ? 0.25 : 1
     ctx.stroke()
 
-    // Traveling dots along the string (flow motion)
-    if (!collapsedRef.current) {
+    // Flow pulse only on active strings (avoids hanging on 400×3 dots)
+    if (!collapsedRef.current && (isDrag || isHot || stretch > 0.2)) {
       const dir = link.flow === 'in' ? -1 : 1
-      const phase = (now * 0.55 * dir + seed) % 1
-      for (let i = 0; i < 3; i++) {
-        const tt = (phase + i / 3) % 1
-        const p = quadAt(s.x, s.y, cpx, cpy, t.x, t.y, tt)
-        const pulse = 1.2 + Math.sin(now * 6 + i) * 0.35
+      const phase = (now * 0.7 * dir + seed) % 1
+      for (let i = 0; i < 2; i++) {
+        const u = (phase + i / 2) % 1
+        const envelope = Math.sin(u * Math.PI)
+        const wave = Math.sin(u * Math.PI * 3 + now * 5 + seed) * amp * envelope
+        const x = s.x + dx * u + nx * wave
+        const y = s.y + dy * u + ny * wave
         ctx.beginPath()
-        ctx.arc(p.x, p.y, (isHot ? 1.8 : 1.1) * pulse, 0, Math.PI * 2)
+        ctx.arc(x, y, isDrag ? 2.4 : 1.5, 0, Math.PI * 2)
         ctx.fillStyle = link.flow === 'in'
-          ? `rgba(61,214,140,${0.35 + (isHot ? 0.4 : 0)})`
-          : `rgba(240,113,120,${0.35 + (isHot ? 0.4 : 0)})`
+          ? 'rgba(61,214,140,0.85)'
+          : 'rgba(240,113,120,0.85)'
         ctx.fill()
       }
     }
 
     ctx.globalAlpha = 1
-  }, [hoveredId, selectedId])
+  }, [])
 
   const handleClick = useCallback((node) => {
     if (!node || node.isHub) {
@@ -419,30 +446,34 @@ export function ArkhamGraph({
 
   const handleDrag = useCallback((node) => {
     if (!node || node.isHub) return
+    draggingIdRef.current = node.id
     node.fx = node.x
     node.fy = node.y
-    // Keep simulation hot so the string stretches live
+    // Soft reheat only — do NOT spike alpha every pointer move (that caused hangs)
     const fg = fgRef.current
-    if (fg) {
-      fg.d3AlphaTarget?.(0.45)
-      fg.d3ReheatSimulation()
+    if (fg && typeof fg.d3AlphaTarget === 'function') {
+      const a = typeof fg.d3Alpha === 'function' ? fg.d3Alpha() : 0
+      if (a < 0.15) {
+        fg.d3AlphaTarget(0.2)
+        fg.d3ReheatSimulation()
+      }
     }
   }, [])
 
   const handleDragEnd = useCallback((node) => {
     if (!node || node.isHub) return
-    // Release — yoyo spring snaps back to circular slot
+    draggingIdRef.current = null
     node.fx = undefined
     node.fy = undefined
-    node.vx = (node.vx || 0) * 0.4
-    node.vy = (node.vy || 0) * 0.4
+    node.vx = (node.vx || 0) * 0.35
+    node.vy = (node.vy || 0) * 0.35
     const fg = fgRef.current
     if (!fg) return
-    fg.d3AlphaTarget?.(0.55)
-    setTimeout(() => {
-      fg.d3AlphaTarget?.(collapsedRef.current ? 0.12 : 0.06)
-    }, 1100)
+    fg.d3AlphaTarget?.(0.4)
     fg.d3ReheatSimulation()
+    setTimeout(() => {
+      fg.d3AlphaTarget?.(collapsedRef.current ? 0.05 : 0.025)
+    }, 900)
   }, [])
 
   return (
@@ -463,11 +494,10 @@ export function ArkhamGraph({
       onNodeHover={handleHover}
       onNodeDrag={handleDrag}
       onNodeDragEnd={handleDragEnd}
-      autoPauseRedraw={false}
-      cooldownTicks={Infinity}
-      d3AlphaDecay={0.006}
-      d3VelocityDecay={0.22}
-      warmupTicks={40}
+      cooldownTicks={180}
+      d3AlphaDecay={0.02}
+      d3VelocityDecay={0.28}
+      warmupTicks={35}
       nodeRelSize={6}
     />
   )
