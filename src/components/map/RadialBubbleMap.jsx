@@ -143,27 +143,30 @@ export function RadialBubbleMap({
       hub,
       bubbles,
       scale,
-      pointer: { x: 0, y: 0, down: false, worldX: 0, worldY: 0 },
+      pointer: { x: 0, y: 0, down: false, worldX: 0, worldY: 0, mode: null },
+      cam: prev?.cam || { x: 0, y: 0, zoom: 1 },
       hoverId: null,
       retractUntil: 0,
       rot: prev?.rot || 0,
       cx: width / 2,
       cy: height / 2,
+      widthWorld: width,
+      heightWorld: height,
       dpr: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.75),
       lastT: performance.now(),
       membershipKey: members.map(m => m.id).join(','),
     }
   }, [members, width, height])
 
-  // Focus camera toward a member (soft nudge)
+  // Focus: center camera on member
   useEffect(() => {
     const s = stateRef.current
     if (!s || !focusId) return
     const b = s.bubbles.find(x => x.id === focusId)
     if (!b) return
-    // Pull that bubble slightly outward for visibility
-    b.vx += (b.x) * 0.02
-    b.vy += (b.y) * 0.02
+    s.cam.x = b.x
+    s.cam.y = b.y
+    s.cam.zoom = Math.max(s.cam.zoom, 1.6)
   }, [focusId])
 
   // Collapse / retract
@@ -175,6 +178,9 @@ export function RadialBubbleMap({
       for (const b of s.bubbles) {
         b.homeRCollapsed = 22 * s.scale
       }
+      s.cam.x = 0
+      s.cam.y = 0
+      s.cam.zoom = 1.15
     } else {
       s.retractUntil = performance.now() + 700
       for (const b of s.bubbles) {
@@ -188,11 +194,14 @@ export function RadialBubbleMap({
     const s = stateRef.current
     if (!canvas || !s) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
+    const sx = ((clientX - rect.left) / rect.width) * (s.widthWorld || width)
+    const sy = ((clientY - rect.top) / rect.height) * (s.heightWorld || height)
+    const zoom = s.cam?.zoom || 1
     return {
-      x: ((clientX - rect.left) / rect.width) * s.widthWorld - s.cx,
-      y: ((clientY - rect.top) / rect.height) * s.heightWorld - s.cy,
+      x: (sx - s.cx) / zoom + (s.cam?.x || 0),
+      y: (sy - s.cy) / zoom + (s.cam?.y || 0),
     }
-  }, [])
+  }, [width, height])
 
   // Main rAF loop
   useEffect(() => {
@@ -230,13 +239,14 @@ export function RadialBubbleMap({
       const t = now * 0.001
       const props = propsRef.current
       const retracting = now < s.retractUntil || props.collapsed
-      const dragging = s.pointer.down
+      const stretching = s.pointer.down && s.pointer.mode === 'stretch'
 
       // Slow ambient rotation of home angles
-      if (!props.collapsed && !dragging) s.rot += dt * 0.12
+      if (!props.collapsed && !stretching) s.rot += dt * 0.12
 
-      const { bubbles, hub, pointer } = s
+      const { bubbles, hub, pointer, cam } = s
       const n = bubbles.length
+      const zoom = cam.zoom || 1
 
       // --- Physics ---
       grid.clear()
@@ -263,7 +273,7 @@ export function RadialBubbleMap({
         const iy = Math.cos(t * 0.75 + b.phase * 1.3) * idle
 
         // Spring home (stronger while retracting)
-        const kHome = retracting ? 18 : (dragging ? 4.5 : 9)
+        const kHome = retracting ? 18 : (stretching ? 4.5 : 9)
         b.vx += (hx + ix - b.x) * kHome * dt
         b.vy += (hy + iy - b.y) * kHome * dt
 
@@ -274,7 +284,7 @@ export function RadialBubbleMap({
         b.vy += (b.y / dist) * (homeR - dist) * radialK * dt
 
         // Cursor attract — nearby bubbles stretch toward pointer
-        if (dragging && !props.collapsed) {
+        if (stretching && !props.collapsed) {
           const dx = pointer.worldX - b.x
           const dy = pointer.worldY - b.y
           const d2 = dx * dx + dy * dy
@@ -353,12 +363,14 @@ export function RadialBubbleMap({
 
       ctx.save()
       ctx.translate(s.cx, s.cy)
+      ctx.scale(zoom, zoom)
+      ctx.translate(-cam.x, -cam.y)
 
       // Links — straight-ish fast path; only curve when stretched (keeps 60fps)
       ctx.lineCap = 'round'
       ctx.globalAlpha = props.collapsed ? 0.18 : 0.5
       ctx.strokeStyle = 'rgba(201,169,110,0.26)'
-      ctx.lineWidth = 0.65
+      ctx.lineWidth = 0.65 / zoom
       ctx.beginPath()
       for (let i = 0; i < n; i++) {
         const b = bubbles[i]
@@ -366,11 +378,11 @@ export function RadialBubbleMap({
         const px = b.x + parallaxX * b.depth
         const py = b.y + parallaxY * b.depth
         const homeLen = b.homeR || 1
-        const stretch = Math.hypot(b.x, b.y) / homeLen - 1
+        const stretchAmt = Math.hypot(b.x, b.y) / homeLen - 1
         ctx.moveTo(0, 0)
-        if (stretch > 0.08 || dragging) {
-          const cpx = px * 0.42 - py * (0.1 + Math.max(0, stretch) * 0.14)
-          const cpy = py * 0.42 + px * (0.1 + Math.max(0, stretch) * 0.14)
+        if (stretchAmt > 0.08 || stretching) {
+          const cpx = px * 0.42 - py * (0.1 + Math.max(0, stretchAmt) * 0.14)
+          const cpy = py * 0.42 + px * (0.1 + Math.max(0, stretchAmt) * 0.14)
           ctx.quadraticCurveTo(cpx, cpy, px, py)
         } else {
           ctx.lineTo(px, py)
@@ -502,7 +514,7 @@ export function RadialBubbleMap({
     }
   }, [width, height])
 
-  // Pointer handlers
+  // Pointer + wheel: pan, zoom, stretch
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return undefined
@@ -511,15 +523,13 @@ export function RadialBubbleMap({
       const s = stateRef.current
       if (!s) return null
       const pr = propsRef.current
-      // Hub
       if (Math.hypot(wx, wy) <= s.hub.r * 1.15) return s.hub
-      // Bubbles — reverse for topmost
       let best = null
       let bestD = Infinity
       for (let i = s.bubbles.length - 1; i >= 0; i--) {
         const b = s.bubbles[i]
         const d = Math.hypot(b.x - wx, b.y - wy)
-        const rad = b.r * ((b.id === s.hoverId || b.id === pr.selectedId) ? 1.35 : 1) + 2
+        const rad = b.r * ((b.id === s.hoverId || b.id === pr.selectedId) ? 1.35 : 1) + 3
         if (d <= rad && d < bestD) {
           best = b
           bestD = d
@@ -528,52 +538,99 @@ export function RadialBubbleMap({
       return best
     }
 
+    const nearestBubbleDist = (wx, wy) => {
+      const s = stateRef.current
+      if (!s) return Infinity
+      let best = Infinity
+      for (const b of s.bubbles) {
+        const d = Math.hypot(b.x - wx, b.y - wy) - b.r
+        if (d < best) best = d
+      }
+      return best
+    }
+
     const onMove = (e) => {
       const s = stateRef.current
       if (!s) return
       const rect = canvas.getBoundingClientRect()
+      const prevX = s.pointer.x
+      const prevY = s.pointer.y
       s.pointer.x = e.clientX - rect.left
       s.pointer.y = e.clientY - rect.top
       const w = toWorld(e.clientX, e.clientY)
       s.pointer.worldX = w.x
       s.pointer.worldY = w.y
 
-      if (!s.pointer.down) {
-        const hit = hitTest(w.x, w.y)
-        const id = hit && !hit.isHub ? hit.id : null
-        if (id !== s.hoverId) {
-          s.hoverId = id
-          propsRef.current.onHover?.(hit && !hit.isHub ? hit : null)
-          canvas.style.cursor = hit ? 'pointer' : (s.pointer.down ? 'grabbing' : 'default')
-        }
-      } else {
+      if (s.pointer.down && s.pointer.mode === 'pan') {
+        const zoom = s.cam.zoom || 1
+        s.cam.x -= (s.pointer.x - prevX) / zoom
+        s.cam.y -= (s.pointer.y - prevY) / zoom
+        s.pointer.moved = true
         canvas.style.cursor = 'grabbing'
+        return
       }
+
+      if (s.pointer.down && s.pointer.mode === 'stretch') {
+        if (Math.hypot(w.x - (s.pointer.downX || 0), w.y - (s.pointer.downY || 0)) > 6) {
+          s.pointer.moved = true
+        }
+        canvas.style.cursor = 'grabbing'
+        return
+      }
+
+      const hit = hitTest(w.x, w.y)
+      const id = hit && !hit.isHub ? hit.id : null
+      if (id !== s.hoverId) {
+        s.hoverId = id
+        propsRef.current.onHover?.(hit && !hit.isHub ? hit : null)
+      }
+      canvas.style.cursor = hit ? 'pointer' : 'grab'
     }
 
     const onDown = (e) => {
       const s = stateRef.current
       if (!s) return
       const w = toWorld(e.clientX, e.clientY)
+      const rect = canvas.getBoundingClientRect()
+      s.pointer.x = e.clientX - rect.left
+      s.pointer.y = e.clientY - rect.top
       s.pointer.down = true
       s.pointer.worldX = w.x
       s.pointer.worldY = w.y
       s.pointer.downX = w.x
       s.pointer.downY = w.y
       s.pointer.moved = false
-      canvas.style.cursor = 'grabbing'
-      e.preventDefault()
+
+      // Right / middle / shift / alt = pan. Empty space = pan. Near bubbles = stretch.
+      const isPanButton = e.button === 1 || e.button === 2 || e.shiftKey || e.altKey
+      const near = nearestBubbleDist(w.x, w.y) < 40 * s.scale
+      const hit = hitTest(w.x, w.y)
+      if (isPanButton || (!hit && !near)) {
+        s.pointer.mode = 'pan'
+        canvas.style.cursor = 'grabbing'
+      } else if (hit?.isHub) {
+        s.pointer.mode = 'click'
+      } else {
+        s.pointer.mode = near || hit ? 'stretch' : 'pan'
+        canvas.style.cursor = 'grabbing'
+      }
+
+      if (e.button === 2) e.preventDefault()
+      try { canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
     }
 
     const onUp = (e) => {
       const s = stateRef.current
       if (!s) return
       const w = toWorld(e.clientX, e.clientY)
-      const moved = s.pointer.moved || Math.hypot(w.x - (s.pointer.downX || 0), w.y - (s.pointer.downY || 0)) > 6
+      const moved = s.pointer.moved
+      const mode = s.pointer.mode
       s.pointer.down = false
-      canvas.style.cursor = 'default'
+      s.pointer.mode = null
+      canvas.style.cursor = 'grab'
+      try { canvas.releasePointerCapture(e.pointerId) } catch { /* ignore */ }
 
-      if (!moved) {
+      if (!moved && mode !== 'pan') {
         const hit = hitTest(w.x, w.y)
         if (hit?.isHub) propsRef.current.onHubClick?.()
         else if (hit) propsRef.current.onSelect?.(hit)
@@ -583,36 +640,73 @@ export function RadialBubbleMap({
     const onLeave = () => {
       const s = stateRef.current
       if (!s) return
-      s.pointer.down = false
-      if (s.hoverId) {
+      // Don't cancel pan mid-drag if pointer left canvas — window pointerup handles it
+      if (!s.pointer.down && s.hoverId) {
         s.hoverId = null
         propsRef.current.onHover?.(null)
       }
     }
 
-    // Track drag distance
-    const onMoveDrag = (e) => {
-      onMove(e)
+    const onWheel = (e) => {
       const s = stateRef.current
-      if (!s?.pointer.down) return
+      if (!s) return
+      e.preventDefault()
+
+      // Trackpad pan (dominant horizontal) or shift+scroll
+      if (e.shiftKey || (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY) + 2)) {
+        const zoom = s.cam.zoom || 1
+        s.cam.x += e.deltaX / zoom
+        s.cam.y += e.deltaY / zoom
+        return
+      }
+
+      const rect = canvas.getBoundingClientRect()
+      const sx = e.clientX - rect.left
+      const sy = e.clientY - rect.top
+      const before = toWorld(e.clientX, e.clientY)
+
+      const delta = -e.deltaY
+      const factor = Math.exp(delta * 0.0015)
+      const next = Math.min(3.2, Math.max(0.35, (s.cam.zoom || 1) * factor))
+      s.cam.zoom = next
+
+      // Zoom toward cursor
+      s.cam.x = before.x - (sx - s.cx) / next
+      s.cam.y = before.y - (sy - s.cy) / next
+    }
+
+    const onContext = (e) => e.preventDefault()
+
+    const onDblClick = (e) => {
+      const s = stateRef.current
+      if (!s) return
       const w = toWorld(e.clientX, e.clientY)
-      if (Math.hypot(w.x - (s.pointer.downX || 0), w.y - (s.pointer.downY || 0)) > 6) {
-        s.pointer.moved = true
+      const hit = hitTest(w.x, w.y)
+      if (hit?.isHub || !hit) {
+        s.cam.x = 0
+        s.cam.y = 0
+        s.cam.zoom = 1
       }
     }
 
-    canvas.addEventListener('pointermove', onMoveDrag)
+    canvas.addEventListener('pointermove', onMove)
     canvas.addEventListener('pointerdown', onDown)
     window.addEventListener('pointerup', onUp)
     canvas.addEventListener('pointerleave', onLeave)
-    canvas.addEventListener('pointercancel', onLeave)
+    canvas.addEventListener('pointercancel', onUp)
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    canvas.addEventListener('contextmenu', onContext)
+    canvas.addEventListener('dblclick', onDblClick)
 
     return () => {
-      canvas.removeEventListener('pointermove', onMoveDrag)
+      canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerdown', onDown)
       window.removeEventListener('pointerup', onUp)
       canvas.removeEventListener('pointerleave', onLeave)
-      canvas.removeEventListener('pointercancel', onLeave)
+      canvas.removeEventListener('pointercancel', onUp)
+      canvas.removeEventListener('wheel', onWheel)
+      canvas.removeEventListener('contextmenu', onContext)
+      canvas.removeEventListener('dblclick', onDblClick)
     }
   }, [toWorld, width, height])
 
@@ -626,7 +720,7 @@ export function RadialBubbleMap({
         height: '100%',
         display: 'block',
         touchAction: 'none',
-        cursor: 'default',
+        cursor: 'grab',
         background: '#0a0a0e',
       }}
     />
