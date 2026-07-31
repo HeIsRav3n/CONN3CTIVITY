@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { BioPod } from '../components/BioPod'
 import { TEAM } from '../data/siteData'
-import { TeamBackground } from '../components/three/SectionBackgrounds'
+import { TeamBackground } from '../components/three/LazyBackgrounds'
 
 export function TeamSection() {
   return (

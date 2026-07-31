@@ -244,6 +244,8 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
   const [showConfetti, setShowConfetti] = useState(false)
   const [aiThinking, setAiThinking] = useState(false)
   const aiTimerRef = useRef(null)
+  // Latest joinGameRoom without re-subscribing the lobby channel on every render
+  const joinGameRoomRef = useRef(null)
 
   // -- Supabase Realtime Setup --
   useEffect(() => {
@@ -274,7 +276,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
       })
       .on('broadcast', { event: 'request-accepted' }, ({ payload }) => {
         if (payload.targetId === user.id) {
-          joinGameRoom(payload.roomId, payload.acceptor, 'GM')
+          joinGameRoomRef.current?.(payload.roomId, payload.acceptor, 'GM')
         }
       })
       .subscribe(async (status) => {
@@ -320,6 +322,10 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
     
     gameChannelRef.current = gameChan
   }
+
+  useEffect(() => {
+    joinGameRoomRef.current = joinGameRoom
+  })
 
   const sendRequest = async (targetUser) => {
     if (!lobbyChannelRef.current) return

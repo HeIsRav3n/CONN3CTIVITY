@@ -76,8 +76,10 @@ export function RadialBubbleMap({
   const stateRef = useRef(null)
   const activeRef = useRef(active)
   const propsRef = useRef({ collapsed, selectedId, focusId, onHover, onSelect, onHubClick })
-  propsRef.current = { collapsed, selectedId, focusId, onHover, onSelect, onHubClick }
-  activeRef.current = active
+  useEffect(() => {
+    propsRef.current = { collapsed, selectedId, focusId, onHover, onSelect, onHubClick }
+    activeRef.current = active
+  })
 
   useEffect(() => {
     const scale = Math.min(width, height) / 700
@@ -535,7 +537,6 @@ export function RadialBubbleMap({
       const s = stateRef.current
       if (!s) return
       const moved = s.pointer.moved
-      const mode = s.pointer.mode
       s.pointer.down = false
       s.pointer.mode = null
       canvas.style.cursor = 'grab'
@@ -582,12 +583,14 @@ export function RadialBubbleMap({
       s.cam.zoom = 1
     }
 
+    const onContextMenu = (e) => e.preventDefault()
+
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', onPointerUp)
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('dblclick', onDbl)
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+    canvas.addEventListener('contextmenu', onContextMenu)
 
     return () => {
       canvas.removeEventListener('pointerdown', onPointerDown)
@@ -595,6 +598,7 @@ export function RadialBubbleMap({
       window.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('dblclick', onDbl)
+      canvas.removeEventListener('contextmenu', onContextMenu)
     }
   }, [toWorld, width, height])
 

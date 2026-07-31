@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { CommunityCard } from '../components/CommunityCard'
 import { PARTNERSHIPS } from '../data/siteData'
-import { PartnershipsBackground } from '../components/three/SectionBackgrounds'
+import { PartnershipsBackground } from '../components/three/LazyBackgrounds'
 
 export function PartnershipsSection() {
   return (
