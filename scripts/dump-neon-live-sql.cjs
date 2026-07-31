@@ -9,7 +9,7 @@ const fs = require('fs')
 const path = require('path')
 require('dotenv').config()
 
-const NEON_URL = process.env.NEON_DATABASE_URL || process.env.VITE_NEON_DATABASE_URL
+const NEON_URL = process.env.NEON_DATABASE_URL
 if (!NEON_URL) {
   console.error('NEON_DATABASE_URL missing')
   process.exit(1)

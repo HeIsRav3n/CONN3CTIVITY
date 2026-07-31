@@ -8,11 +8,14 @@ class ErrorBoundary extends Component {
   static getDerivedStateFromError(e) { return { error: e } }
   render() {
     if (this.state.error) {
+      const showDetails = import.meta.env.DEV
       return (
         <div style={{ padding: 40, background: '#0b0a08', minHeight: '100vh', color: '#C9A96E', fontFamily: 'monospace' }}>
-          <h1 style={{ color: '#ef4444', marginBottom: 16 }}>Runtime Error</h1>
+          <h1 style={{ color: '#ef4444', marginBottom: 16 }}>Something went wrong</h1>
           <pre style={{ whiteSpace: 'pre-wrap', color: '#EDE8DC', fontSize: 13, lineHeight: 1.6 }}>
-            {this.state.error.message}{'\n\n'}{this.state.error.stack}
+            {showDetails
+              ? `${this.state.error.message}\n\n${this.state.error.stack}`
+              : 'Please refresh the page. If the problem continues, try again later.'}
           </pre>
         </div>
       )

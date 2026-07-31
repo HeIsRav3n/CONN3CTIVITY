@@ -15,8 +15,22 @@ export function sendOk(res, data, { maxAge = 5 } = {}) {
   res.end(JSON.stringify({ ok: true, ...data }))
 }
 
+/**
+ * Never leak raw DB / stack messages to clients in production.
+ */
 export function sendError(res, error, status = 500) {
+  const raw = String(error?.message || error)
+  const isConfig = raw.includes('not configured')
+  const expose =
+    status === 405
+    || isConfig
+    || process.env.NODE_ENV !== 'production'
+    || process.env.VERCEL_ENV === 'development'
+
   res.setHeader('Content-Type', 'application/json')
   res.statusCode = status
-  res.end(JSON.stringify({ ok: false, error: String(error?.message || error) }))
+  res.end(JSON.stringify({
+    ok: false,
+    error: expose ? raw : 'Internal server error',
+  }))
 }

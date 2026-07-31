@@ -32,3 +32,8 @@ dist-ssr
 scripts/_seed-live.sql
 scripts/_keys.json
 supabase/.temp/
+
+# Accidental dumps / tooling leftovers
+/in
+*.css.dump
+

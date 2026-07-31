@@ -83,6 +83,58 @@ CREATE POLICY "users update own profile"
   USING (auth.uid()::text = id)
   WITH CHECK (auth.uid()::text = id);
 
+-- Lock discord_id to the authenticated Discord identity.
+-- Clients must never be able to claim another Conn3ctor's snowflake.
+CREATE OR REPLACE FUNCTION public.enforce_profile_discord_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  provider_discord_id TEXT;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  NEW.id := auth.uid()::text;
+
+  SELECT identity_data->>'provider_id'
+  INTO provider_discord_id
+  FROM auth.identities
+  WHERE user_id = auth.uid()
+    AND provider = 'discord'
+  LIMIT 1;
+
+  IF provider_discord_id IS NULL THEN
+    provider_discord_id := COALESCE(
+      auth.jwt() -> 'user_metadata' ->> 'provider_id',
+      auth.jwt() -> 'app_metadata' ->> 'provider_id'
+    );
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    NEW.discord_id := provider_discord_id;
+  ELSE
+    -- Never allow client override; keep existing binding if provider id unavailable
+    NEW.discord_id := COALESCE(provider_discord_id, OLD.discord_id);
+  END IF;
+
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_enforce_discord_id ON public.profiles;
+CREATE TRIGGER profiles_enforce_discord_id
+  BEFORE INSERT OR UPDATE ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_profile_discord_id();
+
+-- Public map panel should prefer a narrow column set (documented for clients).
+-- Full SELECT remains allowed for authenticated self-edit UX; map UI selects explicitly.
+
 -- ══════════════════════════════════════════════════════
 --  SUPABASE — live Discord mirrors (Realtime)
 --  Written by discord-bot.cjs (service role). Public read.

@@ -6,7 +6,7 @@
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100;0,200;0,300;0,400;0,600;0,700;1,300&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100;0,200;0,300;0,400;0,600;0,700;1,300&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet" />
     <title>CONN3CTIVITY — Search • Find • Conn3ct</title>
   </head>
   <body>
@@ -46,23 +46,24 @@
     </div>
     <script>
       var __errCount = 0
-      window.onerror = function(msg, src, line, col, err) {
+      function __showBootError() {
+        var el = document.getElementById('app-loading')
+        if (el) el.remove()
+        document.getElementById('root').innerHTML = '<div style="padding:40px;background:#0b0a08;min-height:100vh;color:#C9A96E;font-family:monospace"><h1 style="color:#ef4444;margin-bottom:16px">Something went wrong</h1><pre style="white-space:pre-wrap;color:#EDE8DC;font-size:13px">Please refresh the page. If the problem continues, try again later.</pre></div>'
+      }
+      window.onerror = function(msg) {
         // Ignore canvas/animation errors (non-finite, requestAnimationFrame noise) and extension conflicts
         if (msg && (msg.indexOf('non-finite') !== -1 || msg.indexOf('ethereum') !== -1 || msg.indexOf('CanvasRenderingContext2D') !== -1)) return true
         __errCount++
-        if (__errCount > 1) return true // only show the first fatal error
-        var el = document.getElementById('app-loading')
-        if (el) el.remove()
-        document.getElementById('root').innerHTML = '<div style="padding:40px;background:#0b0a08;min-height:100vh;color:#C9A96E;font-family:monospace"><h1 style="color:#ef4444;margin-bottom:16px">Runtime Error</h1><pre style="white-space:pre-wrap;color:#EDE8DC;font-size:13px">' + msg + '\n\nFile: ' + src + ':' + line + ':' + col + '\n\n' + (err && err.stack || '') + '</pre></div>'
+        if (__errCount > 1) return true
+        __showBootError()
       }
       window.addEventListener('unhandledrejection', function(e) {
         var msg = e.reason && (e.reason.message || String(e.reason))
         if (msg && (msg.indexOf('non-finite') !== -1 || msg.indexOf('ethereum') !== -1)) return
         __errCount++
         if (__errCount > 1) return
-        var el = document.getElementById('app-loading')
-        if (el) el.remove()
-        document.getElementById('root').innerHTML = '<div style="padding:40px;background:#0b0a08;min-height:100vh;color:#C9A96E;font-family:monospace"><h1 style="color:#ef4444;margin-bottom:16px">Unhandled Promise</h1><pre style="white-space:pre-wrap;color:#EDE8DC;font-size:13px">' + (e.reason && (e.reason.stack || e.reason.message || String(e.reason))) + '</pre></div>'
+        __showBootError()
       })
     </script>
     <script type="module" src="/src/main.jsx"></script>

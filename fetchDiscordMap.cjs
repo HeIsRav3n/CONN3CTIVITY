@@ -7,8 +7,8 @@ require('dotenv').config()
 const BOT_TOKEN     = process.env.DISCORD_BOT_TOKEN
 const GUILD_ID      = process.env.DISCORD_GUILD_ID
 const NEON_URL      = process.env.NEON_DATABASE_URL
-const ROLE_ID       = '1266023149359599617'
-const MVC_ROLE_ID   = '1350853857701269534'
+const ROLE_ID       = process.env.CONN3CTOR_ROLE_ID || '1266023149359599617'
+const MVC_ROLE_ID   = process.env.MVC_ROLE_ID || '1350853857701269534'
 const JSON_NODES    = './src/data/conn3ctors.json'
 const JSON_MVC      = './src/data/mvc.json'
 const JSON_INSIGHTS = './src/data/serverInsights.json'
@@ -60,9 +60,23 @@ async function neonUpsert(table, rows) {
   console.log(`  [Neon] ✓ ${table} (${arr.length} rows)`)
 }
 
+async function fetchAllMembers() {
+  const all = []
+  let after = '0'
+  while (true) {
+    const batch = await discordGet(`/guilds/${GUILD_ID}/members?limit=1000&after=${after}`)
+    if (!batch.length) break
+    all.push(...batch)
+    after = batch[batch.length - 1].user.id
+    if (batch.length < 1000) break
+    await new Promise(r => setTimeout(r, 600))
+  }
+  return all
+}
+
 async function run() {
   console.log('[Sync] Fetching Discord members…')
-  const members = await discordGet(`/guilds/${GUILD_ID}/members?limit=1000`)
+  const members = await fetchAllMembers()
   console.log(`[Sync] ${members.length} total members fetched.`)
 
   const conn3ctors = members.filter(m => m.roles.includes(ROLE_ID))

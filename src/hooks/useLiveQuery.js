@@ -50,8 +50,15 @@ export function useLiveQuery({
       try {
         const next = await fetcherRef.current()
         if (cancelled) return
-        dataRef.current = next
-        setData(next)
+        // Keep object identity stable when payload is unchanged so consumers
+        // (map, hero stats, MVC card) skip re-renders on no-op polls.
+        const prev = dataRef.current
+        const unchanged =
+          prev != null && next != null && JSON.stringify(prev) === JSON.stringify(next)
+        if (!unchanged) {
+          dataRef.current = next
+          setData(next)
+        }
         const hasData = Array.isArray(next) ? next.length > 0 : next != null
         const updatedAt = getUpdatedAtRef.current(next)
         setStatus(resolveDataStatus(updatedAt, { fetchedOk: true, hasData }))

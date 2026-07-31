@@ -1,8 +1,23 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { fetchMvc, statusLabel, statusColor } from '../lib/api'
 import { SITE_DATA } from '../data/siteData'
 import { use3DTilt } from '../hooks/use3DTilt'
 import { useLiveQuery } from '../hooks/useLiveQuery'
+import { supabase } from '../lib/supabase'
+
+function normalizeCommunities(value) {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
 
 export function MVCSection() {
   const { ref, rotateX, rotateY, handleMouseMove, handleMouseLeave } = use3DTilt({ damping: 20, stiffness: 200, mass: 0.5 }, 10)
@@ -12,6 +27,27 @@ export function MVCSection() {
     table: 'mvc_profile',
     applyRealtime: (payload, prev) => payload.new || prev,
   })
+  const [profileExtras, setProfileExtras] = useState(null)
+
+  // Extended MVC fields live on profiles (bot only writes id/username/avatar/twitter to mvc_profile)
+  useEffect(() => {
+    const discordId = row?.id || row?.discord_id
+    if (!discordId || !supabase) {
+      setProfileExtras(null)
+      return
+    }
+    let active = true
+    supabase
+      .from('profiles')
+      .select('cm_type, experience, services, communities, twitter')
+      .eq('discord_id', discordId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.warn('MVC profile enrich:', error.message)
+        if (active) setProfileExtras(data || null)
+      })
+    return () => { active = false }
+  }, [row?.id, row?.discord_id])
 
   const mvcProfile = row
     ? {
@@ -19,11 +55,11 @@ export function MVCSection() {
         discord_id: row.id || row.discord_id,
         username: row.username,
         avatar_url: row.avatar_url,
-        twitter: row.twitter,
-        cm_type: row.cm_type,
-        experience: row.experience,
-        services: row.services,
-        communities: row.communities,
+        twitter: row.twitter || profileExtras?.twitter || null,
+        cm_type: profileExtras?.cm_type || row.cm_type || null,
+        experience: profileExtras?.experience || row.experience || null,
+        services: profileExtras?.services || row.services || null,
+        communities: normalizeCommunities(profileExtras?.communities ?? row.communities),
       }
     : SITE_DATA.fallbackMVC
   const loading = !mvcProfile
