@@ -10,7 +10,15 @@ function loadAvatarTexture(url) {
   if (textureCache.has(url)) return textureCache.get(url)
   const loader = new THREE.TextureLoader()
   loader.setCrossOrigin('anonymous')
-  const tex = loader.load(url)
+  const tex = loader.load(
+    url,
+    undefined,
+    undefined,
+    () => {
+      // Discord CDN / CORS failure — leave placeholder
+      textureCache.delete(url)
+    },
+  )
   tex.colorSpace = THREE.SRGBColorSpace
   tex.minFilter = THREE.LinearFilter
   tex.magFilter = THREE.LinearFilter
@@ -19,12 +27,11 @@ function loadAvatarTexture(url) {
 }
 
 /**
- * Single Conn3ctor on the orbital shell.
- * `detailed` → textured disc; otherwise a gold point disc (LOD).
+ * Front-facing Conn3ctor avatar on an orbital ring.
  */
 export function AvatarNode({
   member,
-  detailed = true,
+  size = 0.32,
   collapsed = false,
   selected = false,
   hovered = false,
@@ -35,74 +42,55 @@ export function AvatarNode({
   const matRef = useRef()
   const [ready, setReady] = useState(false)
 
-  const texture = useMemo(() => {
-    if (!detailed) return null
-    return loadAvatarTexture(member.avatar)
-  }, [detailed, member.avatar])
+  const texture = useMemo(
+    () => loadAvatarTexture(member.avatar),
+    [member.avatar],
+  )
 
   useEffect(() => {
     if (!texture) {
       setReady(false)
-      return
+      return undefined
     }
-    if (texture.image?.complete) {
+    if (texture.image?.complete && texture.image.width) {
       setReady(true)
-      return
+      return undefined
     }
-    const onLoad = () => setReady(true)
-    texture.addEventListener?.('change', onLoad)
-    // TextureLoader fires image onload asynchronously
     const id = setInterval(() => {
       if (texture.image?.width) {
         setReady(true)
         clearInterval(id)
       }
-    }, 120)
-    return () => {
-      clearInterval(id)
-      texture.removeEventListener?.('change', onLoad)
-    }
+    }, 100)
+    return () => clearInterval(id)
   }, [texture])
 
   const base = member._base || { x: 0, y: 0, z: 0 }
   const color = member.color || '#C9A96E'
+  const isActive = hovered || selected
 
   useFrame((state) => {
     const g = groupRef.current
     if (!g) return
     const t = state.clock.elapsedTime
-    const collapse = collapsed ? 0.18 : 1
-    const breathe = 1 + Math.sin(t * 1.4 + (member._shell || 0)) * 0.015
-    const targetScale = (hovered || selected ? 1.35 : 1) * breathe
+    const collapse = collapsed ? 0.12 : 1
 
     const tx = base.x * collapse
-    const ty = base.y * collapse
+    const ty = base.y * collapse + (isActive ? 0.25 : 0)
     const tz = base.z * collapse
 
-    // Ease toward home (and pull slightly toward camera when hovered)
-    let hx = tx
-    let hy = ty
-    let hz = tz
-    if (hovered || selected) {
-      const cam = state.camera.position
-      const pull = 0.22
-      hx = tx + (cam.x - tx) * pull * 0.08
-      hy = ty + (cam.y - ty) * pull * 0.08
-      hz = tz + (cam.z - tz) * pull * 0.08
-    }
+    g.position.x += (tx - g.position.x) * 0.14
+    g.position.y += (ty - g.position.y) * 0.14
+    g.position.z += (tz - g.position.z) * 0.14
 
-    g.position.x += (hx - g.position.x) * 0.12
-    g.position.y += (hy - g.position.y) * 0.12
-    g.position.z += (hz - g.position.z) * 0.12
-    const s = g.scale.x + (targetScale - g.scale.x) * 0.15
+    const target = (isActive ? 1.45 : 1) * (1 + Math.sin(t * 1.6 + (member._ring || 0)) * 0.02)
+    const s = g.scale.x + (target - g.scale.x) * 0.16
     g.scale.setScalar(s)
 
     if (matRef.current) {
-      matRef.current.emissiveIntensity = hovered || selected ? 0.55 : 0.18
+      matRef.current.emissiveIntensity = isActive ? 0.45 : 0.12
     }
   })
-
-  const size = detailed ? 0.28 : 0.1
 
   return (
     <group
@@ -123,17 +111,17 @@ export function AvatarNode({
         onSelect?.(member)
       }}
     >
-      <Billboard follow>
+      <Billboard follow lockZ={false}>
         <mesh>
-          <circleGeometry args={[size, 24]} />
-          {detailed && ready && texture ? (
+          <circleGeometry args={[size, 28]} />
+          {ready && texture ? (
             <meshStandardMaterial
               ref={matRef}
               map={texture}
               emissive={color}
-              emissiveIntensity={0.18}
-              roughness={0.55}
-              metalness={0.15}
+              emissiveIntensity={0.12}
+              roughness={0.5}
+              metalness={0.1}
               transparent
               side={THREE.DoubleSide}
             />
@@ -142,41 +130,38 @@ export function AvatarNode({
               ref={matRef}
               color={color}
               emissive={color}
-              emissiveIntensity={detailed ? 0.35 : 0.8}
-              roughness={0.4}
-              metalness={0.35}
-              transparent
-              opacity={detailed ? 0.95 : 0.75}
+              emissiveIntensity={0.4}
+              roughness={0.45}
+              metalness={0.25}
               side={THREE.DoubleSide}
             />
           )}
         </mesh>
-        {/* Gold ring */}
-        <mesh position={[0, 0, -0.002]}>
-          <ringGeometry args={[size * 0.92, size * 1.08, 28]} />
+        <mesh position={[0, 0, -0.01]}>
+          <ringGeometry args={[size * 0.94, size * 1.12, 32]} />
           <meshBasicMaterial
-            color={hovered || selected ? color : '#C9A96E'}
+            color={isActive ? '#EDE8DC' : '#C9A96E'}
             transparent
-            opacity={hovered || selected ? 0.95 : 0.35}
+            opacity={isActive ? 0.95 : 0.4}
             side={THREE.DoubleSide}
           />
         </mesh>
       </Billboard>
 
-      {(hovered || selected) && (
+      {isActive && (
         <Html
           center
-          distanceFactor={8}
+          distanceFactor={10}
           style={{
             pointerEvents: 'none',
             whiteSpace: 'nowrap',
             fontFamily: "'Josefin Sans', sans-serif",
-            fontSize: '11px',
-            letterSpacing: '0.12em',
+            fontSize: '12px',
+            letterSpacing: '0.14em',
             textTransform: 'uppercase',
             color: '#EDE8DC',
-            textShadow: '0 2px 12px rgba(0,0,0,0.85)',
-            transform: 'translateY(28px)',
+            textShadow: '0 2px 14px rgba(0,0,0,0.9)',
+            transform: 'translateY(36px)',
           }}
         >
           {member.name}
