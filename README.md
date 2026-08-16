@@ -24,7 +24,7 @@ Cinematic Web3 community landing page — Discord-centric CM network. Built with
 
 | Data | Writer | Reader |
 |------|--------|--------|
-| Server stats, Conn3ctors map, MVC | Discord bot **and** `/api/*` live pull (every ~45s while the site is used) plus Vercel cron `/api/sync` | Frontend via **`/api/stats`**, **`/api/conn3ctors`**, **`/api/mvc`** (polls every 5s) |
+| Server stats, Conn3ctors map, MVC | Discord bot **and** `/api/*` live pull (every ~45s while the site is used) plus daily Vercel cron `/api/sync` | Frontend via **`/api/stats`**, **`/api/conn3ctors`**, **`/api/mvc`** (polls every 5s) |
 | Auth + profiles | Supabase Auth | Supabase client |
 | MVC enrichment (CM type, services, etc.) | Profile upserts in Supabase | MVC section merges Neon winner + `profiles` row |
 | Detectivity threats | `npm run update-scammers` → `scammers.json` | Static import (redeploy to refresh) |

@@ -1,6 +1,6 @@
 {
   "crons": [
-    { "path": "/api/sync", "schedule": "* * * * *" }
+    { "path": "/api/sync", "schedule": "0 0 * * *" }
   ],
   "headers": [
     {
