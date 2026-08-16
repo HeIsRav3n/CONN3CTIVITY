@@ -4,39 +4,43 @@ import { SITE_DATA } from '../data/siteData'
 import { supabase, userAvatarSrc } from '../lib/supabase'
 import { isSoundMuted, toggleSoundMuted, subscribeSoundMuted } from '../lib/soundPrefs'
 
-// Mini Venn logo for navbar — 3D tilt on hover
 function NavLogo() {
+  const word = {
+    fontFamily: "'Josefin Sans', sans-serif",
+    fontWeight: 200,
+    fontSize: '0.82rem',
+    letterSpacing: '0.14em',
+    color: 'rgba(237,232,220,0.9)',
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+  }
+
   return (
-    <svg
-      viewBox="0 0 248 40"
-      fill="none"
-      aria-label="CONN3CTIVITY"
-      preserveAspectRatio="xMidYMid meet"
-      className="block h-8 w-[198px] sm:h-[32px] sm:w-[200px] shrink-0"
-      style={{ overflow: 'visible' }}
-    >
-      <circle cx="98" cy="20" r="17.5" stroke="rgba(237,232,220,0.55)" strokeWidth="1.15" />
-      <circle cx="122" cy="20" r="17.5" stroke="rgba(237,232,220,0.55)" strokeWidth="1.15" />
-      <text
-        x="8" y="25"
-        fontFamily="'Josefin Sans', sans-serif"
-        fontWeight="200" fontSize="13" letterSpacing="2.4"
-        fill="rgba(237,232,220,0.9)"
-      >CONN</text>
-      <text
-        x="110" y="26"
-        fontFamily="'Josefin Sans', sans-serif"
-        fontWeight="300" fontSize="16"
-        fill="#C9A96E"
-        textAnchor="middle"
-      >3</text>
-      <text
-        x="140" y="25"
-        fontFamily="'Josefin Sans', sans-serif"
-        fontWeight="200" fontSize="13" letterSpacing="2.4"
-        fill="rgba(237,232,220,0.9)"
-      >CTIVITY</text>
-    </svg>
+    <span className="flex items-center" aria-label="CONN3CTIVITY">
+      <span style={word}>CONN</span>
+      <svg
+        viewBox="0 0 42 40"
+        fill="none"
+        aria-hidden="true"
+        preserveAspectRatio="xMidYMid meet"
+        className="block h-8 w-[34px] shrink-0 -mx-1"
+      >
+        <circle cx="15.5" cy="20" r="14.6" stroke="rgba(237,232,220,0.55)" strokeWidth="1.15" />
+        <circle cx="26.5" cy="20" r="14.6" stroke="rgba(237,232,220,0.55)" strokeWidth="1.15" />
+        <text
+          x="21"
+          y="25.2"
+          fontFamily="'Josefin Sans', sans-serif"
+          fontWeight="300"
+          fontSize="15"
+          fill="#C9A96E"
+          textAnchor="middle"
+        >
+          3
+        </text>
+      </svg>
+      <span style={word}>CTIVITY</span>
+    </span>
   )
 }
 
