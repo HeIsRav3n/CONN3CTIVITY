@@ -1,6 +1,8 @@
 import { neon } from '@neondatabase/serverless'
+import { ensureLiveData } from './api/_lib/discordSync.js'
 
 async function handleStats() {
+  await ensureLiveData().catch((err) => console.error('[sync]', err?.message || err))
   const sql = neon(process.env.NEON_DATABASE_URL)
   const rows = await sql`
     SELECT name, conn3ctor_count, approximate_presence_count, total_members, updated_at
@@ -12,6 +14,7 @@ async function handleStats() {
 }
 
 async function handleConn3ctors() {
+  await ensureLiveData().catch((err) => console.error('[sync]', err?.message || err))
   const sql = neon(process.env.NEON_DATABASE_URL)
   const rows = await sql`
     SELECT id, name, discord_handle, avatar, color, "group", x_handle, updated_at
@@ -22,6 +25,7 @@ async function handleConn3ctors() {
 }
 
 async function handleMvc() {
+  await ensureLiveData().catch((err) => console.error('[sync]', err?.message || err))
   const sql = neon(process.env.NEON_DATABASE_URL)
   const rows = await sql`
     SELECT id, username, avatar_url, twitter, updated_at

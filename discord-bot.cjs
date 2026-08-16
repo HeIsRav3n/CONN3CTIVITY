@@ -37,7 +37,7 @@ const SUPABASE_URL     = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_
 const SERVICE_KEY_RAW  = process.env.SUPABASE_SERVICE_KEY || ''
 // Headers must be Latin-1; strip accidental corruption from shell/.env encoding
 const SERVICE_KEY      = [...SERVICE_KEY_RAW].filter(ch => ch.charCodeAt(0) <= 255).join('').trim()
-const SYNC_INTERVAL_MS = parseInt(process.env.SYNC_INTERVAL_MS || '300000', 10)
+const SYNC_INTERVAL_MS = parseInt(process.env.SYNC_INTERVAL_MS || '60000', 10)
 
 // Discord Gateway intents
 // GUILDS(1) | GUILD_MEMBERS(2) | GUILD_PRESENCES(256)

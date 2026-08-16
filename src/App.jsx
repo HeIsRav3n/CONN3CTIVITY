@@ -117,6 +117,12 @@ export default function App() {
 
     lenisRef.current = lenis
 
+    const onMapScrollLock = (e) => {
+      if (e.detail) lenis.stop()
+      else lenis.start()
+    }
+    window.addEventListener('conn3ctivity:map-scroll-lock', onMapScrollLock)
+
     let rafId = 0
     function raf(time) {
       lenis.raf(time)
@@ -125,6 +131,7 @@ export default function App() {
     rafId = requestAnimationFrame(raf)
 
     return () => {
+      window.removeEventListener('conn3ctivity:map-scroll-lock', onMapScrollLock)
       cancelAnimationFrame(rafId)
       lenis.destroy()
       lenisRef.current = null
@@ -151,7 +158,7 @@ export default function App() {
   const showAmbientFx = !reducedMotion && !device.isMobile
 
   return (
-    <div className="relative min-h-screen" style={{ background: 'var(--void)' }}>
+    <div className="relative min-h-screen overflow-x-clip w-full" style={{ background: 'var(--void)' }}>
       {showAmbientFx && <CursorGlow />}
       <Navbar
         user={discordUser}

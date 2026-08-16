@@ -65,10 +65,7 @@ export function useLiveQuery({
     }
 
     const schedule = () => {
-      // When Realtime is connected, poll slowly as a safety net only
-      const delay = realtimeRef.current
-        ? LIVE_BACKGROUND_POLL_MS * 3
-        : (document.hidden ? LIVE_BACKGROUND_POLL_MS : LIVE_POLL_MS)
+      const delay = document.hidden ? LIVE_BACKGROUND_POLL_MS : LIVE_POLL_MS
       timer = setTimeout(async () => {
         await load()
         if (!cancelled) schedule()

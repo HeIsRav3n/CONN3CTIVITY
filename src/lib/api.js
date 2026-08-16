@@ -1,7 +1,7 @@
 /** Max age (ms) before live data is treated as stale */
 export const STALE_MS = 15 * 60 * 1000
-export const LIVE_POLL_MS = 10000
-export const LIVE_BACKGROUND_POLL_MS = 20000
+export const LIVE_POLL_MS = 5000
+export const LIVE_BACKGROUND_POLL_MS = 15000
 
 /**
  * @returns {'live' | 'stale' | 'cached' | 'offline'}

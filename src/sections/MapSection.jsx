@@ -59,7 +59,7 @@ function normalizeCommunities(value) {
 
 export function MapSection() {
   const containerRef = useRef(null)
-  const [dimensions, setDimensions] = useState({ width: 900, height: 700 })
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [members, setMembers] = useState(() => rowsToMembers(FALLBACK_ROWS))
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
@@ -68,6 +68,7 @@ export function MapSection() {
   const [query, setQuery] = useState('')
   const [focusId, setFocusId] = useState(null)
   const [inView, setInView] = useState(true)
+  const mapControlsRef = useRef(null)
 
   const {
     data: liveRows,
@@ -88,9 +89,10 @@ export function MapSection() {
   })
 
   useEffect(() => {
-    if (!liveRows?.length) return
+    if (!Array.isArray(liveRows)) return
+    if (status === 'offline' && !liveRows.length) return
     setMembers(rowsToMembers(liveRows))
-  }, [liveRows])
+  }, [liveRows, status])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -263,7 +265,7 @@ export function MapSection() {
   const badgeLabel = statusLabel(status, { realtime })
 
   return (
-    <section id="map" className="relative py-24 px-4 overflow-hidden" style={{ background: '#07070b' }}>
+    <section id="map" className="relative py-16 md:py-24 px-3 sm:px-4 overflow-hidden" style={{ background: '#07070b' }}>
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -364,11 +366,10 @@ export function MapSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.9, delay: 0.12 }}
           ref={containerRef}
-          className="w-full relative"
+          className="w-full relative overflow-hidden"
           style={{
-            height: 'clamp(520px, 78vh, 880px)',
+            height: 'clamp(420px, 72vh, 860px)',
             borderRadius: 20,
-            overflow: 'hidden',
             background: '#0a0a0e',
             border: '1px solid rgba(255,255,255,0.06)',
             boxShadow: '0 40px 80px rgba(0,0,0,0.7)',
@@ -385,6 +386,7 @@ export function MapSection() {
             }}
           />
 
+          {dimensions.width > 40 && (
           <RadialBubbleMap
             members={members}
             width={dimensions.width}
@@ -395,7 +397,9 @@ export function MapSection() {
             active={inView}
             onSelect={handleSelect}
             onHubClick={toggleCollapse}
+            controlsRef={mapControlsRef}
           />
+          )}
 
           <AnimatePresence>
             {collapsed && (
@@ -430,7 +434,64 @@ export function MapSection() {
             }}
           >
             <span>{members.length} Conn3ctors</span>
-            <span style={{ color: 'rgba(201,169,110,0.45)' }}>radial constellation</span>
+            <span style={{ color: 'rgba(201,169,110,0.45)' }}>live map</span>
+          </div>
+
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5">
+            <button
+              type="button"
+              title="Zoom in"
+              aria-label="Zoom in"
+              onClick={() => mapControlsRef.current?.zoomIn()}
+              className="w-8 h-8 flex items-center justify-center"
+              style={{
+                background: 'rgba(11,10,8,0.72)',
+                border: '1px solid rgba(201,169,110,0.28)',
+                color: '#C9A96E',
+                borderRadius: 4,
+                fontFamily: "'Josefin Sans', sans-serif",
+                fontSize: '1rem',
+                lineHeight: 1,
+              }}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              title="Zoom out"
+              aria-label="Zoom out"
+              onClick={() => mapControlsRef.current?.zoomOut()}
+              className="w-8 h-8 flex items-center justify-center"
+              style={{
+                background: 'rgba(11,10,8,0.72)',
+                border: '1px solid rgba(201,169,110,0.28)',
+                color: '#C9A96E',
+                borderRadius: 4,
+                fontFamily: "'Josefin Sans', sans-serif",
+                fontSize: '1rem',
+                lineHeight: 1,
+              }}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              title="Reset view"
+              aria-label="Reset view"
+              onClick={() => mapControlsRef.current?.reset()}
+              className="w-8 h-8 flex items-center justify-center"
+              style={{
+                background: 'rgba(11,10,8,0.72)',
+                border: '1px solid rgba(201,169,110,0.28)',
+                color: '#C9A96E',
+                borderRadius: 4,
+                fontFamily: "'Josefin Sans', sans-serif",
+                fontSize: '1rem',
+                lineHeight: 1,
+              }}
+            >
+              ↺
+            </button>
           </div>
 
           <AnimatePresence>

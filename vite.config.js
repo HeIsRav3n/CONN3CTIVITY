@@ -5,8 +5,15 @@ import { localApiPlugin } from './vite-plugin-local-api.js'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  if (env.NEON_DATABASE_URL) {
-    process.env.NEON_DATABASE_URL = env.NEON_DATABASE_URL
+  for (const key of [
+    'NEON_DATABASE_URL',
+    'DISCORD_BOT_TOKEN',
+    'DISCORD_GUILD_ID',
+    'CONN3CTOR_ROLE_ID',
+    'MVC_ROLE_ID',
+    'CRON_SECRET',
+  ]) {
+    if (env[key]) process.env[key] = env[key]
   }
 
   return {

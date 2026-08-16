@@ -1,93 +1,42 @@
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { SITE_DATA } from '../data/siteData'
 import { supabase, userAvatarSrc } from '../lib/supabase'
 import { isSoundMuted, toggleSoundMuted, subscribeSoundMuted } from '../lib/soundPrefs'
 
 // Mini Venn logo for navbar — 3D tilt on hover
 function NavLogo() {
-  const x = useMotionValue(0)
-  const y = useMotionValue(0)
-  const rotateX = useSpring(useTransform(y, [-0.5, 0.5], [8, -8]), { damping: 20, stiffness: 200 })
-  const rotateY = useSpring(useTransform(x, [-0.5, 0.5], [-8, 8]), { damping: 20, stiffness: 200 })
-  const [clicked, setClicked] = useState(false)
-
-  const handleMouseMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    x.set((e.clientX - rect.left) / rect.width - 0.5)
-    y.set((e.clientY - rect.top) / rect.height - 0.5)
-  }
-  const handleMouseLeave = () => { x.set(0); y.set(0) }
-
-  const handleThreeClick = () => {
-    setClicked(true)
-    setTimeout(() => setClicked(false), 600)
-  }
-
   return (
-    <motion.div
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      style={{ rotateX, rotateY, transformStyle: 'preserve-3d', perspective: '600px' }}
+    <svg
+      viewBox="0 0 248 40"
+      fill="none"
+      aria-label="CONN3CTIVITY"
+      preserveAspectRatio="xMidYMid meet"
+      className="block h-8 w-[198px] sm:h-[32px] sm:w-[200px] shrink-0"
+      style={{ overflow: 'visible' }}
     >
-      <svg viewBox="0 0 300 70" width="120" height="28" fill="none" aria-label="CONN3CTIVITY">
-        {/* Left circle */}
-        <circle cx="118" cy="35" r="42" stroke="rgba(237,232,220,0.50)" strokeWidth="1.1" />
-        {/* Right circle */}
-        <circle cx="182" cy="35" r="42" stroke="rgba(237,232,220,0.50)" strokeWidth="1.1" />
-        {/* CONN */}
-        <text x="140" y="39"
-          fontFamily="'Josefin Sans', sans-serif"
-          fontWeight="200" fontSize="11" letterSpacing="2"
-          fill="rgba(237,232,220,0.85)" textAnchor="end"
-        >CONN</text>
-
-        {/* Pulse ring behind "3" */}
-        <circle
-          cx="150" cy="35" r="10"
-          fill="rgba(201,169,110,0.06)"
-          stroke="rgba(201,169,110,0.35)"
-          strokeWidth="0.8"
-        >
-          <animate attributeName="r" values="9;13;9" dur="2.5s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.6;0;0.6" dur="2.5s" repeatCount="indefinite" />
-        </circle>
-
-        {/* Click ripple */}
-        {clicked && (
-          <circle cx="150" cy="35" r="18" fill="none" stroke="rgba(201,169,110,0.5)" strokeWidth="1.5">
-            <animate attributeName="r" from="8" to="22" dur="0.5s" fill="freeze" />
-            <animate attributeName="opacity" from="1" to="0" dur="0.5s" fill="freeze" />
-          </circle>
-        )}
-
-        {/* "3" — clickable intersection accent */}
-        <text
-          x="150" y="40"
-          fontFamily="'Josefin Sans', sans-serif"
-          fontWeight="300" fontSize="15"
-          fill="#C9A96E"
-          textAnchor="middle"
-          onClick={handleThreeClick}
-          style={{ cursor: 'pointer', userSelect: 'none' }}
-        >3</text>
-
-        {/* Invisible larger hit area for the "3" */}
-        <rect
-          x="138" y="24" width="24" height="22"
-          fill="transparent"
-          onClick={handleThreeClick}
-          style={{ cursor: 'pointer' }}
-        />
-
-        {/* CTIVITY */}
-        <text x="160" y="39"
-          fontFamily="'Josefin Sans', sans-serif"
-          fontWeight="200" fontSize="11" letterSpacing="2"
-          fill="rgba(237,232,220,0.85)" textAnchor="start"
-        >CTIVITY</text>
-      </svg>
-    </motion.div>
+      <circle cx="98" cy="20" r="17.5" stroke="rgba(237,232,220,0.55)" strokeWidth="1.15" />
+      <circle cx="122" cy="20" r="17.5" stroke="rgba(237,232,220,0.55)" strokeWidth="1.15" />
+      <text
+        x="8" y="25"
+        fontFamily="'Josefin Sans', sans-serif"
+        fontWeight="200" fontSize="13" letterSpacing="2.4"
+        fill="rgba(237,232,220,0.9)"
+      >CONN</text>
+      <text
+        x="110" y="26"
+        fontFamily="'Josefin Sans', sans-serif"
+        fontWeight="300" fontSize="16"
+        fill="#C9A96E"
+        textAnchor="middle"
+      >3</text>
+      <text
+        x="140" y="25"
+        fontFamily="'Josefin Sans', sans-serif"
+        fontWeight="200" fontSize="13" letterSpacing="2.4"
+        fill="rgba(237,232,220,0.9)"
+      >CTIVITY</text>
+    </svg>
   )
 }
 
@@ -165,12 +114,13 @@ export function Navbar({ user, onLogout, onProfileClick }) {
             style={{ background: 'linear-gradient(90deg, transparent, rgba(201,169,110,0.5) 40%, rgba(237,232,220,0.6) 50%, rgba(201,169,110,0.5) 60%, transparent)' }}
           />
 
-          <div className="max-w-7xl mx-auto px-6 md:px-10 h-16 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-[4.25rem] sm:h-[4.5rem] flex items-center justify-between gap-3 min-w-0">
             {/* Logo */}
             <motion.a
               href="#home"
               whileHover={{ opacity: 0.85 }}
-              style={{ display: 'flex', alignItems: 'center' }}
+              className="flex items-center min-w-0 shrink-0"
+              aria-label="CONN3CTIVITY home"
             >
               <NavLogo />
             </motion.a>

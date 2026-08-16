@@ -91,7 +91,7 @@ function HeroLiveBar() {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 1.8, duration: 0.8 }}
-      className="flex items-center justify-center gap-0 overflow-hidden"
+      className="flex items-center justify-center gap-0 overflow-hidden flex-wrap max-w-full"
       style={{
         background: 'rgba(255,255,255,0.02)',
         border: '1px solid rgba(255,255,255,0.05)',
@@ -240,17 +240,19 @@ export function HeroSection({ onThreeClick }) {
         >
           {/* Brand title — Venn logo split: CONN | 3 | CTIVITY */}
           <div
-            className="mb-6 flex items-center justify-center"
+            className="mb-6 flex items-center justify-center flex-wrap"
             style={{
               fontFamily: "'Josefin Sans', sans-serif",
               fontWeight: 100,
-              fontSize: 'clamp(2.8rem, 10vw, 9rem)',
-              letterSpacing: 'clamp(0.15em, 1.5vw, 0.45em)',
+              fontSize: 'clamp(1.55rem, 7vw, 7.5rem)',
+              letterSpacing: 'clamp(0.05em, 0.9vw, 0.28em)',
               textTransform: 'uppercase',
               color: '#EDE8DC',
               perspective: '800px',
               lineHeight: 1,
-              gap: 'clamp(0.4rem, 1.5vw, 1.2rem)',
+              gap: 'clamp(0.2rem, 1vw, 1rem)',
+              width: '100%',
+              maxWidth: '100%',
             }}
           >
             {/* Left segment: CONN */}

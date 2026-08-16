@@ -1,4 +1,7 @@
 {
+  "crons": [
+    { "path": "/api/sync", "schedule": "* * * * *" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

@@ -24,12 +24,12 @@ Cinematic Web3 community landing page — Discord-centric CM network. Built with
 
 | Data | Writer | Reader |
 |------|--------|--------|
-| Server stats, Conn3ctors map, MVC | `discord-bot.cjs` / `fetchDiscordMap.cjs` → **Neon** | Frontend via **`/api/stats`**, **`/api/conn3ctors`**, **`/api/mvc`** |
+| Server stats, Conn3ctors map, MVC | Discord bot **and** `/api/*` live pull (every ~45s while the site is used) plus Vercel cron `/api/sync` | Frontend via **`/api/stats`**, **`/api/conn3ctors`**, **`/api/mvc`** (polls every 5s) |
 | Auth + profiles | Supabase Auth | Supabase client |
 | MVC enrichment (CM type, services, etc.) | Profile upserts in Supabase | MVC section merges Neon winner + `profiles` row |
 | Detectivity threats | `npm run update-scammers` → `scammers.json` | Static import (redeploy to refresh) |
 
-The Discord bot **must keep running** (or you must periodically run `node fetchDiscordMap.cjs`) for Live badges to stay green. Stale Neon rows show as “Last synced”.
+Set `DISCORD_BOT_TOKEN` + `NEON_DATABASE_URL` on Vercel so the website keeps pulling Discord → Neon even if the bot host is down. Optional `CRON_SECRET` authenticates `GET /api/sync`. Keep `discord-bot.cjs` running for instant Gateway events (joins/leaves/roles).
 
 ### One-shot map sync
 

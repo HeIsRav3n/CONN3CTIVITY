@@ -8,8 +8,11 @@ function loadTex(url) {
   if (!url) return null
   if (textureCache.has(url)) return textureCache.get(url)
   const img = new Image()
-  img.crossOrigin = 'anonymous'
   img.decoding = 'async'
+  // Discord CDN does not send CORS headers — setting crossOrigin would block avatars.
+  if (url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin))) {
+    img.crossOrigin = 'anonymous'
+  }
   img.src = url
   textureCache.set(url, img)
   return img
@@ -25,26 +28,29 @@ function hash01(id) {
   return ((h >>> 0) % 10000) / 10000
 }
 
-/** Dense circular packing — tight rings, little wasted space */
-function packRings(members, scale) {
+/** Pack rings to fill the canvas — readable bubbles, no overflow. */
+function packRings(members, width, height) {
+  const n = members.length
+  const span = Math.max(160, Math.min(width, height))
+  const maxR = span * 0.44
+  const hubClear = Math.max(28, span * 0.055)
+
   let idx = 0
   let ring = 0
-  const baseR = 48 * scale
-  const gap = 18 * scale
-  const spacing = 15 * scale
-
-  while (idx < members.length) {
-    const R = baseR + ring * gap
-    const capacity = Math.max(12, Math.floor((2 * Math.PI * R) / spacing))
-    const count = Math.min(capacity, members.length - idx)
-    const offset = ring * 0.13
+  while (idx < n) {
+    const R = hubClear + 14 + ring * Math.max(20, span * 0.042)
+    const bubbleR = Math.max(9, Math.min(17, (15.5 - ring * 0.5) * (span / 700)))
+    const spacing = bubbleR * 2.2
+    const capacity = Math.max(10, Math.floor((2 * Math.PI * R) / spacing))
+    const count = Math.min(capacity, n - idx)
+    const offset = ring * 0.17
     for (let i = 0; i < count; i++) {
       const m = members[idx + i]
       const a = (i / count) * Math.PI * 2 + offset
       m.homeR = R
       m.homeA = a
       m.depth = 0.1 + ring * 0.05
-      m.r = Math.max(4.5, 7.2 - ring * 0.35) * scale
+      m.r = bubbleR
       m.x = Math.cos(a) * R
       m.y = Math.sin(a) * R
       m.vx = 0
@@ -54,6 +60,19 @@ function packRings(members, scale) {
     }
     idx += count
     ring += 1
+    if (ring > 48) break
+  }
+
+  let outer = 0
+  for (const m of members) outer = Math.max(outer, (m.homeR || 0) + (m.r || 0))
+  if (outer > maxR && outer > 0) {
+    const k = maxR / outer
+    for (const m of members) {
+      m.homeR *= k
+      m.r = Math.max(8, m.r * Math.min(1.05, Math.sqrt(k) * 1.2))
+      m.x = Math.cos(m.homeA) * m.homeR
+      m.y = Math.sin(m.homeA) * m.homeR
+    }
   }
 }
 
@@ -71,6 +90,7 @@ export function RadialBubbleMap({
   onHover,
   onSelect,
   onHubClick,
+  controlsRef,
 }) {
   const canvasRef = useRef(null)
   const stateRef = useRef(null)
@@ -83,6 +103,31 @@ export function RadialBubbleMap({
   })
 
   useEffect(() => {
+    if (!controlsRef) return undefined
+    controlsRef.current = {
+      zoomIn() {
+        const s = stateRef.current
+        if (!s) return
+        s.cam.zoom = Math.min(3.5, (s.cam.zoom || 1) * 1.22)
+      },
+      zoomOut() {
+        const s = stateRef.current
+        if (!s) return
+        s.cam.zoom = Math.max(0.4, (s.cam.zoom || 1) / 1.22)
+      },
+      reset() {
+        const s = stateRef.current
+        if (!s) return
+        s.cam.x = 0
+        s.cam.y = 0
+        s.cam.zoom = 1
+      },
+    }
+    return () => { controlsRef.current = null }
+  }, [controlsRef])
+
+  useEffect(() => {
+    if (width < 40 || height < 40) return
     const scale = Math.min(width, height) / 700
     const hub = {
       id: 'main',
@@ -92,7 +137,7 @@ export function RadialBubbleMap({
       color: GOLD,
       x: 0,
       y: 0,
-      r: 28 * scale,
+      r: Math.max(22, Math.min(width, height) * 0.048),
       img: loadTex('/map-logo.png'),
     }
 
@@ -126,8 +171,8 @@ export function RadialBubbleMap({
     })
 
     // Only re-pack when membership or size class changes
-    if (!sameMembers || !prev || Math.abs((prev.scale || 0) - scale) > 0.04) {
-      packRings(bubbles, scale)
+    if (!sameMembers || !prev || Math.abs((prev.scale || 0) - scale) > 0.03) {
+      packRings(bubbles, width, height)
       for (const b of bubbles) {
         const old = prevMap?.get(b.id)
         if (old && Number.isFinite(old.x) && sameMembers) {
@@ -223,7 +268,7 @@ export function RadialBubbleMap({
   // Render + light physics loop
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || width < 2 || height < 2) return undefined
+    if (!canvas || width < 40 || height < 40) return undefined
 
     const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true })
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
@@ -369,7 +414,7 @@ export function RadialBubbleMap({
       for (let i = 0; i < n; i++) {
         const b = bubbles[i]
         // Skip far outer when zoomed out (cull)
-        if (zoom < 0.7 && b.ring > 8 && b.id !== hotId) continue
+        if (zoom < 0.55 && b.ring > 14 && b.id !== hotId) continue
 
         const isHot = b.id === hotId
         const rad = b.r * (isHot ? 1.3 : 1)
@@ -447,13 +492,13 @@ export function RadialBubbleMap({
     const hitTest = (wx, wy) => {
       const s = stateRef.current
       if (!s) return null
-      if (Math.hypot(wx, wy) <= s.hub.r * 1.2) return s.hub
+      if (Math.hypot(wx, wy) <= s.hub.r * 1.35) return s.hub
       let best = null
       let bestD = Infinity
       for (let i = s.bubbles.length - 1; i >= 0; i--) {
         const b = s.bubbles[i]
         const d = Math.hypot(b.x - wx, b.y - wy)
-        const rad = b.r + 4
+        const rad = Math.max(b.r * 1.7, 14)
         if (d <= rad && d < bestD) {
           best = b
           bestD = d
@@ -556,6 +601,7 @@ export function RadialBubbleMap({
       if (!s) return
       e.preventDefault()
       e.stopPropagation()
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation()
 
       // Two-finger pan on trackpads
       if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.2) {
@@ -586,20 +632,31 @@ export function RadialBubbleMap({
 
     const onContextMenu = (e) => e.preventDefault()
 
+    const lockScroll = (lock) => {
+      window.dispatchEvent(new CustomEvent('conn3ctivity:map-scroll-lock', { detail: lock }))
+    }
+    const onEnter = () => lockScroll(true)
+    const onLeave = () => lockScroll(false)
+
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', onPointerUp)
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('dblclick', onDbl)
     canvas.addEventListener('contextmenu', onContextMenu)
+    canvas.addEventListener('pointerenter', onEnter)
+    canvas.addEventListener('pointerleave', onLeave)
 
     return () => {
+      lockScroll(false)
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('dblclick', onDbl)
       canvas.removeEventListener('contextmenu', onContextMenu)
+      canvas.removeEventListener('pointerenter', onEnter)
+      canvas.removeEventListener('pointerleave', onLeave)
     }
   }, [toWorld, width, height])
 
