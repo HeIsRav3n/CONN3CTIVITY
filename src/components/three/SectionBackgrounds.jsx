@@ -25,6 +25,7 @@ function NetworkWeb({ count = 35 }) {
 
   const meshRefs = useRef([])
   const lineRef = useRef()
+  const lineBuf = useMemo(() => new Float32Array((count * (count - 1)) * 3), [count])
 
   useFrame((state) => {
     const t = state.clock.elapsedTime
@@ -45,23 +46,30 @@ function NetworkWeb({ count = 35 }) {
       }
     })
 
-    // Rebuild connection lines between nearby nodes
     if (lineRef.current) {
-      const pts = []
+      let k = 0
       for (let i = 0; i < count; i++) {
         for (let j = i + 1; j < count; j++) {
           const dx = positions[i].x - positions[j].x
           const dy = positions[i].y - positions[j].y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < 4) {
-            pts.push(new THREE.Vector3(positions[i].x, positions[i].y, positions[i].z))
-            pts.push(new THREE.Vector3(positions[j].x, positions[j].y, positions[j].z))
+          if (dx * dx + dy * dy < 16) {
+            lineBuf[k++] = positions[i].x
+            lineBuf[k++] = positions[i].y
+            lineBuf[k++] = positions[i].z
+            lineBuf[k++] = positions[j].x
+            lineBuf[k++] = positions[j].y
+            lineBuf[k++] = positions[j].z
           }
         }
       }
-      const geo = new THREE.BufferGeometry().setFromPoints(pts)
-      lineRef.current.geometry.dispose()
-      lineRef.current.geometry = geo
+      const geo = lineRef.current.geometry
+      let attr = geo.getAttribute('position')
+      if (!attr || attr.array !== lineBuf) {
+        attr = new THREE.BufferAttribute(lineBuf, 3)
+        geo.setAttribute('position', attr)
+      }
+      attr.needsUpdate = true
+      geo.setDrawRange(0, k / 3)
     }
   })
 

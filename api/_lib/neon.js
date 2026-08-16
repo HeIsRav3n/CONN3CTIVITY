@@ -16,7 +16,12 @@ export function sendOk(res, data, { maxAge = 5 } = {}) {
 }
 
 export function sendError(res, error, status = 500) {
+  const message = String(error?.message || error)
+  // Never echo raw DB/driver errors to clients — they can leak
+  // connection details. Log server-side, return a generic message.
+  const masked = status === 500
+  if (masked) console.error('[api]', message)
   res.setHeader('Content-Type', 'application/json')
   res.statusCode = status
-  res.end(JSON.stringify({ ok: false, error: String(error?.message || error) }))
+  res.end(JSON.stringify({ ok: false, error: masked ? 'Internal server error' : message }))
 }

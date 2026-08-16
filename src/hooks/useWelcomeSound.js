@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { isSoundMuted, subscribeSoundMuted } from '../lib/soundPrefs'
 
 /**
  * Module-level singleton so React Strict Mode remounts don't kill playback mid-play.
@@ -30,7 +31,7 @@ function getWelcomeAudio() {
 }
 
 async function tryPlayWelcome() {
-  if (welcomePlayed || welcomePlaying) return welcomePlayed
+  if (isSoundMuted() || welcomePlayed || welcomePlaying) return welcomePlayed
   const audio = getWelcomeAudio()
   if (!audio) return false
 
@@ -71,29 +72,45 @@ export function useWelcomeSound({ enabled = true } = {}) {
   useEffect(() => {
     if (!enabled) return undefined
 
-    getWelcomeAudio()
-    tryPlayWelcome()
+    const audio = getWelcomeAudio()
+    if (isSoundMuted()) {
+      if (audio) {
+        audio.muted = true
+        try { audio.pause() } catch { /* ignore */ }
+      }
+    } else {
+      tryPlayWelcome()
+    }
 
     const times = [0, 80, 250, 600, 1200, 2500, 5000]
     const timers = times.map((ms) => window.setTimeout(() => tryPlayWelcome(), ms))
 
     const onCanPlay = () => tryPlayWelcome()
-    const audio = getWelcomeAudio()
     audio?.addEventListener('canplaythrough', onCanPlay)
 
     const onPageShow = () => tryPlayWelcome()
     window.addEventListener('pageshow', onPageShow)
 
-    // Invisible unlock: many browsers count document visibility / focus as engagement
     const onFocus = () => tryPlayWelcome()
     window.addEventListener('focus', onFocus)
+
+    const unsub = subscribeSoundMuted((muted) => {
+      if (muted) {
+        if (audio) {
+          audio.muted = true
+          try { audio.pause() } catch { /* ignore */ }
+        }
+      } else if (!welcomePlayed) {
+        tryPlayWelcome()
+      }
+    })
 
     return () => {
       timers.forEach(clearTimeout)
       audio?.removeEventListener('canplaythrough', onCanPlay)
       window.removeEventListener('pageshow', onPageShow)
       window.removeEventListener('focus', onFocus)
-      // Never pause the singleton here
+      unsub()
     }
   }, [enabled])
 }

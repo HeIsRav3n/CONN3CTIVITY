@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../lib/supabase';
+import { supabase, userAvatarSrc } from '../lib/supabase';
 
 function normalizeCommunities(value) {
   let list = [];
@@ -45,8 +45,10 @@ export function ProfileModal({ isOpen, onClose, user }) {
     setSaveState('saving');
 
     if (!supabase) {
-      localStorage.setItem(`profile_${user.id}`, JSON.stringify(data));
-      localStorage.setItem(`profile_${user.discord_id || user.id}`, JSON.stringify(data));
+      try {
+        localStorage.setItem(`profile_${user.id}`, JSON.stringify(data));
+        localStorage.setItem(`profile_${user.discord_id || user.id}`, JSON.stringify(data));
+      } catch { /* private mode */ }
       setSaveState('saved');
       if (!quiet) setIsLoading(false);
       return true;
@@ -56,7 +58,9 @@ export function ProfileModal({ isOpen, onClose, user }) {
       id: user.id,
       username: user.username,
       discord_id: user.discord_id || user.id,
-      avatar_url: user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : null),
+      avatar_url: user.avatar_url || (user.avatar && user.discord_id
+        ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.avatar}.png`
+        : null),
       twitter: data.twitter,
       telegram: data.telegram,
       cm_type: data.cmType,
@@ -80,10 +84,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
     if (error) {
       console.error('Error saving profile:', error);
       setSaveState('error');
-      if (!quiet) {
-        setIsLoading(false);
-        alert('Failed to save profile. Check console for details.');
-      }
+      if (!quiet) setIsLoading(false);
       return false;
     }
 
@@ -98,19 +99,24 @@ export function ProfileModal({ isOpen, onClose, user }) {
       skipAutosave.current = true;
 
       if (!supabase) {
-        const savedData = localStorage.getItem(`profile_${user.id}`)
-          || localStorage.getItem(`profile_${user.discord_id}`);
+        let savedData = null
+        try {
+          savedData = localStorage.getItem(`profile_${user.id}`)
+            || localStorage.getItem(`profile_${user.discord_id}`);
+        } catch { /* private mode */ }
         if (savedData) {
-          const parsed = JSON.parse(savedData);
-          setProfileData({
-            twitter: parsed.twitter || '',
-            telegram: parsed.telegram || '',
-            cmType: parsed.cmType || parsed.cm_type || 'Inbound',
-            services: parsed.services || '',
-            experience: parsed.experience || '1 Year',
-            communities: normalizeCommunities(parsed.communities),
-            role: parsed.role || 'Collab Manager',
-          });
+          try {
+            const parsed = JSON.parse(savedData);
+            setProfileData({
+              twitter: parsed.twitter || '',
+              telegram: parsed.telegram || '',
+              cmType: parsed.cmType || parsed.cm_type || 'Inbound',
+              services: parsed.services || '',
+              experience: parsed.experience || '1 Year',
+              communities: normalizeCommunities(parsed.communities),
+              role: parsed.role || 'Collab Manager',
+            });
+          } catch { /* ignore corrupt cache */ }
         }
         setIsEditing(true);
         setTimeout(() => { skipAutosave.current = false }, 400);
@@ -239,7 +245,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
             <div className="flex items-center gap-4 mb-6">
               <div className="relative">
                 <img
-                  src={user.avatar_url || (user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.id) % 5}.png`)}
+                  src={userAvatarSrc(user)}
                   alt={user.username}
                   className="w-16 h-16 rounded-full border border-[#C9A96E]/50 object-cover"
                 />

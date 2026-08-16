@@ -238,7 +238,7 @@ export function DetectivitySection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.7, delay: 0.2 }}
-            className="font-inter text-base max-w-2xl mx-auto"
+            className="font-['Josefin_Sans'] text-base max-w-2xl mx-auto"
             style={{ color: 'var(--text-muted)' }}
           >
             To keep our community safe, we actively track and expose scammers, imposters, and malicious actors operating in the Web3 space. Verified reports from the Detectivity Discord channel.

@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
       localApiPlugin(),
     ],
     optimizeDeps: {
-      include: ['three', '@react-three/fiber', '@react-three/drei'],
+      include: ['three', '@react-three/fiber'],
     },
   }
 })

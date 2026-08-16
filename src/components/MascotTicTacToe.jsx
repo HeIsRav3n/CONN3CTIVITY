@@ -240,6 +240,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
   const [incomingRequests, setIncomingRequests] = useState([])
   const lobbyChannelRef = useRef(null)
   const gameChannelRef = useRef(null)
+  const joinGameRoomRef = useRef(null)
 
   const [showConfetti, setShowConfetti] = useState(false)
   const [aiThinking, setAiThinking] = useState(false)
@@ -274,7 +275,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
       })
       .on('broadcast', { event: 'request-accepted' }, ({ payload }) => {
         if (payload.targetId === user.id) {
-          joinGameRoom(payload.roomId, payload.acceptor, 'GM')
+          joinGameRoomRef.current?.(payload.roomId, payload.acceptor, 'GM')
         }
       })
       .subscribe(async (status) => {
@@ -320,6 +321,10 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
     
     gameChannelRef.current = gameChan
   }
+
+  useEffect(() => {
+    joinGameRoomRef.current = joinGameRoom
+  })
 
   const sendRequest = async (targetUser) => {
     if (!lobbyChannelRef.current) return

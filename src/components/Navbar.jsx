@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { SITE_DATA } from '../data/siteData'
-import { supabase } from '../lib/supabase'
+import { supabase, userAvatarSrc } from '../lib/supabase'
+import { isSoundMuted, toggleSoundMuted, subscribeSoundMuted } from '../lib/soundPrefs'
 
 // Mini Venn logo for navbar — 3D tilt on hover
 function NavLogo() {
@@ -94,12 +95,15 @@ export function Navbar({ user, onLogout, onProfileClick }) {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState('home')
+  const [soundMuted, setSoundMutedState] = useState(() => isSoundMuted())
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50)
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  useEffect(() => subscribeSoundMuted(setSoundMutedState), [])
 
   // Track active section via IntersectionObserver
   useEffect(() => {
@@ -118,16 +122,16 @@ export function Navbar({ user, onLogout, onProfileClick }) {
   }, [])
 
   const navLinks = [
-    { label: 'Home',         href: '#home',         id: 'home' },
-    { label: 'About',        href: '#about',         id: 'about' },
-    { label: 'Partnerships', href: '#partnerships',  id: 'partnerships' },
-    { label: 'Team',         href: '#team',          id: 'team' },
-    { label: 'Map',          href: '#map',           id: 'map' },
-    { label: 'Connect',      href: '#connect',       id: 'connect' },
+    { label: 'Home', href: '#home', id: 'home' },
+    { label: 'About', href: '#about', id: 'about' },
+    { label: 'MVC', href: '#mvc-spotlight', id: 'mvc-spotlight' },
+    { label: 'Map', href: '#map', id: 'map' },
+    { label: 'Detectivity', href: '#detectivity', id: 'detectivity' },
+    { label: 'Connect', href: '#connect', id: 'connect' },
   ]
 
   const getSectionLink = (sectionId) => {
-    const map = { 'mvc-spotlight': 'about', 'detectivity': 'connect' }
+    const map = { partnerships: 'about', team: 'about' }
     return map[sectionId] || sectionId
   }
 
@@ -172,7 +176,7 @@ export function Navbar({ user, onLogout, onProfileClick }) {
             </motion.a>
 
             {/* Desktop nav links */}
-            <div className="hidden md:flex items-center gap-10">
+            <div className="hidden lg:flex items-center gap-6 xl:gap-8">
               {navLinks.map((link) => {
                 const isActive = getSectionLink(activeSection) === link.id
                 return (
@@ -182,8 +186,8 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                     style={{
                       fontFamily: "'Josefin Sans', sans-serif",
                       fontWeight: 300,
-                      fontSize: '0.72rem',
-                      letterSpacing: '0.2em',
+                      fontSize: '0.68rem',
+                      letterSpacing: '0.18em',
                       textTransform: 'uppercase',
                       color: isActive
                         ? 'rgba(201,169,110,0.95)'
@@ -199,7 +203,6 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                     transition={{ duration: 0.2 }}
                   >
                     {link.label}
-                    {/* Active underline */}
                     <motion.span
                       animate={{ scaleX: isActive ? 1 : 0, opacity: isActive ? 1 : 0 }}
                       transition={{ duration: 0.3 }}
@@ -220,14 +223,34 @@ export function Navbar({ user, onLogout, onProfileClick }) {
             </div>
 
             {/* CTA buttons */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
+              <motion.button
+                type="button"
+                onClick={() => toggleSoundMuted()}
+                aria-label={soundMuted ? 'Unmute sound' : 'Mute sound'}
+                title={soundMuted ? 'Unmute' : 'Mute'}
+                className="flex items-center justify-center"
+                style={{
+                  width: 34,
+                  height: 34,
+                  color: soundMuted ? 'rgba(237,232,220,0.35)' : 'rgba(201,169,110,0.85)',
+                  border: '1px solid rgba(237,232,220,0.12)',
+                  borderRadius: 2,
+                  background: 'transparent',
+                }}
+                whileHover={{ borderColor: 'rgba(201,169,110,0.4)', color: '#C9A96E' }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <SoundIcon muted={soundMuted} />
+              </motion.button>
+
               {/* X handle */}
               <motion.a
                 href={SITE_DATA.twitterUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 id="twitter-handle-link"
-                className="hidden md:flex items-center gap-2"
+                className="hidden xl:flex items-center gap-2"
                 style={{
                   fontFamily: "'Josefin Sans', sans-serif",
                   fontWeight: 300,
@@ -247,19 +270,19 @@ export function Navbar({ user, onLogout, onProfileClick }) {
 
               {/* Discord Auth UI */}
               {user ? (
-                <div className="hidden md:flex items-center gap-3 ml-2">
-                  <div 
+                <div className="hidden md:flex items-center gap-3 ml-1">
+                  <div
                     onClick={onProfileClick}
                     className="flex items-center gap-2 px-2 py-1 bg-white/5 border border-white/10 rounded-full cursor-pointer hover:bg-white/10 hover:border-[#C9A96E]/50 transition-colors"
                   >
-                    <img 
-                      src={user.avatar_url || `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`} 
+                    <img
+                      src={userAvatarSrc(user)}
                       alt={user.username}
                       className="w-6 h-6 rounded-full border border-gold/50 object-cover"
                     />
                     <span className="text-[0.65rem] font-space text-cream/80 pr-2">{user.username}</span>
                   </div>
-                  <button 
+                  <button
                     onClick={onLogout}
                     className="text-[0.6rem] font-orbitron text-cream/40 hover:text-red-400 uppercase tracking-widest transition-colors"
                   >
@@ -273,14 +296,10 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                       console.error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
                       return
                     }
-                    const redirectUrl = window.location.hostname === 'localhost' 
-                      ? window.location.origin 
-                      : 'https://conn3ctivity-eight.vercel.app/';
-
                     await supabase.auth.signInWithOAuth({
                       provider: 'discord',
-                      options: { redirectTo: redirectUrl }
-                    });
+                      options: { redirectTo: `${window.location.origin}/` },
+                    })
                   }}
                   className="hidden md:flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs px-4 py-2.5 rounded-sm transition-colors"
                   style={{ fontSize: '0.65rem', letterSpacing: '0.18em', fontFamily: "'Josefin Sans', sans-serif", fontWeight: 600 }}
@@ -294,10 +313,10 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                 </motion.button>
               )}
 
-              {/* Mobile menu toggle */}
+              {/* Mobile / tablet menu toggle */}
               <motion.button
                 id="mobile-menu-button"
-                className="md:hidden p-2"
+                className="lg:hidden p-2"
                 onClick={() => setMenuOpen(!menuOpen)}
                 aria-expanded={menuOpen}
                 aria-controls="mobile-nav-menu"
@@ -317,7 +336,7 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="md:hidden overflow-hidden"
+                className="lg:hidden overflow-hidden"
                 style={{
                   background: 'rgba(11,10,8,0.97)',
                   borderTop: '1px solid rgba(201,169,110,0.1)',
@@ -376,6 +395,25 @@ function XIcon({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  )
+}
+
+function SoundIcon({ muted }) {
+  if (muted) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M11 5L6 9H3v6h3l5 4V5z" />
+        <line x1="22" y1="9" x2="16" y2="15" />
+        <line x1="16" y1="9" x2="22" y2="15" />
+      </svg>
+    )
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M11 5L6 9H3v6h3l5 4V5z" />
+      <path d="M15.5 8.5a5 5 0 010 7" />
+      <path d="M18.5 5.5a9 9 0 010 13" />
     </svg>
   )
 }

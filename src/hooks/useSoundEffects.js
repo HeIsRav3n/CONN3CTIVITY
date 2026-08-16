@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { isSoundMuted } from '../lib/soundPrefs';
 
 let audioCtx = null;
 
@@ -16,6 +17,7 @@ export function useSoundEffects() {
   const lastHoverTime = useRef(0);
 
   const playHover = useCallback(() => {
+    if (isSoundMuted()) return;
     try {
       const now = Date.now();
       // Throttle hover sounds so they don't spam if dragging across many items
@@ -46,6 +48,7 @@ export function useSoundEffects() {
   }, []);
 
   const playClick = useCallback(() => {
+    if (isSoundMuted()) return;
     try {
       const ctx = getContext();
       const osc = ctx.createOscillator();

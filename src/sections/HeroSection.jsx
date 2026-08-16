@@ -1,7 +1,6 @@
 import { useRef } from 'react'
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
 import { VennAtmosphere } from '../components/VennAtmosphere'
-import { SITE_DATA } from '../data/siteData'
 import { useCountUp } from '../hooks/useCountUp'
 import { fetchStats, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
@@ -91,14 +90,15 @@ function HeroLiveBar() {
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 1.3, duration: 0.8 }}
-      className="flex items-center justify-center gap-0 mb-10 overflow-hidden rounded-full"
+      transition={{ delay: 1.8, duration: 0.8 }}
+      className="flex items-center justify-center gap-0 overflow-hidden"
       style={{
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.07)',
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.05)',
         backdropFilter: 'blur(12px)',
         width: 'fit-content',
-        margin: '0 auto 2.5rem',
+        margin: '0 auto',
+        borderRadius: 2,
       }}
     >
       {/* Live dot */}
@@ -238,37 +238,6 @@ export function HeroSection({ onThreeClick }) {
           className="relative z-10 text-center px-6 select-none"
           style={{ y: heroY, opacity: heroOpacity }}
         >
-          {/* Pre-badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-            className="inline-flex items-center gap-3 mb-8 px-5 py-2 rounded-full"
-            style={{
-              background: 'rgba(201,169,110,0.08)',
-              border: '1px solid rgba(201,169,110,0.2)',
-              backdropFilter: 'blur(12px)',
-            }}
-          >
-            <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{
-                background: '#C9A96E',
-                boxShadow: '0 0 8px 2px rgba(201,169,110,0.6)',
-                animation: 'pulse 2s ease-in-out infinite',
-              }}
-            />
-            <span style={{
-              fontFamily: "'Josefin Sans', sans-serif",
-              fontSize: '0.6rem',
-              letterSpacing: '0.4em',
-              color: 'rgba(201,169,110,0.85)',
-              textTransform: 'uppercase',
-            }}>
-              The Web3 Connection Layer
-            </span>
-          </motion.div>
-
           {/* Brand title — Venn logo split: CONN | 3 | CTIVITY */}
           <div
             className="mb-6 flex items-center justify-center"
@@ -350,14 +319,11 @@ export function HeroSection({ onThreeClick }) {
             ))}
           </motion.div>
 
-          {/* Live stats bar */}
-          <HeroLiveBar />
-
           {/* Subline */}
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.5, duration: 0.8 }}
+            transition={{ delay: 1.2, duration: 0.8 }}
             style={{
               fontFamily: "'Josefin Sans', sans-serif",
               fontWeight: 300,
@@ -376,11 +342,11 @@ export function HeroSection({ onThreeClick }) {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.8, duration: 0.8 }}
-            className="flex items-center justify-center gap-4 flex-wrap"
+            transition={{ delay: 1.5, duration: 0.8 }}
+            className="flex items-center justify-center gap-4 flex-wrap mb-8"
           >
             <motion.a
-              href="#about"
+              href="#map"
               whileHover={{
                 scale: 1.04,
                 boxShadow: '0 0 40px rgba(201,169,110,0.35)',
@@ -403,16 +369,14 @@ export function HeroSection({ onThreeClick }) {
                 transition: 'all 0.3s ease',
               }}
             >
-              EXPLORE THE NETWORK
+              EXPLORE THE MAP
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </motion.a>
 
             <motion.a
-              href={SITE_DATA.twitterUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+              href="#connect"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               style={{
@@ -434,22 +398,16 @@ export function HeroSection({ onThreeClick }) {
                 backdropFilter: 'blur(8px)',
               }}
             >
-              <XIcon size={12} />
-              conn3ctivity_
+              REQUEST ACCESS
             </motion.a>
           </motion.div>
+
+          {/* Quiet live pulse — secondary to brand */}
+          <HeroLiveBar />
         </motion.div>
 
         <ScrollCue />
       </section>
     </>
-  )
-}
-
-function XIcon({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
   )
 }

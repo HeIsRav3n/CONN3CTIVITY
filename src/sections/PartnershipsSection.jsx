@@ -1,7 +1,12 @@
+import { lazy, Suspense } from 'react'
 import { motion } from 'framer-motion'
 import { CommunityCard } from '../components/CommunityCard'
 import { PARTNERSHIPS } from '../data/siteData'
-import { PartnershipsBackground } from '../components/three/SectionBackgrounds'
+
+// Lazy-loaded so three.js stays out of the initial bundle (decorative only)
+const PartnershipsBackground = lazy(() =>
+  import('../components/three/SectionBackgrounds').then(m => ({ default: m.PartnershipsBackground }))
+)
 
 export function PartnershipsSection() {
   return (
@@ -11,7 +16,9 @@ export function PartnershipsSection() {
     >
       {/* Three.js Background */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <PartnershipsBackground />
+        <Suspense fallback={null}>
+          <PartnershipsBackground />
+        </Suspense>
       </div>
       {/* Gradient overlay to keep text readable */}
       <div
@@ -62,7 +69,7 @@ export function PartnershipsSection() {
             className="font-space text-base max-w-xl mx-auto"
             style={{ color: 'rgba(240,244,255,0.55)' }}
           >
-            Web3 communities and protocols building together Hover to connect
+            Web3 communities and protocols building together. Hover to connect.
           </motion.p>
         </div>
 

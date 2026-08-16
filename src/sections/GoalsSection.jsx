@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { use3DTilt } from '../hooks/use3DTilt'
+import { SITE_DATA } from '../data/siteData'
 
 const MOTTO_WORDS = ['SEARCH', 'FIND', 'CONN3CT']
 const WORD_COLORS = ['#EDE8DC', '#C9A96E', '#EDE8DC']
@@ -123,10 +124,18 @@ function ActionCard({ item, index }) {
 
       <div style={{ transform: 'translateZ(40px)', transformStyle: 'preserve-3d' }}>
         <div
-          className="text-4xl mb-4"
-          style={{ transform: 'translateZ(20px)' }}
+          className="mb-5 flex h-12 w-12 items-center justify-center"
+          style={{
+            transform: 'translateZ(20px)',
+            border: `1px solid ${item.color}40`,
+            color: item.color,
+            fontFamily: "'Josefin Sans', sans-serif",
+            fontWeight: 300,
+            fontSize: '1.1rem',
+            letterSpacing: '0.12em',
+          }}
         >
-          {item.icon}
+          {item.mark}
         </div>
         <h3
           className="font-orbitron font-bold text-lg mb-3 tracking-wide"
@@ -135,8 +144,8 @@ function ActionCard({ item, index }) {
           {item.title}
         </h3>
         <p
-          className="font-space text-sm leading-relaxed"
-          style={{ color: 'rgba(240,244,255,0.6)', transform: 'translateZ(10px)' }}
+          className="font-['Josefin_Sans'] text-sm leading-relaxed"
+          style={{ color: 'rgba(237,232,220,0.55)', transform: 'translateZ(10px)', fontWeight: 300 }}
         >
           {item.desc}
         </p>
@@ -153,21 +162,21 @@ function ActionCard({ item, index }) {
 
 const ACTION_CARDS = [
   {
-    icon: '🔍',
+    mark: 'S',
     title: 'SEARCH',
-    desc: 'We find projects and communities ready to grow together',
+    desc: 'We find projects and communities ready to grow together.',
     color: '#EDE8DC',
   },
   {
-    icon: '🎯',
+    mark: 'F',
     title: 'FIND',
-    desc: 'We identify strong connections between projects',
+    desc: 'We identify strong connections between projects.',
     color: '#C9A96E',
   },
   {
-    icon: '🔗',
+    mark: 'C',
     title: 'CONN3CT',
-    desc: 'We build partnerships that help communities grow',
+    desc: 'We build partnerships that help communities grow.',
     color: '#C9A96E',
   },
 ]
@@ -214,10 +223,10 @@ export function GoalsSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.7, delay: 0.8 }}
-            className="font-inter text-base max-w-2xl mx-auto mt-8"
-            style={{ color: 'var(--text-muted)', lineHeight: 1.85 }}
+            className="font-['Josefin_Sans'] text-base max-w-2xl mx-auto mt-8"
+            style={{ color: 'var(--text-muted)', lineHeight: 1.85, fontWeight: 300 }}
           >
-            CONN3CTIVITY connects Web3 projects and communities We create partnerships that bring real value
+            CONN3CTIVITY connects Web3 projects and communities. We create partnerships that bring real value.
           </motion.p>
         </div>
 
@@ -249,30 +258,48 @@ export function GoalsSection() {
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div>
                 <h3 className="font-orbitron font-bold text-xl md:text-2xl mb-3" style={{ color: 'var(--cream)' }}>
-                  ENQUIRIES & SERVICES
+                  ENQUIRIES & ACCESS
                 </h3>
-                <p className="font-space text-sm md:text-base leading-relaxed max-w-xl" style={{ color: 'var(--text-muted)' }}>
-                  For Enquiries, Marketing Services, UGC Campaigns, AMAs.
+                <p className="font-['Josefin_Sans'] text-sm md:text-base leading-relaxed max-w-xl font-light" style={{ color: 'var(--text-muted)' }}>
+                  For enquiries, marketing, UGC, AMAs — or to request private Discord access.
                 </p>
               </div>
-              <motion.a
-                href="https://x.com/thejasich"
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-8 py-4 rounded-full font-orbitron font-bold text-sm tracking-widest whitespace-nowrap"
-                style={{ 
-                  background: 'var(--gold)', 
-                  color: 'var(--void)',
-                  boxShadow: '0 0 30px rgba(201,169,110,0.3)'
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-                CONTACT JASICH
-              </motion.a>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <motion.a
+                  href={SITE_DATA.contactUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex items-center justify-center gap-3 px-8 py-4 font-orbitron font-bold text-sm tracking-widest whitespace-nowrap"
+                  style={{
+                    background: 'var(--gold)',
+                    color: 'var(--void)',
+                    boxShadow: '0 0 30px rgba(201,169,110,0.3)',
+                    borderRadius: 3,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                  CONTACT JASICH
+                </motion.a>
+                <motion.a
+                  href={SITE_DATA.discordAccessUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="flex items-center justify-center gap-3 px-8 py-4 font-['Josefin_Sans'] text-sm tracking-[0.2em] uppercase whitespace-nowrap"
+                  style={{
+                    border: '1px solid rgba(237,232,220,0.2)',
+                    color: 'rgba(237,232,220,0.75)',
+                    borderRadius: 3,
+                  }}
+                >
+                  {SITE_DATA.discordLabel}
+                </motion.a>
+              </div>
             </div>
             
             {/* Background glow for the banner */}

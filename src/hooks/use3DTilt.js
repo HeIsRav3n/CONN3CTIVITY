@@ -17,6 +17,7 @@ export function use3DTilt(springConfig = { damping: 20, stiffness: 200, mass: 0.
     const rect = ref.current.getBoundingClientRect()
     const width = rect.width
     const height = rect.height
+    if (width < 1 || height < 1) return
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
     const xPct = mouseX / width - 0.5

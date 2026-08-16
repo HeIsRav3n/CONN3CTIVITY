@@ -1,6 +1,6 @@
 # CONN3CTIVITY
 
-Cinematic Web3 community landing page — Discord-centric CM network. Built with React 19, Vite, Framer Motion, and Force-Graph.
+Cinematic Web3 community landing page — Discord-centric CM network. Built with React 19, Vite, Framer Motion, and a custom radial Conn3ctor map.
 
 ## Prerequisites
 
@@ -26,6 +26,7 @@ Cinematic Web3 community landing page — Discord-centric CM network. Built with
 |------|--------|--------|
 | Server stats, Conn3ctors map, MVC | `discord-bot.cjs` / `fetchDiscordMap.cjs` → **Neon** | Frontend via **`/api/stats`**, **`/api/conn3ctors`**, **`/api/mvc`** |
 | Auth + profiles | Supabase Auth | Supabase client |
+| MVC enrichment (CM type, services, etc.) | Profile upserts in Supabase | MVC section merges Neon winner + `profiles` row |
 | Detectivity threats | `npm run update-scammers` → `scammers.json` | Static import (redeploy to refresh) |
 
 The Discord bot **must keep running** (or you must periodically run `node fetchDiscordMap.cjs`) for Live badges to stay green. Stale Neon rows show as “Last synced”.
@@ -49,7 +50,8 @@ Run the `profiles` section of [`supabase-schema.sql`](supabase-schema.sql) in th
 ## Deploy (Vercel)
 
 1. Set project env vars: `NEON_DATABASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-2. Push to `main` — Vite build + `/api` serverless functions deploy together
+2. Add your production + preview origins to Supabase Auth redirect URLs (OAuth uses `window.location.origin`)
+3. Push to `main` — Vite build + `/api` serverless functions deploy together
 
 ## Scripts
 
@@ -68,6 +70,7 @@ Run the `profiles` section of [`supabase-schema.sql`](supabase-schema.sql) in th
 - React 19 + Vite 8
 - Tailwind CSS v4
 - Framer Motion + Lenis
+- Custom 2D radial bubble map (`RadialBubbleMap`)
 - Neon Postgres (API source of truth for Discord data)
 - Supabase (Auth / profiles / Realtime live mirrors)
 - Vercel Analytics

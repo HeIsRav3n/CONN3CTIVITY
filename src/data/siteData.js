@@ -5,16 +5,19 @@ export const SITE_DATA = {
   motto: 'SEARCH FIND CONN3CT',
   twitterHandle: '@conn3ctivity_',
   twitterUrl: 'https://x.com/conn3ctivity_',
-  discordLabel: 'Private Discord',
+  /** Private server — request access via X (no public invite). */
+  discordLabel: 'Request Discord Access',
+  discordAccessUrl: 'https://x.com/conn3ctivity_',
+  contactUrl: 'https://x.com/thejasich',
   tagline: 'GM GM I\'M A CM CYDM',
   mvcId: MVC_DATA.id || '1350853857701269534',
   fallbackMVC: {
     ...MVC_DATA,
-    cm_type: "Spotlight",
-    experience: "Rising Star",
-    services: "Community Building, Engagement",
-    communities: ["CONN3CTIVITY"]
-  }
+    cm_type: 'Spotlight',
+    experience: 'Rising Star',
+    services: 'Community Building, Engagement',
+    communities: ['CONN3CTIVITY'],
+  },
 }
 
 export const PARTNERSHIPS = [

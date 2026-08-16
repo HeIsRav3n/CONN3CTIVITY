@@ -50,7 +50,7 @@ function MascotCard({ name, role, desc, img, color, delay }) {
           <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, ${color}50, transparent)` }} />
         </div>
         <p className="font-space text-[0.65rem] tracking-widest uppercase mb-2" style={{ color: 'var(--conn-white)' }}>{role}</p>
-        <p className="font-inter text-xs leading-relaxed" style={{ color: 'var(--text-faint)' }}>{desc}</p>
+        <p className="font-['Josefin_Sans'] text-xs leading-relaxed" style={{ color: 'var(--text-faint)' }}>{desc}</p>
       </div>
       {/* Bottom border glint */}
       <div
@@ -105,19 +105,19 @@ export function AboutSection() {
               </h2>
 
               <p
-                className="font-inter mb-5 leading-relaxed"
-                style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.85 }}
+                className="font-['Josefin_Sans'] mb-5 leading-relaxed"
+                style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.85, fontWeight: 300 }}
               >
-                CONN3CTIVITY is a Web3 community built on meaningful partnerships We are Collaboration
-                Managers (CMs) who connect projects and communities
+                CONN3CTIVITY is a Web3 community built on meaningful partnerships. We are Collaboration
+                Managers (CMs) who connect projects and communities.
               </p>
 
               <p
-                className="font-inter mb-10 leading-relaxed"
-                style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.85 }}
+                className="font-['Josefin_Sans'] mb-10 leading-relaxed"
+                style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.85, fontWeight: 300 }}
               >
                 Whether you are a new project looking for exposure or an established
-                protocol seeking alliances CONN3CTIVITY is your network
+                protocol seeking alliances, CONN3CTIVITY is your network.
               </p>
 
               <motion.a
@@ -146,7 +146,7 @@ export function AboutSection() {
             <MascotCard 
               name="GM" 
               role="Good Morning" 
-              desc="The greeting that starts every connection" 
+              desc="The greeting that starts every connection."
               img="/mascot-gm-transparent.png" 
               color="var(--cream)" 
               delay={0.2} 
@@ -154,7 +154,7 @@ export function AboutSection() {
             <MascotCard 
               name="CM" 
               role="Collab Manager" 
-              desc="Could You DM The question that opens doors" 
+              desc="Could You DM? The question that opens doors." 
               img="/mascot-cm-transparent.png" 
               color="var(--gold)" 
               delay={0.3} 

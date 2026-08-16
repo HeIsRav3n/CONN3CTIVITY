@@ -21,7 +21,7 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock ResizeObserver for force-graph
+// Mock ResizeObserver for map / layout observers
 global.ResizeObserver = class ResizeObserver {
   observe() {}
   unobserve() {}

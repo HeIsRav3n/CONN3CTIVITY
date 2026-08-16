@@ -1,7 +1,12 @@
+import { lazy, Suspense } from 'react'
 import { motion } from 'framer-motion'
 import { BioPod } from '../components/BioPod'
 import { TEAM } from '../data/siteData'
-import { TeamBackground } from '../components/three/SectionBackgrounds'
+
+// Lazy-loaded so three.js stays out of the initial bundle (decorative only)
+const TeamBackground = lazy(() =>
+  import('../components/three/SectionBackgrounds').then(m => ({ default: m.TeamBackground }))
+)
 
 export function TeamSection() {
   return (
@@ -11,7 +16,9 @@ export function TeamSection() {
     >
       {/* Three.js Galaxy Background */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <TeamBackground />
+        <Suspense fallback={null}>
+          <TeamBackground />
+        </Suspense>
       </div>
       {/* Overlay */}
       <div
@@ -61,7 +68,7 @@ export function TeamSection() {
             className="font-space text-base max-w-xl mx-auto"
             style={{ color: 'rgba(240,244,255,0.55)' }}
           >
-            Our crew Each member is a specialist
+            Our crew. Each member is a specialist.
           </motion.p>
 
           {/* Member count */}

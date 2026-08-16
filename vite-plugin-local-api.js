@@ -72,9 +72,10 @@ export function localApiPlugin() {
           res.setHeader('Cache-Control', 's-maxage=15, stale-while-revalidate=30')
           res.end(JSON.stringify({ ok: true, ...payload }))
         } catch (err) {
+          console.error('[local-api]', err?.message || err)
           res.statusCode = 500
           res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({ ok: false, error: String(err?.message || err) }))
+          res.end(JSON.stringify({ ok: false, error: 'Internal server error' }))
         }
       })
     },

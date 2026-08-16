@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Lenis from 'lenis'
 import { useDeviceCapability } from './hooks/useDeviceCapability'
+import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion'
 import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
 import { HeroSection } from './sections/HeroSection'
@@ -35,12 +36,15 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [discordUser, setDiscordUser] = useState(null)
   const device = useDeviceCapability()
+  const reducedMotion = usePrefersReducedMotion()
   const lenisRef = useRef(null)
   const { playHover, playClick } = useSoundEffects()
-  useWelcomeSound()
+  useWelcomeSound({ enabled: !reducedMotion })
 
   // Global Sound Event Listeners
   useEffect(() => {
+    if (reducedMotion) return undefined
+
     const handleMouseOver = (e) => {
       if (e.target.closest('a, button, [role="button"]')) {
         playHover()
@@ -51,15 +55,15 @@ export default function App() {
         playClick()
       }
     }
-    
+
     document.addEventListener('mouseover', handleMouseOver)
     document.addEventListener('click', handleClick)
-    
+
     return () => {
       document.removeEventListener('mouseover', handleMouseOver)
       document.removeEventListener('click', handleClick)
     }
-  }, [playHover, playClick])
+  }, [playHover, playClick, reducedMotion])
 
   // Auth — Supabase Discord OAuth only
   useEffect(() => {
@@ -100,33 +104,41 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Initialize Lenis smooth scroll
+    if (reducedMotion || device.isMobile) return undefined
+
     const lenis = new Lenis({
-      duration: device.isMobile ? 1.0 : 1.4,
+      duration: 1.4,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
-      smoothWheel: !device.isMobile,
+      smoothWheel: true,
       touchMultiplier: 1.5,
     })
 
     lenisRef.current = lenis
 
+    let rafId = 0
     function raf(time) {
       lenis.raf(time)
-      requestAnimationFrame(raf)
+      rafId = requestAnimationFrame(raf)
     }
-    requestAnimationFrame(raf)
+    rafId = requestAnimationFrame(raf)
 
     return () => {
+      cancelAnimationFrame(rafId)
       lenis.destroy()
+      lenisRef.current = null
     }
-  }, [device.isMobile])
+  }, [device.isMobile, reducedMotion])
 
   // --- CRAZY ASS SECURITY SYSTEM (HONEYPOT & SHUTDOWN) ---
   const path = window.location.pathname.toLowerCase()
   const isHackAttempt = ['/wp-admin', '/phpmyadmin', '/.env', '/config.json', '/shell.php', '/backup.zip', '/database.sql'].some(p => path.includes(p))
-  const isRebooting = parseInt(localStorage.getItem('tarpit_timeout') || '0', 10) > Date.now()
+  let tarpitUntil = 0
+  try {
+    tarpitUntil = parseInt(localStorage.getItem('tarpit_timeout') || '0', 10) || 0
+  } catch { /* private mode */ }
+  const isRebooting = tarpitUntil > Date.now()
 
   if (isRebooting) {
     return <HoneypotTarpit state="rebooting" />
@@ -136,16 +148,18 @@ export default function App() {
     return <HoneypotTarpit state="breach" />
   }
 
+  const showAmbientFx = !reducedMotion && !device.isMobile
+
   return (
     <div className="relative min-h-screen" style={{ background: 'var(--void)' }}>
-      <CursorGlow />
-      <Navbar 
+      {showAmbientFx && <CursorGlow />}
+      <Navbar
         user={discordUser}
         onLogout={handleLogout}
         onProfileClick={() => setProfileOpen(true)}
       />
 
-      <GlobalMascots />
+      {showAmbientFx && <GlobalMascots />}
 
       <MascotTicTacToe isOpen={gameOpen} onClose={() => setGameOpen(false)} user={discordUser} />
       <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} user={discordUser} />

@@ -13,13 +13,13 @@ export function HoneypotTarpit({ state }) {
       const glitcheffect = setInterval(() => setGlitch(g => !g), 150)
       
       const interval = setInterval(() => {
-        setLogs(prev => [...prev, `[SYSTEM] Tracing IP origin... isolations active. Shutdown in ${count}s`])
+        setLogs(prev => [...prev.slice(-6), `[SYSTEM] Tracing IP origin... isolations active. Shutdown in ${count}s`])
         count--
         if (count < 0) {
           clearInterval(interval)
           // Trigger shutdown locally
           const unlockTime = Date.now() + 5 * 60 * 1000 // 5 minutes
-          localStorage.setItem('tarpit_timeout', unlockTime)
+          try { localStorage.setItem('tarpit_timeout', String(unlockTime)) } catch { /* private mode */ }
           window.location.href = '/' // Redirect to home to trigger reboot mode
         }
       }, 1000)
@@ -30,12 +30,15 @@ export function HoneypotTarpit({ state }) {
     }
 
     if (state === 'rebooting') {
-      const unlockTime = parseInt(localStorage.getItem('tarpit_timeout') || '0', 10)
-      
+      let unlockTime = 0
+      try {
+        unlockTime = parseInt(localStorage.getItem('tarpit_timeout') || '0', 10) || 0
+      } catch { /* private mode */ }
+
       const interval = setInterval(() => {
         const remaining = Math.floor((unlockTime - Date.now()) / 1000)
         if (remaining <= 0) {
-          localStorage.removeItem('tarpit_timeout')
+          try { localStorage.removeItem('tarpit_timeout') } catch { /* private mode */ }
           window.location.reload()
         } else {
           setTimeLeft(remaining)

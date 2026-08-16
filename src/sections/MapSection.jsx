@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import STATIC_DATA from '../data/conn3ctors.json'
 import { fetchConn3ctors, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
-import { supabase } from '../lib/supabase'
+import { supabase, profileMatchFilter } from '../lib/supabase'
 import { RadialBubbleMap } from '../components/map/RadialBubbleMap'
 
 const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
@@ -61,7 +61,6 @@ export function MapSection() {
   const containerRef = useRef(null)
   const [dimensions, setDimensions] = useState({ width: 900, height: 700 })
   const [members, setMembers] = useState(() => rowsToMembers(FALLBACK_ROWS))
-  const [hoveredNode, setHoveredNode] = useState(null)
   const [selectedNode, setSelectedNode] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profileState, setProfileState] = useState('idle')
@@ -140,10 +139,12 @@ export function MapSection() {
       setProfileState('loading')
       if (supabase) {
         try {
+          const filter = profileMatchFilter(selectedNode.id)
+          if (!filter) throw new Error('invalid profile id')
           const { data, error } = await supabase
             .from('profiles')
             .select('*')
-            .or(`discord_id.eq.${selectedNode.id},id.eq.${selectedNode.id}`)
+            .or(filter)
             .maybeSingle()
 
           if (error) console.warn('Profile lookup:', error.message)
@@ -159,7 +160,8 @@ export function MapSection() {
 
       if (!active) return
       try {
-        const raw = localStorage.getItem(`profile_${selectedNode.id}`)
+        let raw = null
+        try { raw = localStorage.getItem(`profile_${selectedNode.id}`) } catch { /* private mode */ }
         if (raw) {
           const p = JSON.parse(raw)
           setSelectedProfile({
@@ -256,10 +258,6 @@ export function MapSection() {
     setCollapsed(false)
     setSelectedNode(prev => (prev?.id === member.id ? null : member))
     setFocusId(member.id)
-  }, [])
-
-  const handleHover = useCallback((member) => {
-    setHoveredNode(member)
   }, [])
 
   const badgeLabel = statusLabel(status, { realtime })
@@ -395,7 +393,6 @@ export function MapSection() {
             selectedId={selectedNode?.id || null}
             focusId={focusId}
             active={inView}
-            onHover={handleHover}
             onSelect={handleSelect}
             onHubClick={toggleCollapse}
           />
