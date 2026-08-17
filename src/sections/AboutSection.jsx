@@ -1,62 +1,49 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { SITE_DATA } from '../data/siteData'
+import { AtmosphereBackdrop } from '../components/AtmosphereBackdrop'
+import { MascotScene } from '../components/three/MascotScene'
 import { use3DTilt } from '../hooks/use3DTilt'
 
-
-
 function MascotCard({ name, role, desc, img, color, delay }) {
-  const { ref, rotateX, rotateY, handleMouseMove, handleMouseLeave } = use3DTilt({ damping: 20, stiffness: 200, mass: 0.5 }, 15)
+  const [hover, setHover] = useState(false)
+  const tilt = use3DTilt({ damping: 18, stiffness: 180, mass: 0.4 }, 8)
 
   return (
     <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
+      ref={tilt.ref}
+      initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ delay, duration: 0.6 }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="rounded-2xl p-4 relative overflow-hidden group w-full h-full"
+      transition={{ delay, duration: 0.5 }}
+      onMouseMove={tilt.handleMouseMove}
+      onMouseLeave={() => {
+        tilt.handleMouseLeave()
+        setHover(false)
+      }}
+      onMouseEnter={() => setHover(true)}
+      className="p-4 relative overflow-hidden group w-full h-full"
       style={{
         background: 'rgba(237,232,220,0.02)',
-        border: `1px solid ${color}30`,
-        rotateX,
-        rotateY,
+        border: `1px solid ${color}28`,
+        borderRadius: 2,
         transformStyle: 'preserve-3d',
-        perspective: '1000px',
-        willChange: 'transform',
+        rotateX: tilt.rotateX,
+        rotateY: tilt.rotateY,
       }}
     >
-      {/* Hover glow backdrop */}
-      <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none rounded-2xl"
-        style={{ background: `radial-gradient(ellipse 70% 70% at 50% 20%, ${color}08, transparent 70%)` }}
-      />
-      <div 
-        className="aspect-square rounded-xl overflow-hidden mb-5 relative flex items-end justify-center"
-        style={{ transform: 'translateZ(60px)' }}
-      >
-        <img 
-          src={img} 
-          alt={name} 
-          className="w-[90%] h-[90%] object-contain transition-transform duration-700 group-hover:scale-105" 
-          style={{ filter: `drop-shadow(0px 10px 20px ${color}30)` }}
-        />
+      <div className="aspect-square overflow-hidden mb-4 relative">
+        <MascotScene src={img} alt={name} hover={hover} className="absolute inset-0" />
       </div>
 
-      <div className="relative z-10" style={{ transform: 'translateZ(40px)' }}>
+      <div className="relative z-10">
         <div className="flex items-center gap-3 mb-1">
-          <h3 className="font-orbitron font-black text-xl" style={{ color }}>{name}</h3>
-          <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, ${color}50, transparent)` }} />
+          <h3 className="font-['Josefin_Sans'] text-lg tracking-[0.14em] uppercase" style={{ color, fontWeight: 400 }}>{name}</h3>
+          <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, ${color}40, transparent)` }} />
         </div>
-        <p className="font-space text-[0.65rem] tracking-widest uppercase mb-2" style={{ color: 'var(--conn-white)' }}>{role}</p>
-        <p className="font-['Josefin_Sans'] text-xs leading-relaxed" style={{ color: 'var(--text-faint)' }}>{desc}</p>
+        <p className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.18em] uppercase mb-2" style={{ color: 'var(--cream)' }}>{role}</p>
+        <p className="font-['Josefin_Sans'] text-xs leading-relaxed" style={{ color: 'var(--text-faint)', fontWeight: 300 }}>{desc}</p>
       </div>
-      {/* Bottom border glint */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-        style={{ background: `linear-gradient(90deg, transparent, ${color}80, transparent)` }}
-      />
     </motion.div>
   )
 }
@@ -67,25 +54,10 @@ export function AboutSection() {
       id="about"
       className="relative py-28 md:py-40 px-6 overflow-hidden"
     >
-      {/* Ambient animated gradient background (high-performance CSS only) */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <motion.div
-          animate={{ rotate: [0, 360], scale: [1, 1.1, 1] }}
-          transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
-          className="absolute w-[800px] h-[800px] -top-[400px] -left-[300px] rounded-full opacity-[0.06]"
-          style={{ background: 'radial-gradient(circle, #C9A96E 0%, transparent 70%)' }}
-        />
-        <motion.div
-          animate={{ rotate: [360, 0], scale: [1, 1.2, 1] }}
-          transition={{ duration: 35, repeat: Infinity, ease: 'linear' }}
-          className="absolute w-[600px] h-[600px] bottom-[-200px] right-[-200px] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #EDE8DC 0%, transparent 70%)' }}
-        />
-      </div>
+      <AtmosphereBackdrop opacity={0.14} />
       <div className="max-w-6xl mx-auto relative z-10">
         <div className="grid md:grid-cols-2 gap-16 md:gap-24 items-center">
 
-          {/* Left — text */}
           <div>
             <motion.div
               initial={{ opacity: 0, x: -30 }}
@@ -93,7 +65,6 @@ export function AboutSection() {
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
             >
-              {/* Tag */}
               <div className="tag-cream inline-flex mb-8">What We Are</div>
 
               <h2
@@ -141,23 +112,22 @@ export function AboutSection() {
             </motion.div>
           </div>
 
-          {/* Right — mascots */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <MascotCard 
-              name="GM" 
-              role="Good Morning" 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5" style={{ perspective: 900 }}>
+            <MascotCard
+              name="GM"
+              role="Good Morning"
               desc="The greeting that starts every connection."
-              img="/mascot-gm-transparent.png" 
-              color="var(--cream)" 
-              delay={0.2} 
+              img="/mascot-gm-transparent.png"
+              color="var(--cream)"
+              delay={0.2}
             />
-            <MascotCard 
-              name="CM" 
-              role="Collab Manager" 
-              desc="Could You DM? The question that opens doors." 
-              img="/mascot-cm-transparent.png" 
-              color="var(--gold)" 
-              delay={0.3} 
+            <MascotCard
+              name="CM"
+              role="Collab Manager"
+              desc="Could You DM? The question that opens doors."
+              img="/mascot-cm-transparent.png"
+              color="var(--gold)"
+              delay={0.3}
             />
           </div>
         </div>

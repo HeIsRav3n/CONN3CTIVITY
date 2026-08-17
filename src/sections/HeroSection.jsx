@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
 import { VennAtmosphere } from '../components/VennAtmosphere'
+import { GoldPrism } from '../components/three/GoldPrism'
 import { useCountUp } from '../hooks/useCountUp'
 import { fetchStats, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
@@ -172,12 +173,25 @@ export function HeroSection({ onThreeClick }) {
           `,
         }}
       >
+        {/* ── Atmosphere ── */}
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
+          <img src="/atmosphere-venn.png" alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.32]" />
+        </div>
+
         {/* ── Venn Atmosphere ── */}
         <motion.div
           className="absolute inset-0 z-0"
           style={{ scale: canvasScale }}
         >
           <VennAtmosphere />
+        </motion.div>
+
+        <motion.div
+          className="pointer-events-none absolute left-[-8%] top-[18%] z-[1] hidden h-[min(52vw,420px)] w-[min(52vw,420px)] opacity-80 lg:block"
+          style={{ scale: canvasScale }}
+          aria-hidden="true"
+        >
+          <GoldPrism className="h-full w-full" />
         </motion.div>
 
         {/* ── TOP mask — hides particles behind the navbar ── */}
@@ -203,11 +217,10 @@ export function HeroSection({ onThreeClick }) {
           className="absolute inset-0 z-[2] pointer-events-none"
           style={{
             background: `
-              radial-gradient(ellipse 65% 60% at 50% 40%,
-                rgba(11,10,8,0.92) 0%,
-                rgba(11,10,8,0.6)  35%,
-                rgba(11,10,8,0.15) 60%,
-                transparent 75%
+              radial-gradient(ellipse 55% 50% at 50% 42%,
+                rgba(11,10,8,0.78) 0%,
+                rgba(11,10,8,0.45)  40%,
+                transparent 72%
               )
             `,
           }}
@@ -272,7 +285,7 @@ export function HeroSection({ onThreeClick }) {
               aria-label="Open Conn3ctivity game"
               style={{
                 color: '#C9A96E',
-                textShadow: '0 0 50px rgba(201,169,110,0.8), 0 0 100px rgba(201,169,110,0.3)',
+                textShadow: '0 0 28px rgba(201,169,110,0.35)',
                 cursor: 'pointer',
                 display: 'inline-block',
                 transformOrigin: '50% 50%',
@@ -281,7 +294,7 @@ export function HeroSection({ onThreeClick }) {
                 border: 'none',
                 font: 'inherit',
               }}
-              whileHover={{ scale: 1.15, textShadow: '0 0 80px rgba(201,169,110,1)' }}
+              whileHover={{ scale: 1.08, textShadow: '0 0 40px rgba(201,169,110,0.55)' }}
             >
               3
             </motion.button>

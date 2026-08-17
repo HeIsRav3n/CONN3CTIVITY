@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { fetchMvc, statusLabel, statusColor } from '../lib/api'
 import { SITE_DATA } from '../data/siteData'
-import { use3DTilt } from '../hooks/use3DTilt'
 import { useLiveQuery } from '../hooks/useLiveQuery'
 import { supabase, profileMatchFilter } from '../lib/supabase'
 
@@ -37,7 +36,6 @@ function mergeMvcProfile(row, profileExtras) {
 }
 
 export function MVCSection() {
-  const { ref, rotateX, rotateY, handleMouseMove, handleMouseLeave } = use3DTilt({ damping: 20, stiffness: 200, mass: 0.5 }, 10)
   const { data: row, status, realtime } = useLiveQuery({
     fetcher: fetchMvc,
     initial: SITE_DATA.fallbackMVC,
@@ -70,11 +68,16 @@ export function MVCSection() {
 
   return (
     <section id="mvc-spotlight" className="relative py-24 md:py-32 px-4 overflow-hidden">
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <img src="/atmosphere-venn.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.22]" />
+      </div>
       <div className="absolute inset-0 z-0 pointer-events-none flex justify-center">
-        <motion.div
-          animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.1, 1] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-          className="w-[800px] h-[600px] bg-[radial-gradient(ellipse_at_top,_var(--gold)_0%,_transparent_60%)] opacity-30 blur-[100px] -mt-40"
+        <div
+          className="w-[640px] h-[420px] -mt-24"
+          style={{
+            background: 'radial-gradient(ellipse at top, rgba(201,169,110,0.12) 0%, transparent 70%)',
+            filter: 'blur(48px)',
+          }}
         />
       </div>
 
@@ -91,8 +94,8 @@ export function MVCSection() {
               {statusLabel(status, { realtime })} · Spotlight
             </span>
           </div>
-          <h2 className="font-orbitron font-black text-4xl md:text-6xl text-cream tracking-wide mb-4 drop-shadow-[0_0_20px_rgba(201,169,110,0.3)]">
-            MVC OF THE WEEK
+          <h2 className="heading-primary text-cream mb-4" style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)' }}>
+            MVC of the <span style={{ color: 'var(--gold)' }}>Week</span>
           </h2>
           <p className="font-['Josefin_Sans'] text-cream/50 text-sm max-w-xl mx-auto leading-relaxed font-light">
             Every week we crown the Most Valuable Conn3ctor — the person who brought the most value, connections, and growth to the network.
@@ -100,36 +103,26 @@ export function MVCSection() {
         </motion.div>
 
         <motion.div
-          ref={ref}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          style={{ rotateX, rotateY, transformStyle: 'preserve-3d', perspective: 1200 }}
-          initial={{ opacity: 0, scale: 0.9, rotateX: 15 }}
-          whileInView={{ opacity: 1, scale: 1, rotateX: 0 }}
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-          className="w-full max-w-3xl relative group cursor-pointer"
+          className="w-full max-w-3xl relative"
         >
-          <div className="absolute -inset-1 bg-gradient-to-br from-gold via-[#C9A96E]/60 to-cream/30 rounded-[32px] opacity-20 group-hover:opacity-60 blur-xl transition-opacity duration-700" />
-
-          <div className="relative bg-[#0B0A08]/80 backdrop-blur-3xl border border-gold/30 rounded-[30px] p-8 md:p-12 overflow-hidden shadow-2xl">
-            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(rgba(201,169,110,0.4) 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
-
-            <div className="flex flex-col md:flex-row items-center gap-10 relative z-10" style={{ transform: 'translateZ(40px)' }}>
+          <div className="relative bg-[#0B0A08]/85 border border-gold/25 p-8 md:p-12 overflow-hidden" style={{ borderRadius: 2 }}>
+            <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
               <div className="relative flex-shrink-0">
-                <div className="absolute inset-0 bg-gold blur-2xl opacity-20 rounded-full animate-pulse" />
                 <img
                   src={mvcProfile.avatar_url || '/mascot-cm-transparent.png'}
                   alt={mvcProfile.username}
-                  className="w-40 h-40 md:w-48 md:h-48 rounded-full border-4 border-gold/50 object-cover shadow-[0_0_40px_rgba(201,169,110,0.3)]"
+                  className="w-40 h-40 md:w-48 md:h-48 rounded-full border border-gold/40 object-cover"
                 />
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-black border border-gold/50 rounded-full flex items-center justify-center shadow-lg">
-                  <span className="font-orbitron text-gold text-xs font-bold tracking-widest uppercase">WINNER</span>
+                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-black border border-gold/40 flex items-center justify-center" style={{ borderRadius: 2 }}>
+                  <span className="font-['Josefin_Sans'] text-gold text-[0.6rem] tracking-[0.22em] uppercase">Winner</span>
                 </div>
               </div>
 
               <div className="flex-1 text-center md:text-left">
-                <h3 className="font-orbitron font-bold text-3xl md:text-4xl text-cream mb-2 drop-shadow-md">
+                <h3 className="font-['Josefin_Sans'] text-3xl md:text-4xl text-cream mb-2 tracking-[0.08em] uppercase" style={{ fontWeight: 300 }}>
                   {mvcProfile.username}
                 </h3>
 

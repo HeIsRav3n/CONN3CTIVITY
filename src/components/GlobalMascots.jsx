@@ -17,74 +17,50 @@ export function GlobalMascots() {
     return () => window.removeEventListener('mousemove', handleMouseMove)
   }, [mouseX, mouseY])
 
-  const springConfig = { damping: 25, stiffness: 100, mass: 1 }
+  const springConfig = { damping: 22, stiffness: 120, mass: 0.8 }
   const smoothX = useSpring(mouseX, springConfig)
   const smoothY = useSpring(mouseY, springConfig)
 
-  // GM Mascot Parallax
-  const gmX = useTransform(smoothX, [-0.5, 0.5], [-30, 30])
-  const gmY = useTransform(smoothY, [-0.5, 0.5], [-30, 30])
+  const gmX = useTransform(smoothX, [-0.5, 0.5], [-22, 22])
+  const gmY = useTransform(smoothY, [-0.5, 0.5], [-18, 18])
+  const gmRotateY = useTransform(smoothX, [-0.5, 0.5], [-16, 16])
   const gmRotateX = useTransform(smoothY, [-0.5, 0.5], [10, -10])
-  const gmRotateY = useTransform(smoothX, [-0.5, 0.5], [-10, 10])
 
-  // CM Mascot Parallax (reverse)
-  const cmX = useTransform(smoothX, [-0.5, 0.5], [40, -40])
-  const cmY = useTransform(smoothY, [-0.5, 0.5], [40, -40])
-  const cmRotateX = useTransform(smoothY, [-0.5, 0.5], [-15, 15])
-  const cmRotateY = useTransform(smoothX, [-0.5, 0.5], [15, -15])
+  const cmX = useTransform(smoothX, [-0.5, 0.5], [26, -26])
+  const cmY = useTransform(smoothY, [-0.5, 0.5], [20, -20])
+  const cmRotateY = useTransform(smoothX, [-0.5, 0.5], [16, -16])
+  const cmRotateX = useTransform(smoothY, [-0.5, 0.5], [-10, 10])
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden" style={{ perspective: '1000px' }}>
-      <motion.div 
-        className="absolute top-24 -left-10 md:left-0 opacity-20 md:opacity-30 w-56 md:w-72 xl:w-96"
+    <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden" style={{ perspective: 1200 }}>
+      <motion.div
+        className="absolute top-24 -left-10 md:left-0 opacity-[0.12] md:opacity-[0.18] w-52 md:w-64 xl:w-80"
         style={{
           x: gmX,
           y: gmY,
           rotateX: gmRotateX,
           rotateY: gmRotateY,
-          transformStyle: 'preserve-3d'
+          transformStyle: 'preserve-3d',
         }}
-        animate={{
-          y: ["-5%", "5%"],
-          rotateZ: [-2, 2],
-        }}
-        transition={{
-          y: { duration: 4, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" },
-          rotateZ: { duration: 6, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" },
-        }}
+        animate={{ y: ['-3%', '3%'] }}
+        transition={{ y: { duration: 6, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' } }}
       >
-        <img 
-          src="/mascot-gm-transparent.png" 
-          alt="GM Mascot" 
-          className="w-full h-auto" 
-          style={{ filter: 'drop-shadow(0px 20px 30px rgba(237,232,220,0.1))' }}
-        />
+        <img src="/mascot-gm-transparent.png" alt="" className="w-full h-auto" style={{ filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.45))' }} />
       </motion.div>
 
-      <motion.div 
-        className="absolute -bottom-10 -right-10 md:right-0 opacity-20 md:opacity-30 w-56 md:w-72 xl:w-96"
+      <motion.div
+        className="absolute -bottom-10 -right-10 md:right-0 opacity-[0.12] md:opacity-[0.18] w-52 md:w-64 xl:w-80"
         style={{
           x: cmX,
           y: cmY,
           rotateX: cmRotateX,
           rotateY: cmRotateY,
-          transformStyle: 'preserve-3d'
+          transformStyle: 'preserve-3d',
         }}
-        animate={{
-          y: ["5%", "-5%"],
-          rotateZ: [2, -2],
-        }}
-        transition={{
-          y: { duration: 5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" },
-          rotateZ: { duration: 7, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" },
-        }}
+        animate={{ y: ['3%', '-3%'] }}
+        transition={{ y: { duration: 7, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' } }}
       >
-        <img 
-          src="/mascot-cm-transparent.png" 
-          alt="CM Mascot" 
-          className="w-full h-auto"
-          style={{ filter: 'drop-shadow(0px -20px 30px rgba(220,180,90,0.1))' }} 
-        />
+        <img src="/mascot-cm-transparent.png" alt="" className="w-full h-auto" style={{ filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.45))' }} />
       </motion.div>
     </div>
   )

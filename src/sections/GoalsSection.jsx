@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion'
-import { use3DTilt } from '../hooks/use3DTilt'
 import { SITE_DATA } from '../data/siteData'
 
 const MOTTO_WORDS = ['SEARCH', 'FIND', 'CONN3CT']
@@ -24,7 +23,7 @@ function MottoWord({ word, color, index }) {
           textTransform: 'uppercase',
           display: 'block',
           whiteSpace: 'nowrap',
-          textShadow: index === 1 ? '0 0 40px rgba(201,169,110,0.4)' : '0 0 30px rgba(237,232,220,0.15)',
+          textShadow: index === 1 ? '0 0 18px rgba(201,169,110,0.22)' : 'none',
         }}
         whileHover={{ scale: 1.05, opacity: 0.9 }}
         transition={{ duration: 0.3 }}
@@ -36,27 +35,17 @@ function MottoWord({ word, color, index }) {
 }
 
 function StatItem({ value, label, color, index }) {
-  const { ref, rotateX, rotateY, handleMouseMove, handleMouseLeave } = use3DTilt(
-    { damping: 25, stiffness: 200, mass: 0.5 }, 8
-  )
-
   return (
     <motion.div
-      ref={ref}
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ delay: index * 0.1 + 0.3, duration: 0.6 }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="text-center rounded-sm p-6 holo-card"
+      transition={{ delay: index * 0.1 + 0.3, duration: 0.5 }}
+      className="text-center p-6"
       style={{
-        rotateX,
-        rotateY,
-        transformStyle: 'preserve-3d',
-        perspective: '800px',
         background: 'rgba(237,232,220,0.02)',
-        border: `1px solid ${color}20`,
+        border: `1px solid ${color}18`,
+        borderRadius: 2,
       }}
     >
       <div
@@ -67,7 +56,6 @@ function StatItem({ value, label, color, index }) {
           fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
           letterSpacing: '0.1em',
           color,
-          transform: 'translateZ(20px)',
         }}
       >
         {value}
@@ -80,7 +68,6 @@ function StatItem({ value, label, color, index }) {
           letterSpacing: '0.25em',
           textTransform: 'uppercase',
           color: 'var(--text-faint)',
-          transform: 'translateZ(10px)',
         }}
       >
         {label}
@@ -90,72 +77,45 @@ function StatItem({ value, label, color, index }) {
 }
 
 function ActionCard({ item, index }) {
-  const { ref, rotateX, rotateY, handleMouseMove, handleMouseLeave } = use3DTilt(
-    { damping: 20, stiffness: 200, mass: 0.5 }, 14
-  )
-
   return (
     <motion.div
-      ref={ref}
       key={item.title}
-      initial={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ delay: index * 0.15, duration: 0.6 }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="rounded-3xl p-8 relative overflow-hidden group holo-card"
+      transition={{ delay: index * 0.12, duration: 0.5 }}
+      className="p-8 relative overflow-hidden group"
       style={{
-        rotateX,
-        rotateY,
-        transformStyle: 'preserve-3d',
-        perspective: '1000px',
         border: `1px solid ${item.color}20`,
         background: 'rgba(237,232,220,0.02)',
+        borderRadius: 2,
       }}
     >
-      {/* Animated glow orb on hover */}
       <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+        className="mb-5 flex h-12 w-12 items-center justify-center"
         style={{
-          background: `radial-gradient(ellipse 60% 60% at 30% 30%, ${item.color}10, transparent 70%)`,
+          border: `1px solid ${item.color}40`,
+          color: item.color,
+          fontFamily: "'Josefin Sans', sans-serif",
+          fontWeight: 300,
+          fontSize: '1.1rem',
+          letterSpacing: '0.12em',
         }}
-      />
-
-      <div style={{ transform: 'translateZ(40px)', transformStyle: 'preserve-3d' }}>
-        <div
-          className="mb-5 flex h-12 w-12 items-center justify-center"
-          style={{
-            transform: 'translateZ(20px)',
-            border: `1px solid ${item.color}40`,
-            color: item.color,
-            fontFamily: "'Josefin Sans', sans-serif",
-            fontWeight: 300,
-            fontSize: '1.1rem',
-            letterSpacing: '0.12em',
-          }}
-        >
-          {item.mark}
-        </div>
-        <h3
-          className="font-orbitron font-bold text-lg mb-3 tracking-wide"
-          style={{ color: item.color, transform: 'translateZ(15px)' }}
-        >
-          {item.title}
-        </h3>
-        <p
-          className="font-['Josefin_Sans'] text-sm leading-relaxed"
-          style={{ color: 'rgba(237,232,220,0.55)', transform: 'translateZ(10px)', fontWeight: 300 }}
-        >
-          {item.desc}
-        </p>
+      >
+        {item.mark}
       </div>
-
-      {/* Bottom glint line */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-        style={{ background: `linear-gradient(90deg, transparent, ${item.color}60, transparent)` }}
-      />
+      <h3
+        className="font-['Josefin_Sans'] text-lg mb-3 tracking-[0.16em] uppercase"
+        style={{ color: item.color, fontWeight: 400 }}
+      >
+        {item.title}
+      </h3>
+      <p
+        className="font-['Josefin_Sans'] text-sm leading-relaxed"
+        style={{ color: 'rgba(237,232,220,0.55)', fontWeight: 300 }}
+      >
+        {item.desc}
+      </p>
     </motion.div>
   )
 }

@@ -196,12 +196,7 @@
     position: relative;
   }
   .section-divider::after {
-    content: '';
-    position: absolute;
-    inset: -3px 25% -3px 25%;
-    background: inherit;
-    filter: blur(4px);
-    opacity: 0.5;
+    content: none;
   }
 
   /* ── Section glow divider ────────────────────────────── */

@@ -17,7 +17,7 @@ import { MascotTicTacToe } from './components/MascotTicTacToe'
 import { CursorGlow } from './components/CursorGlow'
 import { ProfileModal } from './components/ProfileModal'
 import { Analytics } from '@vercel/analytics/react'
-import { supabase } from './lib/supabase'
+import { supabase, userFromSession } from './lib/supabase'
 import { HoneypotTarpit } from './components/HoneypotTarpit'
 import { useSoundEffects } from './hooks/useSoundEffects'
 import { useWelcomeSound } from './hooks/useWelcomeSound'
@@ -67,34 +67,27 @@ export default function App() {
 
   // Auth — Supabase Discord OAuth only
   useEffect(() => {
-    if (!supabase) return
+    if (!supabase) return undefined
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setDiscordUser({
-          id: session.user.id,
-          discord_id: session.user.user_metadata.provider_id,
-          username: session.user.user_metadata.custom_claims?.global_name || session.user.user_metadata.name || session.user.user_metadata.full_name,
-          avatar_url: session.user.user_metadata.avatar_url
-        });
+    const applySession = (session) => {
+      setDiscordUser(userFromSession(session))
+    }
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) console.error('[auth] getSession', error.message)
+      applySession(data?.session)
+      const params = new URLSearchParams(window.location.search)
+      if (params.has('code') || params.has('error')) {
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.hash)
       }
-    });
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setDiscordUser({
-          id: session.user.id,
-          discord_id: session.user.user_metadata.provider_id,
-          username: session.user.user_metadata.custom_claims?.global_name || session.user.user_metadata.name || session.user.user_metadata.full_name,
-          avatar_url: session.user.user_metadata.avatar_url
-        });
-      } else {
-        setDiscordUser(null);
-      }
-    });
+      applySession(session)
+    })
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => subscription.unsubscribe()
+  }, [])
 
   const handleLogout = async () => {
     if (supabase) {

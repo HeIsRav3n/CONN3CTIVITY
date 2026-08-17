@@ -227,8 +227,8 @@ export function DetectivitySection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.7, delay: 0.1 }}
-            className="font-orbitron font-bold text-4xl md:text-5xl lg:text-6xl uppercase tracking-wider mb-6"
-            style={{ color: 'var(--cream)' }}
+            className="heading-primary uppercase mb-6"
+            style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', color: 'var(--cream)' }}
           >
             Known <span className="text-red-500">Threats</span>
           </motion.h2>

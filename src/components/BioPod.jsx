@@ -1,33 +1,18 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { use3DTilt } from '../hooks/use3DTilt'
 
 export function BioPod({ member, index }) {
   const [hovered, setHovered] = useState(false)
-  const { ref, rotateX, rotateY, handleMouseMove, handleMouseLeave: handleTiltLeave } = use3DTilt({ damping: 20, stiffness: 200, mass: 0.5 }, 12)
-
-  const handleMouseLeave = () => {
-    setHovered(false)
-    handleTiltLeave()
-  }
 
   return (
     <motion.div
-      ref={ref}
       id={`team-pod-${member.id}`}
-      initial={{ opacity: 0, y: 40, scale: 0.85 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      style={{
-        rotateX,
-        rotateY,
-        transformStyle: 'preserve-3d',
-        perspective: '1000px',
-      }}
-      transition={{ duration: 0.6, delay: index * 0.07 }}
-      onMouseMove={handleMouseMove}
+      transition={{ duration: 0.4, delay: index * 0.04 }}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={handleMouseLeave}
+      onMouseLeave={() => setHovered(false)}
     >
       <a
         href={member.url || undefined}
@@ -37,86 +22,67 @@ export function BioPod({ member, index }) {
         style={{ cursor: member.url ? 'pointer' : 'default' }}
       >
         <div
-          className="relative rounded-3xl overflow-hidden h-full w-full"
+          className="relative overflow-hidden h-full w-full"
           style={{
-            transform: 'translateZ(30px)',
-            transformStyle: 'preserve-3d',
-            background: hovered
-              ? `var(--surface-2)`
-              : 'var(--surface)',
-            border: hovered
-              ? `1px solid ${member.color}60`
-              : '1px solid var(--border)',
-            transition: 'border 0.3s ease, background 0.3s ease',
-            padding: '24px',
+            background: hovered ? 'var(--surface-2)' : 'var(--surface)',
+            border: hovered ? `1px solid ${member.color}50` : '1px solid var(--border)',
+            borderRadius: 2,
+            transition: 'border 0.25s ease, background 0.25s ease',
+            padding: '1.25rem 1rem',
           }}
         >
-          <div className="relative flex flex-col items-center text-center gap-4" style={{ transform: 'translateZ(40px)' }}>
-            {/* Avatar */}
-            <div className="relative">
-              <div
-                className="w-20 h-20 rounded-full overflow-hidden"
-                style={{
-                  boxShadow: hovered
-                    ? `0 0 25px ${member.glowColor}, 0 0 50px ${member.glowColor}50`
-                    : `0 0 10px ${member.glowColor}30`,
-                  border: `2px solid ${member.color}60`,
-                  transition: 'box-shadow 0.4s ease',
+          <div className="relative flex flex-col items-center text-center gap-3">
+            <div
+              className="w-16 h-16 rounded-full overflow-hidden"
+              style={{ border: `1px solid ${member.color}50` }}
+            >
+              <img
+                src={member.avatar}
+                alt={member.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none'
+                  e.target.nextSibling.style.display = 'flex'
                 }}
+              />
+              <div
+                className="hidden w-full h-full items-center justify-center text-xl font-['Josefin_Sans']"
+                style={{ background: `${member.color}22`, color: member.color }}
               >
-                <img
-                  src={member.avatar}
-                  alt={member.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.style.display = 'none'
-                    e.target.nextSibling.style.display = 'flex'
-                  }}
-                />
-                <div
-                  className="hidden w-full h-full items-center justify-center text-2xl font-orbitron font-black"
-                  style={{ background: `${member.color}22`, color: member.color }}
-                >
-                  {member.name[0]}
-                </div>
+                {member.name[0]}
               </div>
             </div>
 
-            {/* Badge */}
             <div
-              className="px-3 py-1 rounded-full font-orbitron text-xs font-bold tracking-widest"
+              className="px-2.5 py-0.5 font-['Josefin_Sans'] text-[0.55rem] tracking-[0.18em] uppercase"
               style={{
-                background: `${member.badgeColor}15`,
-                border: `1px solid ${member.badgeColor}50`,
+                background: `${member.badgeColor}12`,
+                border: `1px solid ${member.badgeColor}40`,
                 color: member.badgeColor,
+                borderRadius: 2,
               }}
             >
               {member.badge}
             </div>
 
-            {/* Name */}
             <div>
               <h3
-                className="font-orbitron font-bold text-lg tracking-wide"
-                style={{ color: hovered ? member.color : 'var(--conn-white)' }}
+                className="font-['Josefin_Sans'] text-sm tracking-[0.1em] uppercase"
+                style={{ color: hovered ? member.color : 'var(--cream)', fontWeight: 400 }}
               >
                 {member.name}
               </h3>
-              <p className="font-space text-sm mt-1" style={{ color: 'rgba(240,244,255,0.6)' }}>
+              <p className="font-['Josefin_Sans'] text-[0.65rem] mt-1 tracking-wide" style={{ color: 'var(--text-muted)' }}>
                 {member.role}
               </p>
             </div>
 
-            {/* Handle */}
             {member.handle && (
               <div
-                className="flex items-center gap-1.5 font-space text-xs font-medium"
-                style={{ color: 'rgba(240,244,255,0.45)' }}
+                className="flex items-center gap-1.5 font-['Josefin_Sans'] text-[0.6rem] tracking-widest"
+                style={{ color: 'var(--text-faint)' }}
               >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ color: member.color }}>
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-                {member.handle}
+                @{member.handle}
               </div>
             )}
           </div>

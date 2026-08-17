@@ -90,15 +90,15 @@ export function MapSection() {
 
   useEffect(() => {
     if (!Array.isArray(liveRows)) return
-    if (status === 'offline' && !liveRows.length) return
+    if (!liveRows.length) return
     setMembers(rowsToMembers(liveRows))
-  }, [liveRows, status])
+  }, [liveRows])
 
   useEffect(() => {
     if (!containerRef.current) return
     const measure = () => {
       const r = containerRef.current?.getBoundingClientRect()
-      if (r?.width) setDimensions({ width: r.width, height: r.height })
+      if (r?.width > 40 && r?.height > 40) setDimensions({ width: r.width, height: r.height })
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -145,7 +145,7 @@ export function MapSection() {
           if (!filter) throw new Error('invalid profile id')
           const { data, error } = await supabase
             .from('profiles')
-            .select('*')
+            .select('username,twitter,telegram,cm_type,services,experience,communities,role,discord_id,id')
             .or(filter)
             .maybeSingle()
 
@@ -219,7 +219,11 @@ export function MapSection() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') setSelectedNode(null)
+      if (e.key === 'Escape') {
+        setSelectedNode(null)
+        setQuery('')
+        setFocusId(null)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => {
@@ -228,17 +232,34 @@ export function MapSection() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!selectedNode) return
+    if (!members.some(m => m.id === selectedNode.id)) {
+      setSelectedNode(null)
+      setFocusId(null)
+    }
+  }, [members, selectedNode])
+
+  useEffect(() => {
+    if (!query) return undefined
+    const onDown = (e) => {
+      if (!e.target.closest('[data-map-search]')) setQuery('')
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [query])
+
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return []
-    return (liveRows || [])
+    return members
       .filter(r =>
         r.name?.toLowerCase().includes(q) ||
-        r.discord_handle?.toLowerCase().includes(q) ||
-        r.x_handle?.toLowerCase().includes(q)
+        r.discordHandle?.toLowerCase().includes(q) ||
+        r.xHandle?.toLowerCase().includes(q)
       )
       .slice(0, 8)
-  }, [liveRows, query])
+  }, [members, query])
 
   const focusNodeById = useCallback((id) => {
     const node = members.find(n => n.id === id)
@@ -314,7 +335,7 @@ export function MapSection() {
             Drag to pan · Scroll to zoom · Shift+drag to stretch · Double-click to reset
           </p>
 
-          <div className="relative max-w-md mx-auto">
+          <div className="relative max-w-md mx-auto" data-map-search>
             <input
               type="search"
               value={query}
@@ -350,7 +371,7 @@ export function MapSection() {
                         {m.name}
                       </span>
                       <span className="block font-['Josefin_Sans'] text-[0.55rem] tracking-widest uppercase truncate" style={{ color: 'rgba(237,232,220,0.4)' }}>
-                        {m.discord_handle}
+                        {m.discordHandle}
                       </span>
                     </span>
                   </button>
@@ -505,7 +526,7 @@ export function MapSection() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 16, scale: 0.96 }}
                 transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-                className="absolute bottom-6 right-6 z-50 w-[288px] max-w-[calc(100%-2rem)]"
+                className="absolute bottom-4 left-4 right-4 z-50 md:left-auto md:right-6 md:w-[288px] md:max-w-[calc(100%-2rem)] w-auto max-w-none"
               >
                 <div
                   className="rounded-[20px] relative overflow-hidden"

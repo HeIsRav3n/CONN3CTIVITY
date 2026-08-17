@@ -271,7 +271,7 @@ export function RadialBubbleMap({
     if (!canvas || width < 40 || height < 40) return undefined
 
     const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true })
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
     canvas.width = Math.floor(width * dpr)
     canvas.height = Math.floor(height * dpr)
     canvas.style.width = `${width}px`
@@ -367,14 +367,12 @@ export function RadialBubbleMap({
       ctx.fillStyle = '#0a0a0e'
       ctx.fillRect(0, 0, width, height)
 
-      // Cheap center glow (no full-frame gradient every time — small one is fine)
-      if (s.frame % 2 === 0) {
-        const g = ctx.createRadialGradient(s.cx, s.cy, 20, s.cx, s.cy, Math.min(width, height) * 0.4)
-        g.addColorStop(0, 'rgba(201,169,110,0.07)')
-        g.addColorStop(1, 'rgba(10,10,14,0)')
-        ctx.fillStyle = g
-        ctx.fillRect(0, 0, width, height)
-      }
+      const glowR = Math.min(width, height) * 0.42
+      const g = ctx.createRadialGradient(s.cx, s.cy, 12, s.cx, s.cy, glowR)
+      g.addColorStop(0, 'rgba(201,169,110,0.08)')
+      g.addColorStop(1, 'rgba(10,10,14,0)')
+      ctx.fillStyle = g
+      ctx.fillRect(0, 0, width, height)
 
       ctx.save()
       ctx.translate(s.cx, s.cy)
@@ -464,6 +462,20 @@ export function RadialBubbleMap({
         ctx.clip()
         if (hub.img?.complete && hub.img.naturalWidth > 0) {
           ctx.drawImage(hub.img, -hr, -hr, hr * 2, hr * 2)
+        } else {
+          ctx.strokeStyle = GOLD
+          ctx.lineWidth = Math.max(1.2, 1.6 / zoom)
+          ctx.beginPath()
+          ctx.arc(-hr * 0.22, 0, hr * 0.58, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.arc(hr * 0.22, 0, hr * 0.58, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.fillStyle = GOLD
+          ctx.font = `300 ${Math.max(10, hr * 0.72)}px "Josefin Sans", sans-serif`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText('3', 0, 1)
         }
         ctx.restore()
 
@@ -636,7 +648,16 @@ export function RadialBubbleMap({
       window.dispatchEvent(new CustomEvent('conn3ctivity:map-scroll-lock', { detail: lock }))
     }
     const onEnter = () => lockScroll(true)
-    const onLeave = () => lockScroll(false)
+    const onLeave = () => {
+      lockScroll(false)
+      const s = stateRef.current
+      if (s) {
+        s.hoverId = null
+        s.pointer.down = false
+        s.pointer.mode = null
+      }
+      canvas.style.cursor = 'grab'
+    }
 
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)

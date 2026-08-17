@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SITE_DATA } from '../data/siteData'
-import { supabase, userAvatarSrc } from '../lib/supabase'
+import { userAvatarSrc, signInWithDiscord } from '../lib/supabase'
 import { isSoundMuted, toggleSoundMuted, subscribeSoundMuted } from '../lib/soundPrefs'
 
 function NavLogo() {
@@ -49,6 +49,18 @@ export function Navbar({ user, onLogout, onProfileClick }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState('home')
   const [soundMuted, setSoundMutedState] = useState(() => isSoundMuted())
+  const [loginError, setLoginError] = useState('')
+  const [loginBusy, setLoginBusy] = useState(false)
+
+  const handleDiscordLogin = async () => {
+    setLoginError('')
+    setLoginBusy(true)
+    const { error } = await signInWithDiscord()
+    if (error) {
+      setLoginError(error.message || 'Discord login failed')
+      setLoginBusy(false)
+    }
+  }
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50)
@@ -224,47 +236,45 @@ export function Navbar({ user, onLogout, onProfileClick }) {
 
               {/* Discord Auth UI */}
               {user ? (
-                <div className="hidden md:flex items-center gap-3 ml-1">
+                <div className="flex items-center gap-2 md:gap-3 ml-1">
                   <div
                     onClick={onProfileClick}
-                    className="flex items-center gap-2 px-2 py-1 bg-white/5 border border-white/10 rounded-full cursor-pointer hover:bg-white/10 hover:border-[#C9A96E]/50 transition-colors"
+                    className="flex items-center gap-2 px-1.5 py-1 md:px-2 bg-white/5 border border-white/10 rounded-full cursor-pointer hover:bg-white/10 hover:border-[#C9A96E]/50 transition-colors"
                   >
                     <img
                       src={userAvatarSrc(user)}
                       alt={user.username}
                       className="w-6 h-6 rounded-full border border-gold/50 object-cover"
                     />
-                    <span className="text-[0.65rem] font-space text-cream/80 pr-2">{user.username}</span>
+                    <span className="hidden sm:inline text-[0.65rem] font-space text-cream/80 pr-2">{user.username}</span>
                   </div>
                   <button
                     onClick={onLogout}
-                    className="text-[0.6rem] font-orbitron text-cream/40 hover:text-red-400 uppercase tracking-widest transition-colors"
+                    className="hidden sm:inline text-[0.6rem] font-orbitron text-cream/40 hover:text-red-400 uppercase tracking-widest transition-colors"
                   >
                     Logout
                   </button>
                 </div>
               ) : (
-                <motion.button
-                  onClick={async () => {
-                    if (!supabase) {
-                      console.error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
-                      return
-                    }
-                    await supabase.auth.signInWithOAuth({
-                      provider: 'discord',
-                      options: { redirectTo: `${window.location.origin}/` },
-                    })
-                  }}
-                  className="hidden md:flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs px-4 py-2.5 rounded-sm transition-colors"
-                  style={{ fontSize: '0.65rem', letterSpacing: '0.18em', fontFamily: "'Josefin Sans', sans-serif", fontWeight: 600 }}
-                  whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(88,101,242,0.4)' }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z" />
-                  </svg>
-                  Login
-                </motion.button>
+                <div className="relative">
+                  <motion.button
+                    type="button"
+                    onClick={handleDiscordLogin}
+                    disabled={loginBusy}
+                    className="flex items-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-70 text-white text-xs px-3 sm:px-4 py-2.5 rounded-sm transition-colors"
+                    style={{ fontSize: '0.65rem', letterSpacing: '0.18em', fontFamily: "'Josefin Sans', sans-serif", fontWeight: 600 }}
+                    whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(88,101,242,0.4)' }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <DiscordIcon />
+                    {loginBusy ? 'Opening…' : 'Login'}
+                  </motion.button>
+                  {loginError ? (
+                    <p className="absolute right-0 top-full mt-1 max-w-[16rem] text-[0.6rem] text-red-400 whitespace-normal">
+                      {loginError}
+                    </p>
+                  ) : null}
+                </div>
               )}
 
               {/* Mobile / tablet menu toggle */}
@@ -316,6 +326,44 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                       {link.label}
                     </a>
                   ))}
+                  {user ? (
+                    <button
+                      type="button"
+                      onClick={() => { onLogout(); setMenuOpen(false) }}
+                      style={{
+                        fontFamily: "'Josefin Sans', sans-serif",
+                        fontWeight: 300,
+                        fontSize: '0.75rem',
+                        letterSpacing: '0.25em',
+                        textTransform: 'uppercase',
+                        color: 'rgba(237,232,220,0.65)',
+                        textAlign: 'left',
+                        background: 'none',
+                        border: 0,
+                      }}
+                    >
+                      Logout
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { setMenuOpen(false); handleDiscordLogin() }}
+                      style={{
+                        fontFamily: "'Josefin Sans', sans-serif",
+                        fontWeight: 400,
+                        fontSize: '0.7rem',
+                        letterSpacing: '0.25em',
+                        textTransform: 'uppercase',
+                        color: '#fff',
+                        background: '#5865F2',
+                        padding: '0.7rem 1.2rem',
+                        borderRadius: '2px',
+                        border: 0,
+                      }}
+                    >
+                      {loginBusy ? 'Opening Discord…' : 'Login with Discord'}
+                    </button>
+                  )}
                   <a
                     href={SITE_DATA.twitterUrl}
                     target="_blank"
@@ -342,6 +390,14 @@ export function Navbar({ user, onLogout, onProfileClick }) {
             )}
           </AnimatePresence>
         </motion.nav>
+  )
+}
+
+function DiscordIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7913 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z" />
+    </svg>
   )
 }
 
