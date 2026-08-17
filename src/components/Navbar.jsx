@@ -18,27 +18,11 @@ function NavLogo() {
   return (
     <span className="flex items-center" aria-label="CONN3CTIVITY">
       <span style={word}>CONN</span>
-      <svg
-        viewBox="0 0 42 40"
-        fill="none"
-        aria-hidden="true"
-        preserveAspectRatio="xMidYMid meet"
-        className="block h-8 w-[34px] shrink-0 -mx-1"
-      >
-        <circle cx="15.5" cy="20" r="14.6" stroke="rgba(237,232,220,0.55)" strokeWidth="1.15" />
-        <circle cx="26.5" cy="20" r="14.6" stroke="rgba(237,232,220,0.55)" strokeWidth="1.15" />
-        <text
-          x="21"
-          y="25.2"
-          fontFamily="'Josefin Sans', sans-serif"
-          fontWeight="300"
-          fontSize="15"
-          fill="#C9A96E"
-          textAnchor="middle"
-        >
-          3
-        </text>
-      </svg>
+      <img
+        src="/logo-3d.png"
+        alt=""
+        className="block h-9 w-9 shrink-0 object-contain -mx-0.5"
+      />
       <span style={word}>CTIVITY</span>
     </span>
   )

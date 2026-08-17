@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
 import { VennAtmosphere } from '../components/VennAtmosphere'
 import { GoldPrism } from '../components/three/GoldPrism'
+import { HandshakeConnect } from '../components/HandshakeConnect'
 import { useCountUp } from '../hooks/useCountUp'
 import { fetchStats, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
@@ -333,6 +334,8 @@ export function HeroSection({ onThreeClick }) {
               </span>
             ))}
           </motion.div>
+
+          <HandshakeConnect />
 
           {/* Subline */}
           <motion.p

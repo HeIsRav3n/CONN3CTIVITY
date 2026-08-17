@@ -92,17 +92,13 @@ function ActionCard({ item, index }) {
       }}
     >
       <div
-        className="mb-5 flex h-12 w-12 items-center justify-center"
+        className="mb-5 flex h-14 w-14 items-center justify-center overflow-hidden"
         style={{
-          border: `1px solid ${item.color}40`,
-          color: item.color,
-          fontFamily: "'Josefin Sans', sans-serif",
-          fontWeight: 300,
-          fontSize: '1.1rem',
-          letterSpacing: '0.12em',
+          border: `1px solid ${item.color}28`,
+          background: 'rgba(0,0,0,0.35)',
         }}
       >
-        {item.mark}
+        <img src={item.icon} alt="" className="h-12 w-12 object-contain" />
       </div>
       <h3
         className="font-['Josefin_Sans'] text-lg mb-3 tracking-[0.16em] uppercase"
@@ -122,19 +118,19 @@ function ActionCard({ item, index }) {
 
 const ACTION_CARDS = [
   {
-    mark: 'S',
+    icon: '/icon-s.png',
     title: 'SEARCH',
     desc: 'We find projects and communities ready to grow together.',
     color: '#EDE8DC',
   },
   {
-    mark: 'F',
+    icon: '/icon-f.png',
     title: 'FIND',
     desc: 'We identify strong connections between projects.',
     color: '#C9A96E',
   },
   {
-    mark: 'C',
+    icon: '/icon-c.png',
     title: 'CONN3CT',
     desc: 'We build partnerships that help communities grow.',
     color: '#C9A96E',

@@ -30,11 +30,14 @@ export function Footer() {
               viewport={{ once: true }}
               className="mb-4"
             >
-              <span
-                className="font-['Josefin_Sans'] font-light tracking-[0.25em] text-xl uppercase"
-                style={{ color: 'var(--cream)' }}
-              >
-                CONN3CTIVITY
+              <span className="mb-4 inline-flex items-center gap-2">
+                <img src="/logo-3d.png" alt="" className="h-8 w-8 object-contain" />
+                <span
+                  className="font-['Josefin_Sans'] font-light tracking-[0.25em] text-xl uppercase"
+                  style={{ color: 'var(--cream)' }}
+                >
+                  CONN3CTIVITY
+                </span>
               </span>
             </motion.div>
             <motion.p

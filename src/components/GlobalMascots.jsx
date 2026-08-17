@@ -34,7 +34,7 @@ export function GlobalMascots() {
   return (
     <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden" style={{ perspective: 1200 }}>
       <motion.div
-        className="absolute top-24 -left-10 md:left-0 opacity-[0.12] md:opacity-[0.18] w-52 md:w-64 xl:w-80"
+        className="absolute top-24 -left-10 md:left-0 opacity-[0.22] md:opacity-[0.38] w-52 md:w-64 xl:w-80"
         style={{
           x: gmX,
           y: gmY,
@@ -42,14 +42,19 @@ export function GlobalMascots() {
           rotateY: gmRotateY,
           transformStyle: 'preserve-3d',
         }}
-        animate={{ y: ['-3%', '3%'] }}
-        transition={{ y: { duration: 6, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' } }}
+        animate={{ y: ['-3%', '3%'], scale: [1, 1.035, 1] }}
+        transition={{ duration: 5.5, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
       >
-        <img src="/mascot-gm-transparent.png" alt="" className="w-full h-auto" style={{ filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.45))' }} />
+        <img
+          src="/mascot-gm-transparent.png"
+          alt=""
+          className="w-full h-auto"
+          style={{ filter: 'drop-shadow(0 0 28px rgba(201,169,110,0.28)) drop-shadow(0 18px 28px rgba(0,0,0,0.5))' }}
+        />
       </motion.div>
 
       <motion.div
-        className="absolute -bottom-10 -right-10 md:right-0 opacity-[0.12] md:opacity-[0.18] w-52 md:w-64 xl:w-80"
+        className="absolute -bottom-10 -right-10 md:right-0 opacity-[0.22] md:opacity-[0.38] w-52 md:w-64 xl:w-80"
         style={{
           x: cmX,
           y: cmY,
@@ -57,10 +62,15 @@ export function GlobalMascots() {
           rotateY: cmRotateY,
           transformStyle: 'preserve-3d',
         }}
-        animate={{ y: ['3%', '-3%'] }}
-        transition={{ y: { duration: 7, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' } }}
+        animate={{ y: ['3%', '-3%'], scale: [1, 1.04, 1] }}
+        transition={{ duration: 6.4, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
       >
-        <img src="/mascot-cm-transparent.png" alt="" className="w-full h-auto" style={{ filter: 'drop-shadow(0 18px 28px rgba(0,0,0,0.45))' }} />
+        <img
+          src="/mascot-cm-transparent.png"
+          alt=""
+          className="w-full h-auto"
+          style={{ filter: 'drop-shadow(0 0 28px rgba(201,169,110,0.28)) drop-shadow(0 18px 28px rgba(0,0,0,0.5))' }}
+        />
       </motion.div>
     </div>
   )
