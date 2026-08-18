@@ -4,6 +4,7 @@ import { SITE_DATA } from '../data/siteData'
 import { AtmosphereBackdrop } from '../components/AtmosphereBackdrop'
 import { MascotScene } from '../components/three/MascotScene'
 import { use3DTilt } from '../hooks/use3DTilt'
+import { luxuryEase, viewportOnce } from '../lib/motion'
 
 function MascotCard({ name, role, desc, img, color, delay }) {
   const [hover, setHover] = useState(false)
@@ -12,17 +13,18 @@ function MascotCard({ name, role, desc, img, color, delay }) {
   return (
     <motion.div
       ref={tilt.ref}
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay, duration: 0.5 }}
+      initial={{ opacity: 0, y: 28, filter: 'blur(10px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={viewportOnce}
+      transition={{ delay, duration: 0.75, ease: luxuryEase }}
+      whileHover={{ y: -8 }}
       onMouseMove={tilt.handleMouseMove}
       onMouseLeave={() => {
         tilt.handleMouseLeave()
         setHover(false)
       }}
       onMouseEnter={() => setHover(true)}
-      className="p-4 relative overflow-hidden group w-full h-full"
+      className="p-4 relative overflow-hidden group w-full h-full gold-sheen"
       style={{
         background: 'rgba(237,232,220,0.02)',
         border: `1px solid ${color}28`,

@@ -1,8 +1,8 @@
 import { useRef } from 'react'
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
-import { VennAtmosphere } from '../components/VennAtmosphere'
 import { GoldPrism } from '../components/three/GoldPrism'
 import { HandshakeConnect } from '../components/HandshakeConnect'
+import { luxuryEase } from '../lib/motion'
 import { useCountUp } from '../hooks/useCountUp'
 import { fetchStats, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
@@ -25,17 +25,29 @@ function ScrollProgressBar({ progress }) {
 function AnimatedLetter({ char, index }) {
   return (
     <motion.span
-      initial={{ opacity: 0, y: 60, rotateX: -90 }}
-      animate={{ opacity: 1, y: 0, rotateX: 0 }}
+      initial={{ opacity: 0, y: 72, rotateX: -88, filter: 'blur(14px)' }}
+      animate={{ opacity: 1, y: 0, rotateX: 0, filter: 'blur(0px)' }}
       transition={{
-        duration: 0.9,
-        delay: index * 0.045,
-        ease: [0.22, 1, 0.36, 1],
+        duration: 1.05,
+        delay: 0.12 + index * 0.05,
+        ease: luxuryEase,
       }}
       style={{ display: 'inline-block', transformOrigin: '50% 100%' }}
     >
       {char === ' ' ? '\u00A0' : char}
     </motion.span>
+  )
+}
+
+function CinematicField() {
+  return (
+    <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
+      <div className="cinematic-aurora cinematic-aurora-a" />
+      <div className="cinematic-aurora cinematic-aurora-b" />
+      <div className="cinematic-ray cinematic-ray-1" />
+      <div className="cinematic-ray cinematic-ray-2" />
+      <div className="cinematic-ray cinematic-ray-3" />
+    </div>
   )
 }
 
@@ -174,17 +186,8 @@ export function HeroSection({ onThreeClick }) {
           `,
         }}
       >
-        {/* ── Atmosphere ── */}
-        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
-          <img src="/atmosphere-venn.png" alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.32]" />
-        </div>
-
-        {/* ── Venn Atmosphere ── */}
-        <motion.div
-          className="absolute inset-0 z-0"
-          style={{ scale: canvasScale }}
-        >
-          <VennAtmosphere />
+        <motion.div className="absolute inset-0 z-0" style={{ scale: canvasScale }}>
+          <CinematicField />
         </motion.div>
 
         <motion.div
@@ -279,9 +282,9 @@ export function HeroSection({ onThreeClick }) {
             {/* Center intersection: 3 (gold, clickable) */}
             <motion.button
               type="button"
-              initial={{ opacity: 0, scale: 0.5, rotateY: -90 }}
-              animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-              transition={{ duration: 1, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              initial={{ opacity: 0, scale: 0.5, rotateY: -90, filter: 'blur(12px)' }}
+              animate={{ opacity: 1, scale: 1, rotateY: 0, filter: 'blur(0px)' }}
+              transition={{ duration: 1.1, delay: 0.28, ease: luxuryEase }}
               onClick={onThreeClick}
               aria-label="Open Conn3ctivity game"
               style={{
@@ -310,9 +313,9 @@ export function HeroSection({ onThreeClick }) {
 
           {/* Motto */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9, duration: 0.8 }}
+            initial={{ opacity: 0, y: 30, filter: 'blur(10px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ delay: 0.95, duration: 0.9, ease: luxuryEase }}
             className="flex items-center justify-center gap-4 mb-10 flex-wrap"
           >
             {tagWords.map((word, i) => (
@@ -339,9 +342,9 @@ export function HeroSection({ onThreeClick }) {
 
           {/* Subline */}
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.2, duration: 0.8 }}
+            initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ delay: 1.25, duration: 0.9, ease: luxuryEase }}
             style={{
               fontFamily: "'Josefin Sans', sans-serif",
               fontWeight: 300,
@@ -358,13 +361,14 @@ export function HeroSection({ onThreeClick }) {
 
           {/* CTA Buttons */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.5, duration: 0.8 }}
+            initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ delay: 1.55, duration: 0.9, ease: luxuryEase }}
             className="flex items-center justify-center gap-4 flex-wrap mb-8"
           >
             <motion.a
               href="#map"
+              className="gold-sheen"
               whileHover={{
                 scale: 1.04,
                 boxShadow: '0 0 40px rgba(201,169,110,0.35)',

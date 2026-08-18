@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { luxuryEase, viewportOnce } from '../lib/motion'
 
 export function BioPod({ member, index }) {
   const [hovered, setHovered] = useState(false)
@@ -7,10 +8,11 @@ export function BioPod({ member, index }) {
   return (
     <motion.div
       id={`team-pod-${member.id}`}
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.4, delay: index * 0.04 }}
+      initial={{ opacity: 0, y: 22, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={viewportOnce}
+      transition={{ duration: 0.5, delay: index * 0.04, ease: luxuryEase }}
+      whileHover={{ y: -6 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -22,13 +24,14 @@ export function BioPod({ member, index }) {
         style={{ cursor: member.url ? 'pointer' : 'default' }}
       >
         <div
-          className="relative overflow-hidden h-full w-full"
+          className="relative overflow-hidden h-full w-full gold-sheen"
           style={{
             background: hovered ? 'var(--surface-2)' : 'var(--surface)',
             border: hovered ? `1px solid ${member.color}50` : '1px solid var(--border)',
             borderRadius: 2,
-            transition: 'border 0.25s ease, background 0.25s ease',
+            transition: 'border 0.25s ease, background 0.25s ease, box-shadow 0.25s ease',
             padding: '1.25rem 1rem',
+            boxShadow: hovered ? `0 18px 40px rgba(0,0,0,0.35), 0 0 24px ${member.color}18` : 'none',
           }}
         >
           <div className="relative flex flex-col items-center text-center gap-3">

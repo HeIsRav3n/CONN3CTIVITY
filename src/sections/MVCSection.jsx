@@ -68,8 +68,9 @@ export function MVCSection() {
 
   return (
     <section id="mvc-spotlight" className="relative py-24 md:py-32 px-4 overflow-hidden">
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <img src="/atmosphere-venn.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.22]" />
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div className="cinematic-aurora cinematic-aurora-a" style={{ opacity: 0.55 }} />
+        <div className="cinematic-aurora cinematic-aurora-b" style={{ opacity: 0.4 }} />
       </div>
       <div className="absolute inset-0 z-0 pointer-events-none flex justify-center">
         <div

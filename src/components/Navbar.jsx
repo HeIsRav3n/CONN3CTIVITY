@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { SITE_DATA } from '../data/siteData'
 import { userAvatarSrc, signInWithDiscord } from '../lib/supabase'
 import { isSoundMuted, toggleSoundMuted, subscribeSoundMuted } from '../lib/soundPrefs'
+import { luxuryEase } from '../lib/motion'
 
 function NavLogo() {
   const word = {
@@ -22,6 +23,7 @@ function NavLogo() {
         src="/logo-3d.png"
         alt=""
         className="block h-9 w-9 shrink-0 object-contain -mx-0.5"
+        style={{ filter: 'drop-shadow(0 0 10px rgba(201,169,110,0.35))' }}
       />
       <span style={word}>CTIVITY</span>
     </span>
@@ -89,7 +91,7 @@ export function Navbar({ user, onLogout, onProfileClick }) {
       id="navbar"
       initial={{ y: -80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.7, ease: luxuryEase }}
       className="fixed top-0 left-0 right-0 z-50"
       style={{
         background: scrolled

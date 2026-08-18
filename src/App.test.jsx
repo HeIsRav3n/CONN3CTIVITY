@@ -6,6 +6,18 @@ vi.mock('./sections/MapSection', () => ({
   MapSection: () => <div data-testid="mock-map">Map</div>
 }));
 
+vi.mock('./components/HandshakeConnect', () => ({
+  HandshakeConnect: () => <div data-testid="handshake" />,
+}));
+
+vi.mock('./components/GlobalMascots', () => ({
+  GlobalMascots: () => null,
+}));
+
+vi.mock('./components/three/GoldPrism', () => ({
+  GoldPrism: () => null,
+}));
+
 // Mock matchMedia for jsdom
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

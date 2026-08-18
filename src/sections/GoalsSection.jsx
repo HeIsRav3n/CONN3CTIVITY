@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { SITE_DATA } from '../data/siteData'
+import { luxuryEase, viewportOnce } from '../lib/motion'
 
 const MOTTO_WORDS = ['SEARCH', 'FIND', 'CONN3CT']
 const WORD_COLORS = ['#EDE8DC', '#C9A96E', '#EDE8DC']
@@ -7,10 +8,10 @@ const WORD_COLORS = ['#EDE8DC', '#C9A96E', '#EDE8DC']
 function MottoWord({ word, color, index }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.9, delay: index * 0.18, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, y: 40, filter: 'blur(10px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={viewportOnce}
+      transition={{ duration: 0.9, delay: index * 0.18, ease: luxuryEase }}
       className="relative inline-block"
     >
       <motion.span
@@ -80,11 +81,12 @@ function ActionCard({ item, index }) {
   return (
     <motion.div
       key={item.title}
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.12, duration: 0.5 }}
-      className="p-8 relative overflow-hidden group"
+      initial={{ opacity: 0, y: 28, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={viewportOnce}
+      transition={{ delay: index * 0.12, duration: 0.7, ease: luxuryEase }}
+      whileHover={{ y: -8, boxShadow: `0 24px 48px rgba(0,0,0,0.35), 0 0 32px ${item.color}22` }}
+      className="p-8 relative overflow-hidden group gold-sheen"
       style={{
         border: `1px solid ${item.color}20`,
         background: 'rgba(237,232,220,0.02)',

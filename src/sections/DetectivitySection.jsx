@@ -5,10 +5,11 @@ import scammers from '../data/scammers.json'
 function ScammerCard({ item, index, onView }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.1, duration: 0.5 }}
+      initial={{ opacity: 0, y: 22, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={{ once: true, margin: '-72px 0px' }}
+      transition={{ delay: index * 0.1, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -6 }}
       className="p-[1px] rounded-2xl relative overflow-hidden group"
       style={{
         background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.05), rgba(239, 68, 68, 0.1))'

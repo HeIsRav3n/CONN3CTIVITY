@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { use3DTilt } from '../hooks/use3DTilt'
+import { luxuryEase, viewportOnce } from '../lib/motion'
 
 export function CommunityCard({ partner, index }) {
   const [hovered, setHovered] = useState(false)
@@ -10,10 +11,11 @@ export function CommunityCard({ partner, index }) {
     <motion.div
       id={`partner-card-${partner.id}`}
       ref={tilt.ref}
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.4, delay: index * 0.05 }}
+      initial={{ opacity: 0, y: 22, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={viewportOnce}
+      transition={{ duration: 0.55, delay: index * 0.05, ease: luxuryEase }}
+      whileHover={{ y: -6 }}
       onMouseEnter={() => setHovered(true)}
       onMouseMove={tilt.handleMouseMove}
       onMouseLeave={() => {
@@ -28,12 +30,13 @@ export function CommunityCard({ partner, index }) {
     >
       <a href={partner.url} target="_blank" rel="noopener noreferrer" className="block">
         <div
-          className="p-5 flex flex-col items-center gap-3 h-full w-full"
+          className="p-5 flex flex-col items-center gap-3 h-full w-full gold-sheen"
           style={{
             background: hovered ? 'var(--surface-2)' : 'var(--surface)',
             border: hovered ? `1px solid ${partner.color}44` : '1px solid var(--border)',
             borderRadius: 2,
             transition: 'border 0.25s ease, background 0.25s ease',
+            boxShadow: hovered ? `0 18px 40px rgba(0,0,0,0.35), 0 0 24px ${partner.color}18` : 'none',
           }}
         >
           <div className="relative w-14 h-14 overflow-hidden" style={{ borderRadius: 2 }}>
