@@ -1,6 +1,5 @@
-import { useRef } from 'react'
-import { motion, MotionConfig, useScroll, useTransform } from 'framer-motion'
-import { GoldPrism } from '../components/three/GoldPrism'
+import { useEffect, useRef } from 'react'
+import { motion, MotionConfig } from 'framer-motion'
 import { HandshakeConnect } from '../components/HandshakeConnect'
 import { luxuryEase } from '../lib/motion'
 import { useCountUp } from '../hooks/useCountUp'
@@ -162,23 +161,63 @@ function HeroLiveBar() {
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 export function HeroSection({ onThreeClick }) {
   const containerRef = useRef(null)
+  const textRef = useRef(null)
+  const auroraRef = useRef(null)
 
-  const { scrollYProgress } = useScroll()
+  // The hero title is driven straight from window.scrollY (rAF-throttled,
+  // style written directly to the refs — no React re-render per scroll
+  // frame). The title must be fully invisible before it can slide under
+  // the fixed navbar: at scrollY 0 its top sits 125-263px down (width
+  // dependent) and the nav bottom is ~72px, so with parallax the title
+  // reaches the nav after only ~42px of scrolling at 1280px (53px gap,
+  // 1.27x travel) and ~56px at 390px. The fade therefore runs over the
+  // first 40px of scrolling and is done before the title touches the nav
+  // at any width. Parallax is bounded (-80px, scale 1.12) so the hero
+  // can never drift or blow up on long pages.
+  //
+  // This deliberately does NOT use framer-motion's useScroll: the
+  // target-based useScroll (offset ['start start', 'end start']) is
+  // driven by the browser's native ViewTimeline `exit` range in
+  // Chromium, and live headless probes (2026-11-20) showed the rendered
+  // opacity RISING with scroll (0.10 at scrollY 300, 0.49 at 600, 0.87
+  // at 900) instead of falling to 0 — the exact opposite of the
+  // [0, 0.22] -> [1, 0] transform, verified correct in the built bundle.
+  // Plain scrollY math is deterministic in every browser.
+  useEffect(() => {
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const y = window.scrollY || 0
+      const text = textRef.current
+      if (text) {
+        text.style.opacity = String(Math.max(0, 1 - y / 40))
+        text.style.transform = `translateY(${(-Math.min(y * 0.27, 80)).toFixed(1)}px)`
+      }
+      const aurora = auroraRef.current
+      if (aurora) {
+        const s = 1 + Math.min(y / 1000, 1) * 0.12
+        aurora.style.transform = `scale(${s.toFixed(3)})`
+      }
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
 
   const tagWords = ['SEARCH', 'FIND', 'CONN3CT']
-
-  // Parallax stays bounded: heroY clamps at -120px and the canvas scale at
-  // 1.12, so the hero can never drift or blow up on long pages.
-  const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -120])
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.35], [1, 0])
-  const canvasScale = useTransform(scrollYProgress, [0, 0.4], [1, 1.12])
 
   return (
     <MotionConfig reducedMotion="user">
       <section
         id="home"
         ref={containerRef}
-        className="relative min-h-screen overflow-hidden flex items-center justify-center pb-24"
+        className="relative min-h-screen overflow-hidden flex items-center justify-center pt-24 pb-24"
         style={{
           background: `
             radial-gradient(ellipse 120% 80% at 50% -10%, rgba(201,169,110,0.12) 0%, transparent 55%),
@@ -187,17 +226,9 @@ export function HeroSection({ onThreeClick }) {
           `,
         }}
       >
-        <motion.div className="absolute inset-0 z-0" style={{ scale: canvasScale }}>
+        <div ref={auroraRef} className="absolute inset-0 z-0">
           <CinematicField />
-        </motion.div>
-
-        <motion.div
-          className="pointer-events-none absolute left-[2%] top-[18%] z-[1] hidden h-[min(36vw,320px)] w-[min(36vw,320px)] opacity-90 xl:block"
-          style={{ scale: canvasScale }}
-          aria-hidden="true"
-        >
-          <GoldPrism className="h-full w-full" />
-        </motion.div>
+        </div>
 
         {/* ── Hero mascots — in-section, above the hero background.
             The fixed GlobalMascots layer sits behind <main> (z-10), so the
@@ -290,10 +321,7 @@ export function HeroSection({ onThreeClick }) {
 
 
         {/* ── Hero Text ── */}
-        <motion.div
-          className="relative z-10 text-center px-6 select-none"
-          style={{ y: heroY, opacity: heroOpacity }}
-        >
+        <div ref={textRef} className="relative z-10 text-center px-6 select-none">
           {/* Brand title — Venn logo split: CONN | 3 | CTIVITY */}
           <div
             className="mb-6 flex items-center justify-center flex-nowrap"
@@ -466,7 +494,7 @@ export function HeroSection({ onThreeClick }) {
 
           {/* Quiet live pulse — secondary to brand */}
           <HeroLiveBar />
-        </motion.div>
+        </div>
 
         <ScrollCue />
       </section>

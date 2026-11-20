@@ -12,14 +12,22 @@ const InvestigationModal = lazy(() =>
 // Jirasan Fake CM"). They must wrap ONLY after a slash: overflow-wrap:
 // anywhere splits mid-word ("VEEFRI/ENDS"), which reads as a typo. Each
 // slash segment is a nowrap unit and a <wbr /> after every "/" is the only
-// break opportunity, so words are never split.
+// break opportunity, so words are never split. Segments that contain
+// spaces ("SHADOWALKER steals wls") are split into per-word nowrap spans
+// instead, so they can wrap at spaces — a single nowrap segment wider
+// than its card overflowed it by ~6px (headless audit, 2026-11-20).
 function ThreatTitle({ title }) {
   const segments = String(title || '').split('/')
   return (
     <>
       {segments.map((segment, i) => (
         <Fragment key={`${segment}-${i}`}>
-          <span style={{ whiteSpace: 'nowrap' }}>{segment}</span>
+          {segment.split(' ').map((word, wi, words) => (
+            <Fragment key={`${word}-${wi}`}>
+              <span style={{ whiteSpace: 'nowrap' }}>{word}</span>
+              {wi < words.length - 1 ? ' ' : null}
+            </Fragment>
+          ))}
           {i < segments.length - 1 && (
             <>
               {'/'}

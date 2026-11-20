@@ -317,7 +317,7 @@ export function MapSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
-          className="text-center mb-12"
+          className="text-center mb-8"
         >
           <div className="flex items-center justify-center gap-3 mb-5">
             <div
@@ -408,7 +408,12 @@ export function MapSection() {
           ref={containerRef}
           className="w-full relative overflow-hidden"
           style={{
-            height: 'clamp(420px, 72vh, 860px)',
+            // The map block must fit in one viewport together with its
+            // header: at 72vh the container bottom sat ~110px below the
+            // fold at 1920x998, so the top-anchored profile card and the
+            // bottom-anchored Reset could never be seen together. Cap the
+            // height at the viewport minus the header (~430px) as well.
+            height: 'clamp(400px, min(62vh, calc(100dvh - 430px)), 720px)',
             borderRadius: 20,
             background: '#0a0a0e',
             border: '1px solid rgba(255,255,255,0.06)',

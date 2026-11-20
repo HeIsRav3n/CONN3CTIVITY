@@ -14,10 +14,6 @@ vi.mock('./components/GlobalMascots', () => ({
   GlobalMascots: () => null,
 }));
 
-vi.mock('./components/three/GoldPrism', () => ({
-  GoldPrism: () => null,
-}));
-
 // Mock matchMedia for jsdom
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

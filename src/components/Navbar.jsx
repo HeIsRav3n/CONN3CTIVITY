@@ -110,9 +110,15 @@ export function Navbar({ user, onLogout, onProfileClick }) {
       transition={{ duration: 0.7, ease: luxuryEase }}
       className="fixed top-0 left-0 right-0 z-50"
       style={{
+        // The nav is fixed over the hero, and the hero title scrolls up
+        // underneath it while fading. A transparent nav lets the title
+        // letters show through behind the links (live preview, 2026-11-20),
+        // so the nav always carries a dark top scrim — solid at the top,
+        // fading to transparent at its bottom edge — even before scrolling.
+        // Once scrolled it switches to the blurred solid background below.
         background: scrolled
           ? 'rgba(11,10,8,0.88)'
-          : 'transparent',
+          : 'linear-gradient(180deg, rgba(11,10,8,0.92) 0%, rgba(11,10,8,0.72) 55%, rgba(11,10,8,0) 100%)',
         backdropFilter: scrolled ? 'blur(28px) saturate(1.4)' : 'none',
         WebkitBackdropFilter: scrolled ? 'blur(28px) saturate(1.4)' : 'none',
         borderBottom: scrolled
