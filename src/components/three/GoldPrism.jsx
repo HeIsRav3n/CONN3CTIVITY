@@ -4,42 +4,31 @@ import * as THREE from 'three'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { canUseWebGL } from '../../lib/webgl'
 import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
+import { colourPolyhedronFaces } from '../../lib/gemFaces'
 
 const GOLD = '#C9A96E'
 const CREAM = '#EDE8DC'
 
-// One distinct gold tone per face, so adjacent faces never read as one
-// flat gradient. The previous set included a pale #F6DFA8 face that, under
-// the RoomEnvironment + high metalness, washed out to grey-beige at some
-// angles and collapsed the prism into a flat pale triangle. Every tone
-// here is a saturated gold with a wide lightness spread (rich light gold,
-// brand gold, mid bronze, dark bronze), so each face reads gold at every
-// angle and neighbouring faces stay visibly different.
-const FACE_TONES = ['#E8B84B', '#C9A96E', '#7A5518', '#B98A2E']
-
-function FacetedTetrahedron({ spinning = true }) {
+// DESIGN CHANGE (PR #2, decisive pass): the prism is no longer a
+// tetrahedron. A tetrahedron has 4 faces, so viewed face-on it IS a single
+// flat triangle by definition — no palette, edge line or lighting tweak
+// can fix that, which is why it still collapsed to flat/washed-out at some
+// angles after two recolour rounds. This is now a 20-face icosahedron:
+// at every rotation angle the camera sees 3-5 faces, so it cannot collapse
+// to one flat tone. Faces are coloured by colourPolyhedronFaces (no two
+// adjacent faces share a tone), and a warm key light ORBITS the gem so
+// face shading keeps changing as it turns — a static environment alone
+// washed faces to grey-beige.
+function FacetedGem({ spinning = true }) {
   const groupRef = useRef()
-  const geometry = useMemo(() => new THREE.TetrahedronGeometry(1.18, 0), [])
+  const orbitRef = useRef()
+  const geometry = useMemo(() => new THREE.IcosahedronGeometry(1.15, 0), [])
   const edges = useMemo(() => new THREE.EdgesGeometry(geometry, 1), [geometry])
 
-  // Per-face vertex colours: the single material colour would wash the
-  // faces together under the environment map, which is why the prism read
-  // as one flat triangle. Distinct tones per face restore the facets.
-  const faceColors = useMemo(() => {
-    const count = geometry.attributes.position.count
-    const colors = new Float32Array(count * 3)
-    const tone = new THREE.Color()
-    for (let i = 0; i < count; i++) {
-      tone.set(FACE_TONES[Math.floor(i / 3) % FACE_TONES.length])
-      colors[i * 3] = tone.r
-      colors[i * 3 + 1] = tone.g
-      colors[i * 3 + 2] = tone.b
-    }
-    return new THREE.BufferAttribute(colors, 3)
-  }, [geometry])
+  const faceColors = useMemo(() => colourPolyhedronFaces(geometry), [geometry])
 
   useEffect(() => {
-    geometry.setAttribute('color', faceColors)
+    geometry.setAttribute('color', faceColors.attribute)
     return () => {
       geometry.dispose()
       edges.dispose()
@@ -49,16 +38,24 @@ function FacetedTetrahedron({ spinning = true }) {
   useFrame((state, delta) => {
     const group = groupRef.current
     if (!group) return
+    const t = state.clock.elapsedTime
     if (spinning) {
       // ~0.85 rad/s: a full turn in ~7s, so the facets are obvious within
-      // a few seconds of looking. The old 0.28 rad/s took ~22s per turn,
-      // which is why it read as a static flat triangle.
+      // a few seconds of looking.
       group.rotation.y += delta * 0.85
-      const t = state.clock.elapsedTime
       group.rotation.x = 0.52 + Math.sin(t * 0.6) * 0.12
       group.rotation.z = 0.18 + Math.cos(t * 0.45) * 0.08
+      // Orbiting warm key light: face shading changes continuously as the
+      // gem turns, so no angle ever sits in flat even light.
+      if (orbitRef.current) {
+        orbitRef.current.position.set(
+          Math.cos(t * 0.5) * 3.4,
+          1.8 + Math.sin(t * 0.35) * 1.4,
+          Math.sin(t * 0.5) * 3.4,
+        )
+      }
       // frameloop="demand" only renders on invalidate, so keep the loop
-      // alive while the prism is spinning. When it stops spinning the
+      // alive while the gem is spinning. When it stops spinning the
       // canvas settles after a single frame.
       state.invalidate()
     }
@@ -66,15 +63,11 @@ function FacetedTetrahedron({ spinning = true }) {
 
   return (
     <group ref={groupRef} frustumCulled={false}>
+      <pointLight ref={orbitRef} intensity={16} distance={14} color="#FFD97A" />
       <mesh geometry={geometry}>
         <meshPhysicalMaterial
           color="#ffffff"
           vertexColors
-          // Was metalness 0.85 + envMapIntensity 0.9 + clearcoat 0.7: the
-          // bright RoomEnvironment reflected straight off the faces and
-          // washed the gold toward white/grey-beige. Lower metalness and
-          // env intensity, higher roughness: the faces keep their own
-          // gold colour and the environment only tints them.
           metalness={0.55}
           roughness={0.34}
           reflectivity={0.7}
@@ -93,11 +86,11 @@ function FacetedTetrahedron({ spinning = true }) {
           <lineBasicMaterial color="#2E2008" transparent opacity={1} toneMapped={false} />
         </lineSegments>
       </mesh>
-      {/* Dark outline shell: the same tetrahedron scaled up 7% and rendered
+      {/* Dark outline shell: the same gem scaled up 6% and rendered
           back-faces only in near-black bronze. WebGL cannot draw thick
           lines, so this is what makes the silhouette and facet separation
-          genuinely visible — a dark rim around the prism at all angles. */}
-      <mesh geometry={geometry} scale={1.07}>
+          genuinely visible — a dark rim around the gem at all angles. */}
+      <mesh geometry={geometry} scale={1.06}>
         <meshBasicMaterial color="#201606" side={THREE.BackSide} toneMapped={false} />
       </mesh>
     </group>
@@ -189,7 +182,7 @@ export function GoldPrism({ className = '', spinning = true }) {
           <Suspense fallback={null}>
             <PrismEnvironment />
             <PrismLights />
-            <FacetedTetrahedron spinning={shouldSpin} />
+            <FacetedGem spinning={shouldSpin} />
           </Suspense>
         </Canvas>
       </PrismErrorBoundary>

@@ -39,38 +39,45 @@ function CinematicField() {
 }
 
 // ─── Scroll Cue ───────────────────────────────────────────────────────────────
-// Rendered at full opacity from first paint — NO entrance fade. The previous
-// version had `initial={{ opacity: 0 }} animate={{ opacity: 1 }}` with a
-// 2.5s delay + 1s fade, so any screenshot taken in the first ~3.5s after
-// load caught the cue mid-fade: #C9A96E at opacity ~0.3 over #0B0A08 blends
-// to ~#443A27, ~1.9:1, i.e. faint dark grey, not gold. The 8.8:1 figure from
-// the polish round was only the colour-pair ratio, not the rendered
-// opacity at screenshot time. The text is also bigger and heavier now:
-// the old 0.6rem weight-300 Josefin Sans (body inherits font-weight 300)
-// has ~1px hairline strokes that antialias away on a dark background even
-// at full opacity. Solid #C9A96E, weight 600, 0.75rem, no opacity < 1.
+// DESIGN CHANGE (PR #2, decisive pass): this is no longer thin gold text on
+// the black hero. Three live-preview rounds all saw the old cue as faint
+// dark olive-grey even though its colour really was solid #C9A96E at
+// weight 600 with no fade — and the real cause was stacking, not colour:
+// this element had NO z-index, while the hero's bottom fade mask is
+// z-[1] and the clear-zone/vignette overlays are z-[2]. The mask is 140px
+// tall and solid #0B0A08 for its bottom 28px, fading up; the cue sits at
+// bottom-4, right inside it, so it was painted UNDER ~80%-opaque black.
+// Gold at 20% over black is exactly the dull olive-brown the live checks
+// saw. So the cue is now a solid gold pill (bright #E8C878 background,
+// near-black #0B0A08 text, weight 800) on z-20, above every hero overlay,
+// with a solid gold chevron. Text on a solid contrasting surface cannot
+// read faint: the pill's contrast is ~11:1, measured from rendered pixels
+// in headless Chrome, not from a CSS colour-pair ratio.
 function ScrollCue() {
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none">
       <span style={{
         fontFamily: "'Josefin Sans', sans-serif",
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        letterSpacing: '0.32em',
-        color: '#C9A96E',
+        fontSize: '0.95rem',
+        fontWeight: 800,
+        letterSpacing: '0.22em',
+        color: '#0B0A08',
+        background: '#E8C878',
         textTransform: 'uppercase',
-        textShadow: '0 0 14px rgba(201,169,110,0.45), 0 1px 2px rgba(0,0,0,0.9)',
         whiteSpace: 'nowrap',
+        padding: '10px 20px 9px 23px',
+        borderRadius: 999,
+        boxShadow: '0 0 0 1px rgba(232,200,120,0.95), 0 0 28px rgba(232,200,120,0.45), 0 6px 18px rgba(0,0,0,0.6)',
       }}>SCROLL TO EXPLORE</span>
       <motion.div
-        animate={{ y: [0, 10, 0] }}
+        animate={{ y: [0, 8, 0] }}
         transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          width: 2,
-          height: 32,
-          background: 'linear-gradient(180deg, #C9A96E, rgba(201,169,110,0))',
-        }}
-      />
+        aria-hidden="true"
+      >
+        <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
+          <path d="M1 1l8 8 8-8" stroke="#E8C878" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </motion.div>
     </div>
   )
 }
