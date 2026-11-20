@@ -64,15 +64,33 @@
       </div>
     </div>
     <script>
+      // Render the fatal error panel with textContent only. The error
+      // message, file, line and stack come from the runtime and may
+      // contain markup, so they must never go through innerHTML.
       var __errCount = 0
+      function __showFatalError(title, detail) {
+        var el = document.getElementById('app-loading')
+        if (el) el.remove()
+        var root = document.getElementById('root')
+        root.textContent = ''
+        var wrap = document.createElement('div')
+        wrap.setAttribute('style', 'padding:40px;background:#0b0a08;min-height:100vh;color:#C9A96E;font-family:monospace')
+        var h = document.createElement('h1')
+        h.setAttribute('style', 'color:#ef4444;margin-bottom:16px')
+        h.textContent = title
+        var pre = document.createElement('pre')
+        pre.setAttribute('style', 'white-space:pre-wrap;color:#EDE8DC;font-size:13px')
+        pre.textContent = detail
+        wrap.appendChild(h)
+        wrap.appendChild(pre)
+        root.appendChild(wrap)
+      }
       window.onerror = function(msg, src, line, col, err) {
         // Ignore canvas/animation errors (non-finite, requestAnimationFrame noise) and extension conflicts
         if (msg && (msg.indexOf('non-finite') !== -1 || msg.indexOf('ethereum') !== -1 || msg.indexOf('CanvasRenderingContext2D') !== -1)) return true
         __errCount++
         if (__errCount > 1) return true // only show the first fatal error
-        var el = document.getElementById('app-loading')
-        if (el) el.remove()
-        document.getElementById('root').innerHTML = '<div style="padding:40px;background:#0b0a08;min-height:100vh;color:#C9A96E;font-family:monospace"><h1 style="color:#ef4444;margin-bottom:16px">Runtime Error</h1><pre style="white-space:pre-wrap;color:#EDE8DC;font-size:13px">' + msg + '\n\nFile: ' + src + ':' + line + ':' + col + '\n\n' + (err && err.stack || '') + '</pre></div>'
+        __showFatalError('Runtime Error', msg + '\n\nFile: ' + src + ':' + line + ':' + col + '\n\n' + (err && err.stack || ''))
       }
       window.addEventListener('unhandledrejection', function(e) {
         var msg = e.reason && (e.reason.message || String(e.reason))
@@ -80,9 +98,7 @@
         if (msg && /supabase|AuthApiError|Failed to fetch|NetworkError|abort/i.test(msg)) return
         __errCount++
         if (__errCount > 1) return
-        var el = document.getElementById('app-loading')
-        if (el) el.remove()
-        document.getElementById('root').innerHTML = '<div style="padding:40px;background:#0b0a08;min-height:100vh;color:#C9A96E;font-family:monospace"><h1 style="color:#ef4444;margin-bottom:16px">Unhandled Promise</h1><pre style="white-space:pre-wrap;color:#EDE8DC;font-size:13px">' + (e.reason && (e.reason.stack || e.reason.message || String(e.reason))) + '</pre></div>'
+        __showFatalError('Unhandled Promise', e.reason && (e.reason.stack || e.reason.message || String(e.reason)))
       })
     </script>
     <script type="module" src="/src/main.jsx"></script>

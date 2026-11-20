@@ -4,6 +4,7 @@ import STATIC_DATA from '../data/conn3ctors.json'
 import { fetchConn3ctors, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
 import { supabase, profileMatchFilter } from '../lib/supabase'
+import { twitterProfileUrl, telegramProfileUrl } from '../lib/sanitizeUrl'
 import { RadialBubbleMap } from '../components/map/RadialBubbleMap'
 
 const FALLBACK_ROWS = (STATIC_DATA?.nodes || [])
@@ -68,6 +69,11 @@ export function MapSection() {
   const [query, setQuery] = useState('')
   const [focusId, setFocusId] = useState(null)
   const [inView, setInView] = useState(true)
+  const [isTouch] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(pointer: coarse)').matches
+      : false,
+  )
   const mapControlsRef = useRef(null)
 
   const {
@@ -128,6 +134,7 @@ export function MapSection() {
 
     const mapProfile = (data) => ({
       username: data.username || null,
+      avatar_url: data.avatar_url || null,
       twitter: data.twitter || null,
       telegram: data.telegram || null,
       cm_type: data.cm_type || null,
@@ -145,7 +152,7 @@ export function MapSection() {
           if (!filter) throw new Error('invalid profile id')
           const { data, error } = await supabase
             .from('profiles')
-            .select('username,twitter,telegram,cm_type,services,experience,communities,role,discord_id,id')
+            .select('username,avatar_url,twitter,telegram,cm_type,services,experience,communities,role,discord_id,id')
             .or(filter)
             .maybeSingle()
 
@@ -168,6 +175,7 @@ export function MapSection() {
           const p = JSON.parse(raw)
           setSelectedProfile({
             username: p.username || null,
+            avatar_url: p.avatar_url || p.avatarUrl || null,
             twitter: p.twitter || null,
             telegram: p.telegram || null,
             cm_type: p.cmType || p.cm_type || null,
@@ -285,6 +293,15 @@ export function MapSection() {
 
   const badgeLabel = statusLabel(status, { realtime })
 
+  // Profile links are built from stored handles, never trusted raw: only
+  // allowlisted handles become links, and Discord needs a numeric snowflake.
+  const xUrl = selectedNode ? twitterProfileUrl(selectedNode.xHandle || selectedProfile?.twitter) : null
+  const telegramUrl = selectedProfile?.telegram ? telegramProfileUrl(selectedProfile.telegram) : null
+  const discordUrl = selectedNode && /^\d+$/.test(selectedNode.id)
+    ? `https://discord.com/users/${selectedNode.id}`
+    : null
+  const profileAvatar = selectedProfile?.avatar_url || selectedNode?.avatar
+
   return (
     <section id="map" className="relative py-16 md:py-24 px-3 sm:px-4 overflow-hidden" style={{ background: '#07070b' }}>
       <div
@@ -300,7 +317,7 @@ export function MapSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
-          className="text-center mb-12"
+          className="text-center mb-8"
         >
           <div className="flex items-center justify-center gap-3 mb-5">
             <div
@@ -332,7 +349,9 @@ export function MapSection() {
             className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.3em] uppercase max-w-lg mx-auto mb-6"
             style={{ color: 'rgba(237,232,220,0.3)' }}
           >
-            Drag to pan · Scroll to zoom · Shift+drag to stretch · Double-click to reset
+            {isTouch
+              ? 'Drag to pan · Pinch to zoom · Tap a bubble to view a profile'
+              : 'Drag to pan · Ctrl+scroll to zoom · Shift+drag to stretch · Double-click to reset'}
           </p>
 
           <div className="relative max-w-md mx-auto" data-map-search>
@@ -342,7 +361,7 @@ export function MapSection() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search Conn3ctors…"
               aria-label="Search Conn3ctors"
-              className="w-full px-4 py-2.5 rounded-full font-['Josefin_Sans'] text-sm outline-none"
+              className="w-full px-4 py-3 min-h-[44px] rounded-full font-['Josefin_Sans'] text-sm outline-none"
               style={{
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(201,169,110,0.22)',
@@ -363,7 +382,7 @@ export function MapSection() {
                     key={m.id}
                     type="button"
                     onClick={() => focusNodeById(m.id)}
-                    className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/5 text-left"
+                    className="w-full px-4 py-3 min-h-[44px] flex items-center gap-3 hover:bg-white/5 text-left"
                   >
                     <img src={m.avatar} alt="" className="w-8 h-8 rounded-lg object-cover" />
                     <span className="min-w-0">
@@ -389,7 +408,12 @@ export function MapSection() {
           ref={containerRef}
           className="w-full relative overflow-hidden"
           style={{
-            height: 'clamp(420px, 72vh, 860px)',
+            // The map block must fit in one viewport together with its
+            // header: at 72vh the container bottom sat ~110px below the
+            // fold at 1920x998, so the top-anchored profile card and the
+            // bottom-anchored Reset could never be seen together. Cap the
+            // height at the viewport minus the header (~430px) as well.
+            height: 'clamp(400px, min(62vh, calc(100dvh - 430px)), 720px)',
             borderRadius: 20,
             background: '#0a0a0e',
             border: '1px solid rgba(255,255,255,0.06)',
@@ -458,13 +482,18 @@ export function MapSection() {
             <span style={{ color: 'rgba(201,169,110,0.45)' }}>live map</span>
           </div>
 
-          <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5">
+          {/* Zoom / reset controls. On mobile they stay top-right (the
+              profile card is a bottom sheet there, so nothing overlaps).
+              On desktop the profile card anchors top-right, so the
+              controls move to bottom-right — both stay clickable at once
+              while a profile is open. */}
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5 md:top-auto md:bottom-4">
             <button
               type="button"
               title="Zoom in"
               aria-label="Zoom in"
               onClick={() => mapControlsRef.current?.zoomIn()}
-              className="w-8 h-8 flex items-center justify-center"
+              className="w-11 h-11 flex items-center justify-center"
               style={{
                 background: 'rgba(11,10,8,0.72)',
                 border: '1px solid rgba(201,169,110,0.28)',
@@ -482,7 +511,7 @@ export function MapSection() {
               title="Zoom out"
               aria-label="Zoom out"
               onClick={() => mapControlsRef.current?.zoomOut()}
-              className="w-8 h-8 flex items-center justify-center"
+              className="w-11 h-11 flex items-center justify-center"
               style={{
                 background: 'rgba(11,10,8,0.72)',
                 border: '1px solid rgba(201,169,110,0.28)',
@@ -500,7 +529,7 @@ export function MapSection() {
               title="Reset view"
               aria-label="Reset view"
               onClick={() => mapControlsRef.current?.reset()}
-              className="w-8 h-8 flex items-center justify-center"
+              className="w-11 h-11 flex items-center justify-center"
               style={{
                 background: 'rgba(11,10,8,0.72)',
                 border: '1px solid rgba(201,169,110,0.28)',
@@ -522,14 +551,21 @@ export function MapSection() {
                 role="dialog"
                 aria-modal="true"
                 aria-label={`${selectedNode.name} profile`}
-                initial={{ opacity: 0, y: 16, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 16, scale: 0.96 }}
+                initial={{ opacity: 0, y: '100%' }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: '100%' }}
                 transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-                className="absolute bottom-4 left-4 right-4 z-50 md:left-auto md:right-6 md:w-[288px] md:max-w-[calc(100%-2rem)] w-auto max-w-none"
+                // Desktop: anchor to the TOP-right of the map container,
+                // not the bottom — the container's bottom can sit below
+                // the viewport fold, leaving the card's lower half
+                // unreachable. The map's top is in view whenever a node
+                // is selected, so top-anchoring keeps the whole card
+                // visible; the height is also clamped to the viewport.
+                className="absolute inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-[20px] md:inset-x-auto md:top-6 md:bottom-auto md:right-6 md:w-[320px] md:max-h-[min(calc(100%-3rem),calc(100dvh-7rem))] md:rounded-[20px]"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
               >
                 <div
-                  className="rounded-[20px] relative overflow-hidden"
+                  className="rounded-t-[20px] md:rounded-[20px] relative overflow-hidden"
                   style={{
                     background: 'linear-gradient(145deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.018) 100%)',
                     border: '1px solid rgba(255,255,255,0.09)',
@@ -537,6 +573,8 @@ export function MapSection() {
                     backdropFilter: 'blur(24px)',
                   }}
                 >
+                  {/* Bottom sheet grab handle on mobile */}
+                  <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/20 md:hidden" aria-hidden="true" />
                   <div
                     className="absolute top-0 left-0 right-0 h-px"
                     style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent)' }}
@@ -546,7 +584,7 @@ export function MapSection() {
                     <div className="flex items-center gap-3 mb-4">
                       <div className="relative flex-shrink-0">
                         <img
-                          src={selectedNode.avatar}
+                          src={profileAvatar}
                           alt={selectedNode.name}
                           className="w-14 h-14 rounded-xl object-cover"
                           style={{ border: `2px solid ${selectedNode.color}55` }}
@@ -574,7 +612,7 @@ export function MapSection() {
                         type="button"
                         onClick={() => setSelectedNode(null)}
                         aria-label="Close profile"
-                        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
+                        className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center"
                         style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.35)' }}
                       >
                         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -594,26 +632,28 @@ export function MapSection() {
                       >
                         Conn3ctor
                       </div>
-                      <a
-                        href={`https://discord.com/users/${selectedNode.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                        style={{
-                          background: 'rgba(88,101,242,0.12)',
-                          border: '1px solid rgba(88,101,242,0.35)',
-                          color: '#9aa3ff',
-                          fontSize: '0.48rem',
-                          letterSpacing: '0.15em',
-                          fontFamily: "'Josefin Sans', sans-serif",
-                          textDecoration: 'none',
-                        }}
-                      >
-                        Discord
-                      </a>
-                      {(selectedNode.xHandle || selectedProfile?.twitter) && (
+                      {discordUrl && (
                         <a
-                          href={`https://x.com/${(selectedNode.xHandle || selectedProfile.twitter).replace('@', '')}`}
+                          href={discordUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                          style={{
+                            background: 'rgba(88,101,242,0.12)',
+                            border: '1px solid rgba(88,101,242,0.35)',
+                            color: '#9aa3ff',
+                            fontSize: '0.48rem',
+                            letterSpacing: '0.15em',
+                            fontFamily: "'Josefin Sans', sans-serif",
+                            textDecoration: 'none',
+                          }}
+                        >
+                          Discord
+                        </a>
+                      )}
+                      {xUrl && (
+                        <a
+                          href={xUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
@@ -630,7 +670,7 @@ export function MapSection() {
                           <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                           </svg>
-                          @{(selectedNode.xHandle || selectedProfile.twitter).replace('@', '')}
+                          @{xUrl.replace('https://x.com/', '')}
                         </a>
                       )}
                     </div>
@@ -665,9 +705,9 @@ export function MapSection() {
                             <span style={{ color: '#C9A96E' }}>SERVICES </span>{selectedProfile.services}
                           </div>
                         )}
-                        {selectedProfile.telegram && (
+                        {telegramUrl && (
                           <a
-                            href={`https://t.me/${selectedProfile.telegram.replace('@', '')}`}
+                            href={telegramUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-1 font-['Josefin_Sans'] text-[0.5rem] tracking-widest"

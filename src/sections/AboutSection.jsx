@@ -12,7 +12,6 @@ function MascotCard({ name, role, desc, img, color, delay }) {
 
   return (
     <motion.div
-      ref={tilt.ref}
       initial={{ opacity: 0, y: 28, filter: 'blur(10px)' }}
       whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       viewport={viewportOnce}
@@ -71,7 +70,12 @@ export function AboutSection() {
 
               <h2
                 className="heading-primary mb-6"
-                style={{ fontSize: 'clamp(2rem, 4.5vw, 3.5rem)', color: 'var(--cream)' }}
+                // "COLLABORATION" is 13 uppercase glyphs at 0.15em tracking:
+                // at the old 3.5rem max it measured ~546px wide in a 528px
+                // column (1920px) and ~337px in a 312px column (768px), so
+                // the heading overflowed its box. 2.75rem max keeps the
+                // longest word inside the narrowest column at every width.
+                style={{ fontSize: 'clamp(1.75rem, 3.6vw, 2.75rem)', color: 'var(--cream)' }}
               >
                 The Art of<br />
                 <span style={{ color: 'var(--gold)' }}>Collaboration</span>

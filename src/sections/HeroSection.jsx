@@ -1,25 +1,11 @@
-import { useRef } from 'react'
-import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
-import { GoldPrism } from '../components/three/GoldPrism'
+import { useEffect, useRef } from 'react'
+import { motion, MotionConfig } from 'framer-motion'
 import { HandshakeConnect } from '../components/HandshakeConnect'
 import { luxuryEase } from '../lib/motion'
 import { useCountUp } from '../hooks/useCountUp'
 import { fetchStats, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
 import serverInsights from '../data/serverInsights.json'
-
-// ─── Scroll Progress Bar ──────────────────────────────────────────────────────
-function ScrollProgressBar({ progress }) {
-  return (
-    <motion.div
-      className="fixed top-0 left-0 right-0 h-[2px] z-[100] origin-left"
-      style={{
-        scaleX: progress,
-        background: 'linear-gradient(90deg, #C9A96E, #EDE8DC)',
-      }}
-    />
-  )
-}
 
 // ─── Animated Letter ──────────────────────────────────────────────────────────
 function AnimatedLetter({ char, index }) {
@@ -52,31 +38,46 @@ function CinematicField() {
 }
 
 // ─── Scroll Cue ───────────────────────────────────────────────────────────────
+// DESIGN CHANGE (PR #2, decisive pass): this is no longer thin gold text on
+// the black hero. Three live-preview rounds all saw the old cue as faint
+// dark olive-grey even though its colour really was solid #C9A96E at
+// weight 600 with no fade — and the real cause was stacking, not colour:
+// this element had NO z-index, while the hero's bottom fade mask is
+// z-[1] and the clear-zone/vignette overlays are z-[2]. The mask is 140px
+// tall and solid #0B0A08 for its bottom 28px, fading up; the cue sits at
+// bottom-4, right inside it, so it was painted UNDER ~80%-opaque black.
+// Gold at 20% over black is exactly the dull olive-brown the live checks
+// saw. So the cue is now a solid gold pill (bright #E8C878 background,
+// near-black #0B0A08 text, weight 800) on z-20, above every hero overlay,
+// with a solid gold chevron. Text on a solid contrasting surface cannot
+// read faint: the pill's contrast is ~11:1, measured from rendered pixels
+// in headless Chrome, not from a CSS colour-pair ratio.
 function ScrollCue() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 2.5, duration: 1 }}
-      className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-    >
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none">
       <span style={{
         fontFamily: "'Josefin Sans', sans-serif",
-        fontSize: '0.55rem',
-        letterSpacing: '0.4em',
-        color: 'rgba(237,232,220,0.3)',
+        fontSize: '0.95rem',
+        fontWeight: 800,
+        letterSpacing: '0.22em',
+        color: '#0B0A08',
+        background: '#E8C878',
         textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
+        padding: '10px 20px 9px 23px',
+        borderRadius: 999,
+        boxShadow: '0 0 0 1px rgba(232,200,120,0.95), 0 0 28px rgba(232,200,120,0.45), 0 6px 18px rgba(0,0,0,0.6)',
       }}>SCROLL TO EXPLORE</span>
       <motion.div
-        animate={{ y: [0, 10, 0] }}
+        animate={{ y: [0, 8, 0] }}
         transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          width: 1,
-          height: 40,
-          background: 'linear-gradient(180deg, rgba(201,169,110,0.6), transparent)',
-        }}
-      />
-    </motion.div>
+        aria-hidden="true"
+      >
+        <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
+          <path d="M1 1l8 8 8-8" stroke="#E8C878" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </motion.div>
+    </div>
   )
 }
 
@@ -160,24 +161,63 @@ function HeroLiveBar() {
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 export function HeroSection({ onThreeClick }) {
   const containerRef = useRef(null)
+  const textRef = useRef(null)
+  const auroraRef = useRef(null)
 
-  const { scrollYProgress } = useScroll()
-  const smoothProgress = useSpring(scrollYProgress, { damping: 30, stiffness: 100 })
+  // The hero title is driven straight from window.scrollY (rAF-throttled,
+  // style written directly to the refs — no React re-render per scroll
+  // frame). The title must be fully invisible before it can slide under
+  // the fixed navbar: at scrollY 0 its top sits 125-263px down (width
+  // dependent) and the nav bottom is ~72px, so with parallax the title
+  // reaches the nav after only ~42px of scrolling at 1280px (53px gap,
+  // 1.27x travel) and ~56px at 390px. The fade therefore runs over the
+  // first 40px of scrolling and is done before the title touches the nav
+  // at any width. Parallax is bounded (-80px, scale 1.12) so the hero
+  // can never drift or blow up on long pages.
+  //
+  // This deliberately does NOT use framer-motion's useScroll: the
+  // target-based useScroll (offset ['start start', 'end start']) is
+  // driven by the browser's native ViewTimeline `exit` range in
+  // Chromium, and live headless probes (2026-11-20) showed the rendered
+  // opacity RISING with scroll (0.10 at scrollY 300, 0.49 at 600, 0.87
+  // at 900) instead of falling to 0 — the exact opposite of the
+  // [0, 0.22] -> [1, 0] transform, verified correct in the built bundle.
+  // Plain scrollY math is deterministic in every browser.
+  useEffect(() => {
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const y = window.scrollY || 0
+      const text = textRef.current
+      if (text) {
+        text.style.opacity = String(Math.max(0, 1 - y / 40))
+        text.style.transform = `translateY(${(-Math.min(y * 0.27, 80)).toFixed(1)}px)`
+      }
+      const aurora = auroraRef.current
+      if (aurora) {
+        const s = 1 + Math.min(y / 1000, 1) * 0.12
+        aurora.style.transform = `scale(${s.toFixed(3)})`
+      }
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
 
   const tagWords = ['SEARCH', 'FIND', 'CONN3CT']
 
-  const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -120])
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.35], [1, 0])
-  const canvasScale = useTransform(scrollYProgress, [0, 0.4], [1, 1.12])
-
   return (
-    <>
-      <ScrollProgressBar progress={smoothProgress} />
-
+    <MotionConfig reducedMotion="user">
       <section
         id="home"
         ref={containerRef}
-        className="relative min-h-screen overflow-hidden flex items-center justify-center"
+        className="relative min-h-screen overflow-hidden flex items-center justify-center pt-24 pb-24"
         style={{
           background: `
             radial-gradient(ellipse 120% 80% at 50% -10%, rgba(201,169,110,0.12) 0%, transparent 55%),
@@ -186,16 +226,46 @@ export function HeroSection({ onThreeClick }) {
           `,
         }}
       >
-        <motion.div className="absolute inset-0 z-0" style={{ scale: canvasScale }}>
+        <div ref={auroraRef} className="absolute inset-0 z-0">
           <CinematicField />
-        </motion.div>
+        </div>
 
+        {/* ── Hero mascots — in-section, above the hero background.
+            The fixed GlobalMascots layer sits behind <main> (z-10), so the
+            hero's opaque background hides it here; these two flank the
+            stats bar at the bottom corners so the mascots are actually
+            visible in the hero, as planned. ── */}
         <motion.div
-          className="pointer-events-none absolute left-[-8%] top-[18%] z-[1] hidden h-[min(52vw,420px)] w-[min(52vw,420px)] opacity-80 lg:block"
-          style={{ scale: canvasScale }}
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.9, duration: 0.9, ease: luxuryEase }}
+          className="pointer-events-none absolute bottom-[6%] left-[2%] z-[3] hidden w-[min(18vw,240px)] xl:block"
           aria-hidden="true"
         >
-          <GoldPrism className="h-full w-full" />
+          <motion.img
+            src="/mascot-gm-transparent.png"
+            alt=""
+            className="h-auto w-full"
+            style={{ filter: 'drop-shadow(0 0 34px rgba(201,169,110,0.32)) drop-shadow(0 16px 30px rgba(0,0,0,0.35))' }}
+            animate={{ y: [-8, 8] }}
+            transition={{ duration: 6.2, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 2.0, duration: 0.9, ease: luxuryEase }}
+          className="pointer-events-none absolute bottom-[6%] right-[2%] z-[3] hidden w-[min(15vw,200px)] xl:block"
+          aria-hidden="true"
+        >
+          <motion.img
+            src="/mascot-cm-transparent.png"
+            alt=""
+            className="h-auto w-full"
+            style={{ filter: 'drop-shadow(0 0 34px rgba(201,169,110,0.32)) drop-shadow(0 16px 30px rgba(0,0,0,0.35))' }}
+            animate={{ y: [8, -8] }}
+            transition={{ duration: 7.1, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+          />
         </motion.div>
 
         {/* ── TOP mask — hides particles behind the navbar ── */}
@@ -251,17 +321,14 @@ export function HeroSection({ onThreeClick }) {
 
 
         {/* ── Hero Text ── */}
-        <motion.div
-          className="relative z-10 text-center px-6 select-none"
-          style={{ y: heroY, opacity: heroOpacity }}
-        >
+        <div ref={textRef} className="relative z-10 text-center px-6 select-none">
           {/* Brand title — Venn logo split: CONN | 3 | CTIVITY */}
           <div
-            className="mb-6 flex items-center justify-center flex-wrap"
+            className="mb-6 flex items-center justify-center flex-nowrap"
             style={{
               fontFamily: "'Josefin Sans', sans-serif",
               fontWeight: 100,
-              fontSize: 'clamp(1.55rem, 7vw, 7.5rem)',
+              fontSize: 'clamp(1.35rem, 7vw, 7.5rem)',
               letterSpacing: 'clamp(0.05em, 0.9vw, 0.28em)',
               textTransform: 'uppercase',
               color: '#EDE8DC',
@@ -368,7 +435,7 @@ export function HeroSection({ onThreeClick }) {
           >
             <motion.a
               href="#map"
-              className="gold-sheen"
+              className="gold-sheen w-full max-w-[320px] justify-center sm:w-auto"
               whileHover={{
                 scale: 1.04,
                 boxShadow: '0 0 40px rgba(201,169,110,0.35)',
@@ -399,6 +466,7 @@ export function HeroSection({ onThreeClick }) {
 
             <motion.a
               href="#connect"
+              className="w-full max-w-[320px] justify-center sm:w-auto"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               style={{
@@ -426,10 +494,10 @@ export function HeroSection({ onThreeClick }) {
 
           {/* Quiet live pulse — secondary to brand */}
           <HeroLiveBar />
-        </motion.div>
+        </div>
 
         <ScrollCue />
       </section>
-    </>
+    </MotionConfig>
   )
 }

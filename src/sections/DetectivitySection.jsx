@@ -1,6 +1,44 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo, lazy, Suspense, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import scammers from '../data/scammers.json'
+
+// The investigation modal (chat history plus evidence images) is a separate
+// chunk that only loads when a case is actually opened.
+const InvestigationModal = lazy(() =>
+  import('./DetectivityModal').then((m) => ({ default: m.InvestigationModal })),
+)
+
+// Threat titles are slash-joined handles ("Metafriends/Moriusa/VeeFriends/
+// Jirasan Fake CM"). They must wrap ONLY after a slash: overflow-wrap:
+// anywhere splits mid-word ("VEEFRI/ENDS"), which reads as a typo. Each
+// slash segment is a nowrap unit and a <wbr /> after every "/" is the only
+// break opportunity, so words are never split. Segments that contain
+// spaces ("SHADOWALKER steals wls") are split into per-word nowrap spans
+// instead, so they can wrap at spaces — a single nowrap segment wider
+// than its card overflowed it by ~6px (headless audit, 2026-11-20).
+function ThreatTitle({ title }) {
+  const segments = String(title || '').split('/')
+  return (
+    <>
+      {segments.map((segment, i) => (
+        <Fragment key={`${segment}-${i}`}>
+          {segment.split(' ').map((word, wi, words) => (
+            <Fragment key={`${word}-${wi}`}>
+              <span style={{ whiteSpace: 'nowrap' }}>{word}</span>
+              {wi < words.length - 1 ? ' ' : null}
+            </Fragment>
+          ))}
+          {i < segments.length - 1 && (
+            <>
+              {'/'}
+              <wbr />
+            </>
+          )}
+        </Fragment>
+      ))}
+    </>
+  )
+}
 
 function ScammerCard({ item, index, onView }) {
   return (
@@ -16,8 +54,8 @@ function ScammerCard({ item, index, onView }) {
       }}
     >
       <div className="bg-[#0f0e0c] w-full h-full rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between z-10">
-        
-        <div 
+
+        <div
           className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
           style={{
             background: 'radial-gradient(circle at center, rgba(239, 68, 68, 0.1) 0%, transparent 70%)'
@@ -34,12 +72,16 @@ function ScammerCard({ item, index, onView }) {
             <span className="font-orbitron text-[0.6rem] tracking-[0.2em] text-red-500/60 uppercase">Threat Level: High</span>
           </div>
 
-          <h3 className="font-orbitron font-bold text-lg mb-3 leading-tight text-cream group-hover:text-red-400 transition-colors">
-            {item.title}
+          <h3
+            className="font-orbitron font-bold text-lg mb-3 leading-tight text-cream group-hover:text-red-400 transition-colors"
+            title={item.title}
+            style={{ overflowWrap: 'normal', wordBreak: 'normal', hyphens: 'none' }}
+          >
+            <ThreatTitle title={item.title} />
           </h3>
-          
+
           <p className="font-space text-xs text-cream/40 line-clamp-2 mb-4 leading-relaxed">
-            {item.description || "Investigation details locked in Discord database."}
+            {item.description || 'Investigation details locked in Discord database.'}
           </p>
         </div>
 
@@ -50,10 +92,11 @@ function ScammerCard({ item, index, onView }) {
               Verified Threat
             </span>
           </div>
-          
-          <button 
+
+          <button
+            type="button"
             onClick={() => onView(item)}
-            className="w-full py-2.5 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 rounded-xl font-orbitron text-[0.65rem] tracking-widest text-red-400 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="w-full py-2.5 min-h-[44px] bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 rounded-xl font-orbitron text-[0.65rem] tracking-widest text-red-400 transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             VIEW INVESTIGATION
           </button>
@@ -63,154 +106,31 @@ function ScammerCard({ item, index, onView }) {
   )
 }
 
-function InvestigationModal({ item, onClose }) {
-  useEffect(() => {
-    if (!item) return
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [item, onClose])
-
-  if (!item) return null;
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 backdrop-blur-xl bg-black/80"
-      role="dialog"
-      aria-modal="true"
-      aria-label={item.title}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <motion.div 
-        initial={{ scale: 0.9, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
-        className="w-full max-w-4xl max-h-[85vh] bg-[#0c0b0a] border border-red-500/20 rounded-3xl overflow-hidden flex flex-col shadow-[0_0_50px_rgba(239,68,68,0.15)]"
-      >
-        {/* Modal Header */}
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-red-500/5">
-          <div className="flex flex-col">
-            <span className="font-orbitron text-[0.6rem] tracking-[0.3em] text-red-500 uppercase mb-1">Investigation Log</span>
-            <h2 className="font-orbitron font-bold text-xl md:text-2xl text-cream truncate max-w-md">{item.title}</h2>
-          </div>
-          <button 
-            onClick={onClose}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-cream transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Modal Content */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-10 scrollbar-hide">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            
-            {/* Left Column: Chat Log */}
-            <div className="lg:col-span-2 flex flex-col gap-6">
-              <h4 className="font-orbitron text-[0.65rem] tracking-[0.2em] text-white/40 uppercase border-b border-white/5 pb-2">Conversation History</h4>
-              
-              <div className="flex flex-col gap-4">
-                {item.chat && item.chat.length > 0 ? (
-                  item.chat.filter(msg => msg.content || (msg.attachments && msg.attachments.length > 0)).map((msg, i) => (
-                    <div key={i} className="flex flex-col gap-1.5 p-4 rounded-2xl bg-white/5 border border-white/5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-orbitron text-[0.6rem] text-red-400/80 tracking-wider">
-                          {msg.author === 'Rick' || msg.author === 'jasich' || msg.author === '7xbunny' || msg.author === '0xjeeya' ? 'Verified Reporter' : 'Community Member'}
-                        </span>
-                        <span className="font-space text-[0.55rem] text-white/20">
-                          {new Date(msg.timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="font-space text-sm text-cream/80 whitespace-pre-wrap leading-relaxed">
-                        {msg.content || "Sent an attachment or empty message."}
-                      </p>
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {msg.attachments.map((url, idx) => (
-                            <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block w-20 h-20 rounded-lg overflow-hidden border border-white/10 hover:border-red-500/50 transition-colors">
-                              <img src={url} alt="Attachment" className="w-full h-full object-cover" />
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-white/20 font-space text-sm italic">No chat history recovered from Discord.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Right Column: Details */}
-            <div className="flex flex-col gap-8">
-              <div>
-                <h4 className="font-orbitron text-[0.65rem] tracking-[0.2em] text-white/40 uppercase border-b border-white/5 pb-2 mb-4">Case Metadata</h4>
-                <div className="space-y-4">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-white/20 uppercase font-space tracking-widest">Case ID</span>
-                    <span className="text-xs text-cream/60 font-mono">{item.id}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-white/20 uppercase font-space tracking-widest">Report Date</span>
-                    <span className="text-xs text-cream/60 font-space">{new Date(item.timestamp).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-white/20 uppercase font-space tracking-widest">Status</span>
-                    <span className="text-xs text-red-500 font-bold font-space uppercase">Confirmed Scammer</span>
-                  </div>
-                </div>
-              </div>
-
-              {item.images && item.images.length > 0 && (
-                <div>
-                  <h4 className="font-orbitron text-[0.65rem] tracking-[0.2em] text-white/40 uppercase border-b border-white/5 pb-2 mb-4">Evidence Gallery</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {item.images.map((img, i) => (
-                      <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="aspect-square rounded-xl overflow-hidden border border-white/5 hover:border-red-500/50 transition-all active:scale-95">
-                        <img src={img} alt="Evidence" className="w-full h-full object-cover" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
-        
-        {/* Modal Footer */}
-        <div className="p-6 border-t border-white/5 bg-white/[0.02] flex justify-center">
-          <a 
-            href={`https://discord.com/channels/1265954062789120050/${item.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-orbitron text-xs font-bold tracking-widest rounded-xl transition-all shadow-lg hover:shadow-red-600/20"
-          >
-            VIEW FULL THREAD ON DISCORD
-          </a>
-        </div>
-      </motion.div>
-    </motion.div>
-  )
-}
-
 export function DetectivitySection() {
-  const [selectedCase, setSelectedCase] = useState(null);
+  const [selectedCase, setSelectedCase] = useState(null)
+  const [search, setSearch] = useState('')
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return scammers
+    return scammers.filter((s) =>
+      s.title?.toLowerCase().includes(q) ||
+      s.description?.toLowerCase().includes(q) ||
+      String(s.id || '').toLowerCase().includes(q),
+    )
+  }, [search])
 
   return (
     <section id="detectivity" className="relative py-24 md:py-36 px-4 overflow-hidden">
-      
+
       {/* Background ambient light */}
       <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center">
-        <div className="w-full max-w-5xl h-96 opacity-20 blur-[100px] rounded-full" 
+        <div className="w-full max-w-5xl h-96 opacity-20 blur-[100px] rounded-full"
              style={{ background: 'radial-gradient(ellipse at center, #ef4444 0%, transparent 70%)' }} />
       </div>
 
       <div className="max-w-7xl mx-auto relative z-10">
-        
+
         {/* Header */}
         <div className="text-center mb-16">
           <motion.div
@@ -222,7 +142,7 @@ export function DetectivitySection() {
           >
             DETECTIVITY DATABASE
           </motion.div>
-          
+
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -253,23 +173,53 @@ export function DetectivitySection() {
             if (!newest) return null
             return (
               <p className="mt-4 font-josefin text-[0.55rem] tracking-[0.25em] uppercase text-cream/30">
-                Snapshot · {new Date(newest).toLocaleDateString()} · refresh with npm run update-scammers
+                Snapshot · {new Date(newest).toLocaleDateString()}
               </p>
             )
           })()}
+
+          {/* Search the threat database */}
+          <div className="relative max-w-md mx-auto mt-8">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search threats by name or case ID…"
+              aria-label="Search threats"
+              className="w-full px-4 py-3 min-h-[44px] rounded-full font-['Josefin_Sans'] text-sm outline-none"
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(239,68,68,0.25)',
+                color: 'var(--cream)',
+              }}
+            />
+            {search.trim() && (
+              <p className="mt-3 font-josefin text-[0.65rem] tracking-[0.25em] uppercase text-cream/40" role="status">
+                {filtered.length} of {scammers.length} threats
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Scammers Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {scammers.map((scammer, i) => (
-            <ScammerCard key={scammer.id} item={scammer} index={i} onView={setSelectedCase} />
-          ))}
-        </div>
+        {filtered.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((scammer, i) => (
+              <ScammerCard key={scammer.id} item={scammer} index={i} onView={setSelectedCase} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-center font-space text-sm text-cream/40" role="status">
+            No threats match that search.
+          </p>
+        )}
       </div>
 
       <AnimatePresence>
         {selectedCase && (
-          <InvestigationModal item={selectedCase} onClose={() => setSelectedCase(null)} />
+          <Suspense fallback={null}>
+            <InvestigationModal item={selectedCase} onClose={() => setSelectedCase(null)} />
+          </Suspense>
         )}
       </AnimatePresence>
     </section>

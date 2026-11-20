@@ -56,21 +56,37 @@ export function Navbar({ user, onLogout, onProfileClick }) {
 
   useEffect(() => subscribeSoundMuted(setSoundMutedState), [])
 
-  // Track active section via IntersectionObserver
+  // Track active section with a single IntersectionObserver for all sections
   useEffect(() => {
     const sections = ['home', 'about', 'mvc-spotlight', 'partnerships', 'team', 'map', 'detectivity', 'connect']
-    const observers = sections.map((id) => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+        if (visible) setActiveSection(visible.target.id)
+      },
+      { threshold: 0.3 },
+    )
+    sections.forEach((id) => {
       const el = document.getElementById(id)
-      if (!el) return null
-      const obs = new IntersectionObserver(
-        ([entry]) => { if (entry.isIntersecting) setActiveSection(id) },
-        { threshold: 0.3 }
-      )
-      obs.observe(el)
-      return obs
+      if (el) observer.observe(el)
     })
-    return () => observers.forEach((o) => o?.disconnect())
+    return () => observer.disconnect()
   }, [])
+
+  // Lock body scroll and close on Escape while the mobile menu is open
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
 
   const navLinks = [
     { label: 'Home', href: '#home', id: 'home' },
@@ -94,9 +110,15 @@ export function Navbar({ user, onLogout, onProfileClick }) {
       transition={{ duration: 0.7, ease: luxuryEase }}
       className="fixed top-0 left-0 right-0 z-50"
       style={{
+        // The nav is fixed over the hero, and the hero title scrolls up
+        // underneath it while fading. A transparent nav lets the title
+        // letters show through behind the links (live preview, 2026-11-20),
+        // so the nav always carries a dark top scrim — solid at the top,
+        // fading to transparent at its bottom edge — even before scrolling.
+        // Once scrolled it switches to the blurred solid background below.
         background: scrolled
           ? 'rgba(11,10,8,0.88)'
-          : 'transparent',
+          : 'linear-gradient(180deg, rgba(11,10,8,0.92) 0%, rgba(11,10,8,0.72) 55%, rgba(11,10,8,0) 100%)',
         backdropFilter: scrolled ? 'blur(28px) saturate(1.4)' : 'none',
         WebkitBackdropFilter: scrolled ? 'blur(28px) saturate(1.4)' : 'none',
         borderBottom: scrolled
@@ -183,8 +205,8 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                 title={soundMuted ? 'Unmute' : 'Mute'}
                 className="flex items-center justify-center"
                 style={{
-                  width: 34,
-                  height: 34,
+                  width: 44,
+                  height: 44,
                   color: soundMuted ? 'rgba(237,232,220,0.35)' : 'rgba(201,169,110,0.85)',
                   border: '1px solid rgba(237,232,220,0.12)',
                   borderRadius: 2,
@@ -223,9 +245,11 @@ export function Navbar({ user, onLogout, onProfileClick }) {
               {/* Discord Auth UI */}
               {user ? (
                 <div className="flex items-center gap-2 md:gap-3 ml-1">
-                  <div
+                  <button
+                    type="button"
                     onClick={onProfileClick}
-                    className="flex items-center gap-2 px-1.5 py-1 md:px-2 bg-white/5 border border-white/10 rounded-full cursor-pointer hover:bg-white/10 hover:border-[#C9A96E]/50 transition-colors"
+                    aria-label={`Open ${user.username} profile`}
+                    className="flex items-center gap-2 px-1.5 py-1 md:px-2 min-h-[44px] bg-white/5 border border-white/10 rounded-full cursor-pointer hover:bg-white/10 hover:border-[#C9A96E]/50 transition-colors"
                   >
                     <img
                       src={userAvatarSrc(user)}
@@ -233,7 +257,7 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                       className="w-6 h-6 rounded-full border border-gold/50 object-cover"
                     />
                     <span className="hidden sm:inline text-[0.65rem] font-space text-cream/80 pr-2">{user.username}</span>
-                  </div>
+                  </button>
                   <button
                     onClick={onLogout}
                     className="hidden sm:inline text-[0.6rem] font-orbitron text-cream/40 hover:text-red-400 uppercase tracking-widest transition-colors"
@@ -266,7 +290,7 @@ export function Navbar({ user, onLogout, onProfileClick }) {
               {/* Mobile / tablet menu toggle */}
               <motion.button
                 id="mobile-menu-button"
-                className="lg:hidden p-2"
+                className="lg:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
                 onClick={() => setMenuOpen(!menuOpen)}
                 aria-expanded={menuOpen}
                 aria-controls="mobile-nav-menu"
@@ -306,6 +330,9 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                         color: getSectionLink(activeSection) === link.id
                           ? 'rgba(201,169,110,0.9)'
                           : 'rgba(237,232,220,0.65)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        minHeight: 44,
                       }}
                       onClick={() => setMenuOpen(false)}
                     >
@@ -313,23 +340,44 @@ export function Navbar({ user, onLogout, onProfileClick }) {
                     </a>
                   ))}
                   {user ? (
-                    <button
-                      type="button"
-                      onClick={() => { onLogout(); setMenuOpen(false) }}
-                      style={{
-                        fontFamily: "'Josefin Sans', sans-serif",
-                        fontWeight: 300,
-                        fontSize: '0.75rem',
-                        letterSpacing: '0.25em',
-                        textTransform: 'uppercase',
-                        color: 'rgba(237,232,220,0.65)',
-                        textAlign: 'left',
-                        background: 'none',
-                        border: 0,
-                      }}
-                    >
-                      Logout
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setMenuOpen(false); onProfileClick?.() }}
+                        style={{
+                          fontFamily: "'Josefin Sans', sans-serif",
+                          fontWeight: 300,
+                          fontSize: '0.75rem',
+                          letterSpacing: '0.25em',
+                          textTransform: 'uppercase',
+                          color: '#C9A96E',
+                          textAlign: 'left',
+                          background: 'none',
+                          border: 0,
+                          minHeight: 44,
+                        }}
+                      >
+                        Profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { onLogout(); setMenuOpen(false) }}
+                        style={{
+                          fontFamily: "'Josefin Sans', sans-serif",
+                          fontWeight: 300,
+                          fontSize: '0.75rem',
+                          letterSpacing: '0.25em',
+                          textTransform: 'uppercase',
+                          color: 'rgba(237,232,220,0.65)',
+                          textAlign: 'left',
+                          background: 'none',
+                          border: 0,
+                          minHeight: 44,
+                        }}
+                      >
+                        Logout
+                      </button>
+                    </>
                   ) : (
                     <button
                       type="button"

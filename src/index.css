@@ -326,14 +326,6 @@
     border-radius: 2px;
   }
 
-  /* ── Three.js canvas fill ────────────────────────────── */
-  .three-canvas-fill {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-
   /* ── Scroll progress bar ─────────────────────────────── */
   .scroll-progress-bar {
     position: fixed;

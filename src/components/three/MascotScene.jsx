@@ -1,67 +1,51 @@
-import { Suspense, useRef } from 'react'
-import { Canvas, useFrame, useLoader } from '@react-three/fiber'
-import * as THREE from 'three'
-import { canUseWebGL } from '../../lib/webgl'
+import { motion } from 'framer-motion'
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 
-function MascotPlate({ src, hover }) {
-  const group = useRef()
-  const texture = useLoader(THREE.TextureLoader, src)
-  texture.colorSpace = THREE.SRGBColorSpace
-  texture.anisotropy = 8
-  texture.minFilter = THREE.LinearMipmapLinearFilter
-  texture.magFilter = THREE.LinearFilter
-
-  useFrame((state) => {
-    const g = group.current
-    if (!g) return
-    const t = state.clock.elapsedTime
-    const targetY = hover ? 0.22 : Math.sin(t * 0.9) * 0.08
-    const targetX = hover ? -0.12 : Math.sin(t * 0.45) * 0.06
-    g.rotation.y += (targetY - g.rotation.y) * 0.08
-    g.rotation.x += (targetX - g.rotation.x) * 0.08
-  })
-
-  return (
-    <group ref={group}>
-      <mesh>
-        <planeGeometry args={[1.7, 1.7]} />
-        <meshPhysicalMaterial
-          map={texture}
-          transparent
-          alphaTest={0.08}
-          roughness={0.42}
-          metalness={0.08}
-          clearcoat={0.18}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
-    </group>
-  )
-}
-
+// MascotScene — a pure CSS 3D card for the transparent mascot art.
+//
+// The mascots are flat illustrated PNGs with true transparency, so a
+// WebGL canvas rendering a textured plane adds nothing except a renderer,
+// a context and a failure mode. This card floats and tilts in plain CSS
+// with a gold glow and a soft cinematic ground shadow, and it works on
+// every device, including browsers without WebGL.
 export function MascotScene({ src, alt, hover = false, className = '' }) {
-  if (!canUseWebGL()) {
-    return (
-      <img src={src} alt={alt} className={`${className} object-contain`.trim()} />
-    )
-  }
+  const reducedMotion = usePrefersReducedMotion()
 
   return (
-    <div className={className}>
-      <Canvas
-        camera={{ position: [0, 0, 2.35], fov: 38 }}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-        dpr={[1, 2]}
-        style={{ background: 'transparent', width: '100%', height: '100%' }}
+    <div className={className} style={{ perspective: 800 }}>
+      <motion.div
+        className="relative h-full w-full"
+        style={{ transformStyle: 'preserve-3d' }}
+        animate={reducedMotion ? { y: 0 } : { y: [0, -8, 0] }}
+        transition={{ duration: 5.5, repeat: reducedMotion ? 0 : Infinity, ease: 'easeInOut' }}
       >
-        <ambientLight intensity={0.7} color="#EDE8DC" />
-        <directionalLight position={[2.4, 2.2, 4]} intensity={1.35} color="#fff6e0" />
-        <pointLight position={[-2, -1, 2]} intensity={8} distance={8} color="#C9A96E" />
-        <Suspense fallback={null}>
-          <MascotPlate src={src} hover={hover} />
-        </Suspense>
-      </Canvas>
+        <motion.div
+          className="relative h-full w-full"
+          style={{ transformStyle: 'preserve-3d' }}
+          animate={{ rotateY: hover ? -10 : 0, rotateX: hover ? 6 : 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 160 }}
+        >
+          <img
+            src={src}
+            alt={alt}
+            className="h-full w-full object-contain"
+            style={{ filter: 'drop-shadow(0 0 26px rgba(201,169,110,0.35))' }}
+          />
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: '18%',
+              right: '18%',
+              bottom: '3%',
+              height: '7%',
+              background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, transparent 70%)',
+              filter: 'blur(3px)',
+              pointerEvents: 'none',
+            }}
+          />
+        </motion.div>
+      </motion.div>
     </div>
   )
 }

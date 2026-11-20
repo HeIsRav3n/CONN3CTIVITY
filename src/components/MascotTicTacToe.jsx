@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { supabase } from '../lib/supabase'
+import { supabase, userAvatarSrc } from '../lib/supabase'
 
 // ── Game Logic ───────────────────────────────────────────
 const WINNING_LINES = [
@@ -246,6 +246,19 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
   const [aiThinking, setAiThinking] = useState(false)
   const aiTimerRef = useRef(null)
 
+  // Inline notice bar (challenge sent, opponent left). Never window.alert():
+  // an alert blocks the whole page and breaks the game flow on mobile.
+  const [notice, setNotice] = useState(null)
+  const noticeTimer = useRef(null)
+
+  const showNotice = (text) => {
+    clearTimeout(noticeTimer.current)
+    setNotice(text)
+    noticeTimer.current = setTimeout(() => setNotice(null), 5000)
+  }
+
+  useEffect(() => () => clearTimeout(noticeTimer.current), [])
+
   // -- Supabase Realtime Setup --
   useEffect(() => {
     if (!isOpen || !user || !supabase) return;
@@ -280,7 +293,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await lobby.track({ user: { id: user.id, username: user.username, avatar_url: user.avatar_url, avatar: user.avatar } })
+          await lobby.track({ user: { id: user.id, username: user.username, avatar_url: user.avatar_url, avatar: user.avatar, discord_id: user.discord_id } })
         }
       })
 
@@ -314,7 +327,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
         resetGame()
       })
       .on('broadcast', { event: 'leave' }, () => {
-        alert(`${opp.username} left the game.`)
+        showNotice(`${opp?.username || 'Your opponent'} left the game.`)
         exitMultiplayer()
       })
       .subscribe()
@@ -333,7 +346,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
       event: 'game-request',
       payload: { targetId: targetUser.id, requester: user }
     })
-    alert(`Challenge sent to ${targetUser.username}! Waiting for them to accept...`)
+    showNotice(`Challenge sent to ${targetUser.username}. Waiting for them to accept.`)
   }
 
   const acceptRequest = async (requester) => {
@@ -453,13 +466,13 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
     if (gameResult) {
       if (gameResult.winner === 'draw') return "It's a Draw!"
       if (isMultiplayer) {
-        return gameResult.winner === mySymbol ? '🎉 You Win!' : `😔 ${opponent.username} Wins!`
+        return gameResult.winner === mySymbol ? '🎉 You Win!' : `😔 ${opponent?.username || 'Your opponent'} Wins!`
       } else {
         return gameResult.winner === 'GM' ? '🐺 You Win!' : '🦅 AI Wins!'
       }
     }
     if (isMultiplayer) {
-      return currentPlayer === mySymbol ? 'Your Turn' : `Waiting for ${opponent.username}...`
+      return currentPlayer === mySymbol ? 'Your Turn' : `Waiting for ${opponent?.username || 'your opponent'}...`
     } else {
       return aiThinking ? 'AI is thinking...' : 'Your Turn'
     }
@@ -559,6 +572,20 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
                 {getStatusText()}
               </motion.div>
 
+              {/* Inline notice bar (challenge sent, opponent left) */}
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  textAlign: 'center', fontFamily: "'Josefin Sans', sans-serif", fontWeight: 300,
+                  fontSize: '0.75rem', letterSpacing: '0.15em',
+                  color: 'rgba(201,169,110,0.9)',
+                  marginBottom: 16, minHeight: 18,
+                }}
+              >
+                {notice || ''}
+              </div>
+
               {/* Game Board */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 20 }}>
                 {board.map((cell, i) => (
@@ -621,9 +648,10 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
                   </p>
                 </div>
               ) : isMultiplayer ? (
+                opponent ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center px-4 space-y-4">
                   <div className="relative">
-                    <img src={opponent.avatar_url || `https://cdn.discordapp.com/avatars/${opponent.id}/${opponent.avatar}.png`} alt="Opponent" className="w-16 h-16 rounded-full border border-gold/50 object-cover" />
+                    <img src={userAvatarSrc(opponent)} alt="Opponent" className="w-16 h-16 rounded-full border border-gold/50 object-cover" />
                     <div className="absolute -bottom-1 -right-1 bg-red-500 w-4 h-4 rounded-full border-2 border-black" />
                   </div>
                   <div>
@@ -631,6 +659,13 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
                     <div className="text-white/40 text-xs font-space uppercase tracking-widest">Playing as {mySymbol === 'GM' ? 'CM' : 'GM'}</div>
                   </div>
                 </div>
+                ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+                  <p className="text-white/40 font-['Josefin_Sans'] text-xs tracking-widest leading-relaxed">
+                    Waiting for your opponent to join.
+                  </p>
+                </div>
+                )
               ) : (
                 <div className="flex-1 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
                   {/* Incoming Requests */}
@@ -641,7 +676,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
                         {incomingRequests.map((req, idx) => (
                           <div key={idx} className="flex items-center justify-between p-3 rounded-lg border border-gold/40 bg-gold/5">
                             <div className="flex items-center gap-3">
-                              <img src={req.avatar_url || `https://cdn.discordapp.com/avatars/${req.id}/${req.avatar}.png`} className="w-8 h-8 rounded-full border border-gold/20" alt="avatar" />
+                              <img src={userAvatarSrc(req)} className="w-8 h-8 rounded-full border border-gold/20" alt="avatar" />
                               <span className="text-sm text-white/90 font-space truncate max-w-[100px]">{req.username}</span>
                             </div>
                             <button 
@@ -664,7 +699,7 @@ export function MascotTicTacToe({ isOpen, onClose, user }) {
                       <div key={onlineUser.id} className="flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/5">
                         <div className="flex items-center gap-3">
                           <div className="relative">
-                            <img src={onlineUser.avatar_url || `https://cdn.discordapp.com/avatars/${onlineUser.id}/${onlineUser.avatar}.png`} className="w-8 h-8 rounded-full border border-white/20" alt="avatar" />
+                            <img src={userAvatarSrc(onlineUser)} className="w-8 h-8 rounded-full border border-white/20" alt="avatar" />
                             <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-black" />
                           </div>
                           <span className="text-sm text-white/70 font-space truncate max-w-[100px]">{onlineUser.username}</span>

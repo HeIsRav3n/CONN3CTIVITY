@@ -3,18 +3,36 @@ import { useRef, useEffect, useCallback } from 'react'
 const GOLD = '#C9A96E'
 const CREAM = '#EDE8DC'
 const textureCache = new Map()
+const MAX_TEXTURES = 200
+const FAILED_TEXTURE = Symbol('failed texture')
 
 function loadTex(url) {
   if (!url) return null
-  if (textureCache.has(url)) return textureCache.get(url)
+  if (textureCache.has(url)) {
+    const cached = textureCache.get(url)
+    if (cached === FAILED_TEXTURE) return null
+    // Touch for LRU: most recently used moves to the end.
+    textureCache.delete(url)
+    textureCache.set(url, cached)
+    return cached
+  }
   const img = new Image()
   img.decoding = 'async'
   // Discord CDN does not send CORS headers — setting crossOrigin would block avatars.
   if (url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin))) {
     img.crossOrigin = 'anonymous'
   }
+  img.onerror = () => {
+    // Broken avatar: remember the failure so callers render a fallback
+    // instead of retrying (and re-rendering an empty bubble) forever.
+    textureCache.set(url, FAILED_TEXTURE)
+  }
   img.src = url
   textureCache.set(url, img)
+  // Evict least recently used; bubbles already holding an Image keep it alive.
+  while (textureCache.size > MAX_TEXTURES) {
+    textureCache.delete(textureCache.keys().next().value)
+  }
   return img
 }
 
@@ -29,17 +47,17 @@ function hash01(id) {
 }
 
 /** Pack rings to fill the canvas — readable bubbles, no overflow. */
-function packRings(members, width, height) {
+function packRings(members, width, height, touchBoost = 1) {
   const n = members.length
   const span = Math.max(160, Math.min(width, height))
   const maxR = span * 0.44
-  const hubClear = Math.max(28, span * 0.055)
+  const hubClear = Math.max(30, span * 0.06) * touchBoost
 
   let idx = 0
   let ring = 0
   while (idx < n) {
     const R = hubClear + 14 + ring * Math.max(20, span * 0.042)
-    const bubbleR = Math.max(9, Math.min(17, (15.5 - ring * 0.5) * (span / 700)))
+    const bubbleR = Math.max(9, Math.min(17, (15.5 - ring * 0.5) * (span / 700))) * touchBoost
     const spacing = bubbleR * 2.2
     const capacity = Math.max(10, Math.floor((2 * Math.PI * R) / spacing))
     const count = Math.min(capacity, n - idx)
@@ -69,7 +87,7 @@ function packRings(members, width, height) {
     const k = maxR / outer
     for (const m of members) {
       m.homeR *= k
-      m.r = Math.max(8, m.r * Math.min(1.05, Math.sqrt(k) * 1.2))
+      m.r = Math.max(8 * touchBoost, m.r * Math.min(1.05, Math.sqrt(k) * 1.2))
       m.x = Math.cos(m.homeA) * m.homeR
       m.y = Math.sin(m.homeA) * m.homeR
     }
@@ -94,6 +112,7 @@ export function RadialBubbleMap({
 }) {
   const canvasRef = useRef(null)
   const stateRef = useRef(null)
+  const wakeRef = useRef(null)
   const activeRef = useRef(active)
   const propsRef = useRef({ collapsed, selectedId, focusId, onHover, onSelect, onHubClick })
 
@@ -108,16 +127,19 @@ export function RadialBubbleMap({
       zoomIn() {
         const s = stateRef.current
         if (!s) return
+        wakeRef.current?.()
         s.cam.zoom = Math.min(3.5, (s.cam.zoom || 1) * 1.22)
       },
       zoomOut() {
         const s = stateRef.current
         if (!s) return
+        wakeRef.current?.()
         s.cam.zoom = Math.max(0.4, (s.cam.zoom || 1) / 1.22)
       },
       reset() {
         const s = stateRef.current
         if (!s) return
+        wakeRef.current?.()
         s.cam.x = 0
         s.cam.y = 0
         s.cam.zoom = 1
@@ -129,6 +151,9 @@ export function RadialBubbleMap({
   useEffect(() => {
     if (width < 40 || height < 40) return
     const scale = Math.min(width, height) / 700
+    // Touch devices get larger bubbles and a larger hub so targets stay tappable.
+    const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+    const touchBoost = coarse ? 1.3 : 1
     const hub = {
       id: 'main',
       isHub: true,
@@ -137,7 +162,7 @@ export function RadialBubbleMap({
       color: GOLD,
       x: 0,
       y: 0,
-      r: Math.max(22, Math.min(width, height) * 0.048),
+      r: Math.max(coarse ? 28 : 22, Math.min(width, height) * (coarse ? 0.06 : 0.048)),
       img: loadTex('/map-logo.png'),
     }
 
@@ -172,7 +197,7 @@ export function RadialBubbleMap({
 
     // Only re-pack when membership or size class changes
     if (!sameMembers || !prev || Math.abs((prev.scale || 0) - scale) > 0.03) {
-      packRings(bubbles, width, height)
+      packRings(bubbles, width, height, touchBoost)
       for (const b of bubbles) {
         const old = prevMap?.get(b.id)
         if (old && Number.isFinite(old.x) && sameMembers) {
@@ -213,6 +238,19 @@ export function RadialBubbleMap({
         x: 0, y: 0, down: false, worldX: 0, worldY: 0,
         mode: null, lastX: 0, lastY: 0,
       },
+      pointers: prev?.pointers || new Map(),
+      pinch: null,
+      rect: prev?.rect || null,
+      rectAt: 0,
+      lastInteract: prev?.lastInteract || performance.now(),
+      idleFrames: 0,
+      // Preserve the sleep flag across membership changes: the render
+      // loop only stops when it sets asleep, so a fresh state that
+      // resets it to false while no frame is pending leaves wake() a
+      // no-op and the loop permanently dead. Keeping the flag lets the
+      // wake() call at the end of this effect restart it.
+      asleep: prev?.asleep ?? false,
+      maxSp: 0,
       cam: prev?.cam || { x: 0, y: 0, zoom: 1 },
       hoverId: prev?.hoverId || null,
       retractUntil: prev?.retractUntil || 0,
@@ -225,11 +263,19 @@ export function RadialBubbleMap({
       frame: 0,
       membershipKey: key,
     }
+    // A membership change while the loop sleeps must wake it to settle the new layout.
+    wakeRef.current?.()
   }, [members, width, height])
+
+  // Wake the render loop when the map scrolls back into view.
+  useEffect(() => {
+    if (active) wakeRef.current?.()
+  }, [active])
 
   useEffect(() => {
     const s = stateRef.current
     if (!s || !focusId) return
+    wakeRef.current?.()
     const b = s.bubbles.find(x => x.id === focusId)
     if (!b) return
     s.cam.x = b.x
@@ -240,6 +286,7 @@ export function RadialBubbleMap({
   useEffect(() => {
     const s = stateRef.current
     if (!s) return
+    wakeRef.current?.()
     s.retractUntil = performance.now() + 800
     if (collapsed) {
       for (const b of s.bubbles) b.homeRCollapsed = 18 * s.scale
@@ -255,7 +302,15 @@ export function RadialBubbleMap({
     const canvas = canvasRef.current
     const s = stateRef.current
     if (!canvas || !s) return { x: 0, y: 0 }
-    const rect = canvas.getBoundingClientRect()
+    // Cache the rect: getBoundingClientRect() forces layout, and pointer
+    // handlers can fire several times per frame. Refresh at most every
+    // 250ms, and on every pointerdown (gesture start).
+    const now = performance.now()
+    if (!s.rect || now - (s.rectAt || 0) > 250) {
+      s.rect = canvas.getBoundingClientRect()
+      s.rectAt = now
+    }
+    const rect = s.rect
     const sx = ((clientX - rect.left) / rect.width) * (s.widthWorld || width)
     const sy = ((clientY - rect.top) / rect.height) * (s.heightWorld || height)
     const zoom = s.cam.zoom || 1
@@ -274,19 +329,47 @@ export function RadialBubbleMap({
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     canvas.width = Math.floor(width * dpr)
     canvas.height = Math.floor(height * dpr)
-    canvas.style.width = `${width}px`
-    canvas.style.height = `${height}px`
+    // No pixel width/height overrides here: the CSS width:100% / height:100%
+    // governs layout, so the canvas can never desync from its container.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
     let raf = 0
     let running = true
 
+    // Wake the loop after it slept (idle, hidden tab, or scrolled away).
+    const wake = () => {
+      const st = stateRef.current
+      if (!st) return
+      st.lastInteract = performance.now()
+      st.idleFrames = 0
+      if (st.asleep) {
+        st.asleep = false
+        raf = requestAnimationFrame(step)
+      }
+    }
+    wakeRef.current = wake
+
+    const onVisible = () => { if (!document.hidden) wake() }
+    document.addEventListener('visibilitychange', onVisible)
+
     const step = (now) => {
       if (!running) return
+      // Re-schedule FIRST, as the pre-Phase-2 loop did: this frame is the
+      // only thing keeping the chain alive, so every return below must
+      // cancel it explicitly. Phase 2 dropped this line and never
+      // re-scheduled anywhere in step, so the loop ran exactly once per
+      // wake and the canvas froze blank whenever that one frame fired
+      // while the map was off-screen (or was consumed by a membership
+      // change). No return below may silently end the loop.
       raf = requestAnimationFrame(step)
-      if (!activeRef.current || document.hidden) return
       const s = stateRef.current
       if (!s) return
+      // Hidden or scrolled away: stop scheduling instead of spinning forever.
+      if (!activeRef.current || document.hidden) {
+        s.asleep = true
+        cancelAnimationFrame(raf)
+        return
+      }
 
       s.cx = width / 2
       s.cy = height / 2
@@ -304,11 +387,13 @@ export function RadialBubbleMap({
       const n = bubbles.length
       const zoom = cam.zoom || 1
 
-      // Ambient spin only when idle
-      if (!props.collapsed && !s.pointer.down) s.rot += dt * 0.1
+      // Ambient spin only when idle — and it pauses a few seconds after the
+      // last interaction so the scene can settle and the loop can sleep.
+      if (!props.collapsed && !s.pointer.down && now - (s.lastInteract || 0) < 4000) s.rot += dt * 0.1
 
       // --- Lightweight physics (no N² collisions — packing already separates) ---
       const runPhysics = s.frame % 1 === 0 // every frame but cheap ops only
+      s.maxSp = 0
       if (runPhysics) {
         for (let i = 0; i < n; i++) {
           const b = bubbles[i]
@@ -358,6 +443,7 @@ export function RadialBubbleMap({
             b.vx = (b.vx / sp) * 14
             b.vy = (b.vy / sp) * 14
           }
+          s.maxSp = Math.max(s.maxSp, Math.hypot(b.vx, b.vy))
           b.x += b.vx
           b.y += b.vy
         }
@@ -425,9 +511,17 @@ export function RadialBubbleMap({
         ctx.clip()
         if (b.img && b.img.complete && b.img.naturalWidth > 0) {
           ctx.drawImage(b.img, b.x - rad, b.y - rad, rad * 2, rad * 2)
-        } else if (isHot || b.ring < 3) {
+        } else if (!b.img || isHot || b.ring < 3) {
+          // No image (failed load) or still loading: never an empty bubble.
           ctx.fillStyle = b.color || GOLD
           ctx.fillRect(b.x - rad, b.y - rad, rad * 2, rad * 2)
+          if (!b.img && b.name) {
+            ctx.fillStyle = '#0B0A08'
+            ctx.font = `600 ${Math.max(8, rad * 0.9)}px "Josefin Sans", sans-serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(b.name[0].toUpperCase(), b.x, b.y + 0.5)
+          }
         }
         ctx.restore()
 
@@ -484,19 +578,47 @@ export function RadialBubbleMap({
         ctx.strokeStyle = GOLD
         ctx.lineWidth = 2.2 / zoom
         ctx.stroke()
+
+        // Hub name under the logo on small screens, where the hub alone is
+        // too small to read as a brand mark.
+        if (s.widthWorld < 640 && !props.collapsed) {
+          ctx.font = `500 ${Math.max(9, 11 * s.scale)}px "Josefin Sans", sans-serif`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'top'
+          ctx.fillStyle = 'rgba(237,232,220,0.75)'
+          ctx.fillText('CONN3CTIVITY', 0, hr + 6)
+        }
       }
 
       ctx.restore()
+
+      // Idle detection: once the scene has settled and nobody is touching
+      // it, stop scheduling frames entirely until an interaction wakes it.
+      const settled = (s.maxSp || 0) < 0.05
+      const idleFor = now - (s.lastInteract || 0)
+      if (!s.pointer.down && !retracting && idleFor > 2500 && settled) {
+        s.idleFrames = (s.idleFrames || 0) + 1
+        if (s.idleFrames > 45) {
+          s.asleep = true
+          cancelAnimationFrame(raf)
+          return
+        }
+      } else {
+        s.idleFrames = 0
+      }
     }
 
     raf = requestAnimationFrame(step)
     return () => {
       running = false
       cancelAnimationFrame(raf)
+      document.removeEventListener('visibilitychange', onVisible)
+      if (wakeRef.current === wake) wakeRef.current = null
     }
   }, [width, height])
 
-  // Input: left-drag = PAN (always). Shift-drag = stretch. Wheel = zoom.
+  // Input: left-drag = PAN (always). Shift-drag = stretch.
+  // Wheel = page scroll; Ctrl/Cmd+wheel (incl. trackpad pinch) = zoom.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return undefined
@@ -510,7 +632,8 @@ export function RadialBubbleMap({
       for (let i = s.bubbles.length - 1; i >= 0; i--) {
         const b = s.bubbles[i]
         const d = Math.hypot(b.x - wx, b.y - wy)
-        const rad = Math.max(b.r * 1.7, 14)
+        // 44px minimum hit diameter so bubbles stay tappable on touch.
+        const rad = Math.max(b.r * 1.7, 22)
         if (d <= rad && d < bestD) {
           best = b
           bestD = d
@@ -519,10 +642,39 @@ export function RadialBubbleMap({
       return best
     }
 
+    // Same cached rect as toWorld: never force layout more than once per 250ms.
+    const getRect = () => {
+      const s = stateRef.current
+      if (!s) return canvas.getBoundingClientRect()
+      const now = performance.now()
+      if (!s.rect || now - (s.rectAt || 0) > 250) {
+        s.rect = canvas.getBoundingClientRect()
+        s.rectAt = now
+      }
+      return s.rect
+    }
+
     const onPointerDown = (e) => {
       const s = stateRef.current
       if (!s) return
-      const rect = canvas.getBoundingClientRect()
+      wakeRef.current?.()
+      s.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      // Second finger down: pinch-to-zoom takes over from pan/stretch.
+      if (s.pointers.size === 2) {
+        const [a, b] = [...s.pointers.values()]
+        s.pinch = {
+          startDist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+          startZoom: s.cam.zoom || 1,
+        }
+        s.pointer.down = true
+        s.pointer.moved = true
+        s.pointer.mode = 'pinch'
+        return
+      }
+      // Fresh rect at gesture start: layout may have shifted since the cache.
+      s.rect = canvas.getBoundingClientRect()
+      s.rectAt = performance.now()
+      const rect = s.rect
       s.pointer.x = e.clientX - rect.left
       s.pointer.y = e.clientY - rect.top
       s.pointer.lastX = s.pointer.x
@@ -542,14 +694,40 @@ export function RadialBubbleMap({
         s.pointer.mode = 'pan'
       }
       canvas.style.cursor = 'grabbing'
-      try { canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
-      e.preventDefault()
+      // Touch pointers have implicit capture, and preventDefault would block
+      // the page scroll that touchAction pan-y is meant to allow. Only
+      // mouse drags capture and preventDefault.
+      if (e.pointerType === 'mouse') {
+        try { canvas.setPointerCapture(e.pointerId) } catch { /* ignore */ }
+        e.preventDefault()
+      }
     }
 
     const onPointerMove = (e) => {
       const s = stateRef.current
       if (!s) return
-      const rect = canvas.getBoundingClientRect()
+      if (s.pointers.has(e.pointerId)) {
+        s.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      }
+
+      // Pinch-to-zoom: zoom factor from the gesture start, anchored under
+      // the live midpoint so the map also follows the fingers as they pan.
+      if (s.pointer.mode === 'pinch' && s.pointers.size === 2 && s.pinch) {
+        wakeRef.current?.()
+        const [a, b] = [...s.pointers.values()]
+        const dist = Math.hypot(a.x - b.x, a.y - b.y)
+        const rect = getRect()
+        const midClientX = (a.x + b.x) / 2
+        const midClientY = (a.y + b.y) / 2
+        const before = toWorld(midClientX, midClientY)
+        const next = Math.min(3.5, Math.max(0.4, s.pinch.startZoom * (dist / s.pinch.startDist)))
+        s.cam.zoom = next
+        s.cam.x = before.x - (midClientX - rect.left - s.cx) / next
+        s.cam.y = before.y - (midClientY - rect.top - s.cy) / next
+        return
+      }
+
+      const rect = getRect()
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top
       const w = toWorld(e.clientX, e.clientY)
@@ -557,6 +735,7 @@ export function RadialBubbleMap({
       s.pointer.worldY = w.y
 
       if (s.pointer.down && s.pointer.mode === 'pan') {
+        wakeRef.current?.()
         const zoom = s.cam.zoom || 1
         const dx = x - s.pointer.lastX
         const dy = y - s.pointer.lastY
@@ -577,6 +756,7 @@ export function RadialBubbleMap({
       s.pointer.lastY = y
 
       if (s.pointer.down && s.pointer.mode === 'stretch') {
+        wakeRef.current?.()
         if (Math.hypot(w.x - s.pointer.downX, w.y - s.pointer.downY) > 5) s.pointer.moved = true
         canvas.style.cursor = 'grabbing'
         return
@@ -594,13 +774,43 @@ export function RadialBubbleMap({
     const onPointerUp = (e) => {
       const s = stateRef.current
       if (!s) return
+      s.pointers.delete(e.pointerId)
+      // One finger lifted mid-pinch: the other finger keeps panning, no tap.
+      if (s.pointers.size > 0) {
+        if (s.pointers.size < 2) s.pinch = null
+        if (s.pointer.mode === 'pinch') {
+          s.pointer.mode = 'pan'
+          // Re-anchor the pan to the remaining finger, or the next move
+          // would jump by the lifted finger's last offset.
+          const remaining = [...s.pointers.values()][0]
+          const r = getRect()
+          s.pointer.lastX = remaining.x - r.left
+          s.pointer.lastY = remaining.y - r.top
+          s.pointer.x = s.pointer.lastX
+          s.pointer.y = s.pointer.lastY
+        }
+        return
+      }
       const moved = s.pointer.moved
+      // Capture before clearing: down is set false below, and the tap
+      // gate below must know whether this gesture started on the canvas.
+      const wasDown = s.pointer.down
       s.pointer.down = false
       s.pointer.mode = null
+      s.pinch = null
       canvas.style.cursor = 'grab'
       try { canvas.releasePointerCapture(e.pointerId) } catch { /* ignore */ }
 
-      if (!moved) {
+      // Tap-to-select only counts when the gesture STARTED on the canvas
+      // (pointer.down is set in onPointerDown, which only listens on the
+      // canvas). This handler listens on window, so without the gate a
+      // click on any HTML control layered over the map — Reset, zoom,
+      // the profile card, the search box — hit-tested the canvas point
+      // underneath it and silently re-selected whatever bubble happened
+      // to sit there. That is how clicking Reset changed the open profile
+      // from one member to another: the button never touches selection,
+      // but the stray tap-select did.
+      if (!moved && wasDown) {
         const w = toWorld(e.clientX, e.clientY)
         const hit = hitTest(w.x, w.y)
         if (hit?.isHub) propsRef.current.onHubClick?.()
@@ -608,22 +818,34 @@ export function RadialBubbleMap({
       }
     }
 
-    const onWheel = (e) => {
+    const onPointerCancel = (e) => {
       const s = stateRef.current
       if (!s) return
+      // The browser took the gesture (e.g. a page scroll started): drop it.
+      s.pointers.delete(e.pointerId)
+      s.pinch = null
+      if (s.pointers.size === 0) {
+        s.pointer.down = false
+        s.pointer.mode = null
+      }
+      canvas.style.cursor = 'grab'
+    }
+
+    // Wheel over the map must NOT trap page scrolling. A plain wheel
+    // scroll moves the page (no preventDefault, so the browser scrolls
+    // natively and Lenis keeps working). Zoom is only on Ctrl/Cmd+wheel
+    // — that is also what trackpad pinch-to-zoom sends (wheel events
+    // with ctrlKey), so pinch still zooms. The old code preventDefaulted
+    // every wheel event and zoomed, so the map swallowed page scrolls.
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      const s = stateRef.current
+      if (!s) return
+      wakeRef.current?.()
       e.preventDefault()
       e.stopPropagation()
-      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation()
 
-      // Two-finger pan on trackpads
-      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.2) {
-        const z = s.cam.zoom || 1
-        s.cam.x += e.deltaX / z
-        s.cam.y += e.deltaY / z
-        return
-      }
-
-      const rect = canvas.getBoundingClientRect()
+      const rect = getRect()
       const sx = e.clientX - rect.left
       const sy = e.clientY - rect.top
       const before = toWorld(e.clientX, e.clientY)
@@ -637,6 +859,7 @@ export function RadialBubbleMap({
     const onDbl = () => {
       const s = stateRef.current
       if (!s) return
+      wakeRef.current?.()
       s.cam.x = 0
       s.cam.y = 0
       s.cam.zoom = 1
@@ -644,12 +867,20 @@ export function RadialBubbleMap({
 
     const onContextMenu = (e) => e.preventDefault()
 
-    const lockScroll = (lock) => {
-      window.dispatchEvent(new CustomEvent('conn3ctivity:map-scroll-lock', { detail: lock }))
-    }
-    const onEnter = () => lockScroll(true)
+    // NOTE: there is deliberately NO scroll lock here. An earlier version
+    // paused Lenis while the pointer was over the map
+    // (conn3ctivity:map-scroll-lock -> lenis.stop()), which trapped page
+    // scrolling: a stopped Lenis still intercepts every wheel event and
+    // preventDefaults it while scrolling nothing (lenis 1.3.26
+    // onVirtualScroll: `if (this.isStopped || this.isLocked) {
+    // event.preventDefault(); return; }`). Plain wheel over the canvas
+    // did nothing at all — the page sat still and the map did not zoom —
+    // reproduced headlessly and live (PR #2, 2026-11-20). The lock is
+    // also unnecessary now: the canvas only zooms on Ctrl/Cmd+wheel,
+    // and Lenis already returns early on ctrlKey wheel events, so Lenis
+    // never fights the map zoom. Plain wheel just reaches Lenis, which
+    // smooth-scrolls the page natively.
     const onLeave = () => {
-      lockScroll(false)
       const s = stateRef.current
       if (s) {
         s.hoverId = null
@@ -662,21 +893,20 @@ export function RadialBubbleMap({
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', onPointerUp)
+    canvas.addEventListener('pointercancel', onPointerCancel)
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('dblclick', onDbl)
     canvas.addEventListener('contextmenu', onContextMenu)
-    canvas.addEventListener('pointerenter', onEnter)
     canvas.addEventListener('pointerleave', onLeave)
 
     return () => {
-      lockScroll(false)
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
+      canvas.removeEventListener('pointercancel', onPointerCancel)
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('dblclick', onDbl)
       canvas.removeEventListener('contextmenu', onContextMenu)
-      canvas.removeEventListener('pointerenter', onEnter)
       canvas.removeEventListener('pointerleave', onLeave)
     }
   }, [toWorld, width, height])
@@ -684,11 +914,16 @@ export function RadialBubbleMap({
   return (
     <canvas
       ref={canvasRef}
+      aria-label="Conn3ction map. Drag to pan, pinch or Ctrl+scroll to zoom, tap a bubble to view a profile."
       style={{
         width: '100%',
         height: '100%',
         display: 'block',
-        touchAction: 'none',
+        // Vertical page scroll stays with the browser on touch; only
+        // horizontal drags are captured for panning. touchAction none here
+        // used to trap the page: the map filled most of the viewport and
+        // could not be scrolled past on mobile.
+        touchAction: 'pan-y',
         cursor: 'grab',
         background: '#0a0a0e',
       }}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import Lenis from 'lenis'
+import { motion, useScroll, useSpring } from 'framer-motion'
 import { useDeviceCapability } from './hooks/useDeviceCapability'
 import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion'
 import { Navbar } from './components/Navbar'
@@ -22,6 +23,21 @@ import { HoneypotTarpit } from './components/HoneypotTarpit'
 import { useSoundEffects } from './hooks/useSoundEffects'
 import { useWelcomeSound } from './hooks/useWelcomeSound'
 
+// Page scroll progress bar — app level, not tied to the hero, so it stays
+// mounted and accurate across every section.
+function ScrollProgressBar({ progress }) {
+  return (
+    <motion.div
+      aria-hidden="true"
+      className="fixed top-0 left-0 right-0 h-[2px] z-[100] origin-left"
+      style={{
+        scaleX: progress,
+        background: 'linear-gradient(90deg, #C9A96E, #EDE8DC)',
+      }}
+    />
+  )
+}
+
 
 export default function App() {
   // Remove the HTML loading skeleton once React has mounted
@@ -40,6 +56,9 @@ export default function App() {
   const lenisRef = useRef(null)
   const { playHover, playClick } = useSoundEffects()
   useWelcomeSound({ enabled: !reducedMotion })
+
+  const { scrollYProgress } = useScroll()
+  const smoothProgress = useSpring(scrollYProgress, { damping: 30, stiffness: 100 })
 
   // Global Sound Event Listeners
   useEffect(() => {
@@ -110,12 +129,6 @@ export default function App() {
 
     lenisRef.current = lenis
 
-    const onMapScrollLock = (e) => {
-      if (e.detail) lenis.stop()
-      else lenis.start()
-    }
-    window.addEventListener('conn3ctivity:map-scroll-lock', onMapScrollLock)
-
     let rafId = 0
     function raf(time) {
       lenis.raf(time)
@@ -124,7 +137,6 @@ export default function App() {
     rafId = requestAnimationFrame(raf)
 
     return () => {
-      window.removeEventListener('conn3ctivity:map-scroll-lock', onMapScrollLock)
       cancelAnimationFrame(rafId)
       lenis.destroy()
       lenisRef.current = null
@@ -152,6 +164,7 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen overflow-x-clip w-full" style={{ background: 'var(--void)' }}>
+      <ScrollProgressBar progress={smoothProgress} />
       {showAmbientFx && <CursorGlow />}
       <Navbar
         user={discordUser}

@@ -83,6 +83,51 @@ CREATE POLICY "users update own profile"
   USING (auth.uid()::text = id)
   WITH CHECK (auth.uid()::text = id);
 
+-- Authenticated users can delete only their own row
+DROP POLICY IF EXISTS "users delete own profile" ON public.profiles;
+CREATE POLICY "users delete own profile"
+  ON public.profiles FOR DELETE
+  USING (auth.uid()::text = id);
+
+-- Keep updated_at honest on every row change (Supabase does not do this itself)
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_set_updated_at ON public.profiles;
+CREATE TRIGGER profiles_set_updated_at
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS server_stats_set_updated_at ON public.server_stats;
+CREATE TRIGGER server_stats_set_updated_at
+  BEFORE UPDATE ON public.server_stats
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS conn3ctors_set_updated_at ON public.conn3ctors;
+CREATE TRIGGER conn3ctors_set_updated_at
+  BEFORE UPDATE ON public.conn3ctors
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS mvc_profile_set_updated_at ON public.mvc_profile;
+CREATE TRIGGER mvc_profile_set_updated_at
+  BEFORE UPDATE ON public.mvc_profile
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- Realtime UPDATE/DELETE payloads only carry the old row when replica
+-- identity is FULL; without it subscribers see UPDATEs with no old record
+-- and DELETEs with no row at all.
+ALTER TABLE public.profiles REPLICA IDENTITY FULL;
+ALTER TABLE public.server_stats REPLICA IDENTITY FULL;
+ALTER TABLE public.conn3ctors REPLICA IDENTITY FULL;
+ALTER TABLE public.mvc_profile REPLICA IDENTITY FULL;
+
 -- ══════════════════════════════════════════════════════
 --  SUPABASE — live Discord mirrors (Realtime)
 --  Written by discord-bot.cjs (service role). Public read.

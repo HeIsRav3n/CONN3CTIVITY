@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { fetchMvc, statusLabel, statusColor } from '../lib/api'
 import { SITE_DATA } from '../data/siteData'
+import { twitterProfileUrl } from '../lib/sanitizeUrl'
 import { useLiveQuery } from '../hooks/useLiveQuery'
 import { supabase, profileMatchFilter } from '../lib/supabase'
 
@@ -43,6 +44,7 @@ export function MVCSection() {
     applyRealtime: (payload, prev) => payload.new || prev,
   })
   const [profileExtras, setProfileExtras] = useState(null)
+  const [imgFailed, setImgFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -65,6 +67,7 @@ export function MVCSection() {
 
   const mvcProfile = mergeMvcProfile(row, profileExtras)
   const badgeColor = statusColor(status)
+  const twitterUrl = twitterProfileUrl(mvcProfile.twitter)
 
   return (
     <section id="mvc-spotlight" className="relative py-24 md:py-32 px-4 overflow-hidden">
@@ -109,13 +112,14 @@ export function MVCSection() {
           viewport={{ once: true }}
           className="w-full max-w-3xl relative"
         >
-          <div className="relative bg-[#0B0A08]/85 border border-gold/25 p-8 md:p-12 overflow-hidden" style={{ borderRadius: 2 }}>
+          <div className="relative bg-[#0B0A08]/85 border border-gold/25 p-5 sm:p-8 md:p-12 overflow-hidden" style={{ borderRadius: 2 }}>
             <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
               <div className="relative flex-shrink-0">
                 <img
-                  src={mvcProfile.avatar_url || '/mascot-cm-transparent.png'}
+                  src={imgFailed ? '/mascot-cm-transparent.png' : (mvcProfile.avatar_url || '/mascot-cm-transparent.png')}
                   alt={mvcProfile.username}
-                  className="w-40 h-40 md:w-48 md:h-48 rounded-full border border-gold/40 object-cover"
+                  onError={() => setImgFailed(true)}
+                  className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-full border border-gold/40 object-cover"
                 />
                 <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-black border border-gold/40 flex items-center justify-center" style={{ borderRadius: 2 }}>
                   <span className="font-['Josefin_Sans'] text-gold text-[0.6rem] tracking-[0.22em] uppercase">Winner</span>
@@ -127,19 +131,19 @@ export function MVCSection() {
                   {mvcProfile.username}
                 </h3>
 
-                {mvcProfile.twitter && (
+                {twitterUrl && (
                   <a
-                    href={`https://x.com/${mvcProfile.twitter.replace('@', '')}`}
+                    href={twitterUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-gold hover:text-white transition-colors font-space text-sm mb-6"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
-                    {mvcProfile.twitter.startsWith('@') ? mvcProfile.twitter : `@${mvcProfile.twitter}`}
+                    @{twitterUrl.replace('https://x.com/', '')}
                   </a>
                 )}
 
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-4 mb-6">
                   <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                     <div className="font-['Josefin_Sans'] text-[0.55rem] tracking-[0.2em] text-cream/40 uppercase mb-1">CM Type</div>
                     <div className="font-space text-cream/90 text-sm">{mvcProfile.cm_type || 'Spotlight'}</div>

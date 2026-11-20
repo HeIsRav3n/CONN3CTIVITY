@@ -1,6 +1,7 @@
-import { motion } from 'framer-motion'
-import { SITE_DATA } from '../data/siteData'
+import { motion, MotionConfig } from 'framer-motion'
+import { PARTNERSHIPS, SITE_DATA, TEAM } from '../data/siteData'
 import { luxuryEase, viewportOnce } from '../lib/motion'
+import { sanitizeUrl } from '../lib/sanitizeUrl'
 
 const MOTTO_WORDS = ['SEARCH', 'FIND', 'CONN3CT']
 const WORD_COLORS = ['#EDE8DC', '#C9A96E', '#EDE8DC']
@@ -35,16 +36,38 @@ function MottoWord({ word, color, index }) {
   )
 }
 
+function StatSkeleton({ index }) {
+  return (
+    <div
+      className="text-center p-6 animate-pulse motion-reduce:animate-none"
+      style={{
+        background: 'rgba(237,232,220,0.02)',
+        border: '1px solid rgba(237,232,220,0.08)',
+        borderRadius: 2,
+        animationDelay: `${index * 0.08}s`,
+      }}
+      aria-hidden="true"
+    >
+      <div className="mx-auto mb-2 h-9 w-16 rounded-sm" style={{ background: 'rgba(237,232,220,0.08)' }} />
+      <div className="mx-auto h-3 w-24 rounded-sm" style={{ background: 'rgba(237,232,220,0.05)' }} />
+    </div>
+  )
+}
+
 function StatItem({ value, label, color, index }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.1 + 0.3, duration: 0.5 }}
+      viewport={viewportOnce}
+      transition={{ delay: index * 0.1 + 0.3, duration: 0.5, ease: luxuryEase }}
       className="text-center p-6"
       style={{
-        background: 'rgba(237,232,220,0.02)',
+        // Near-opaque: the fixed GlobalMascots layer shows through the
+        // old 2% tint and the CM eagle read as covering the "1 Vision"
+        // card. The card must be solid enough to keep its text readable
+        // wherever the floating mascots drift behind it.
+        background: 'rgba(11,10,8,0.96)',
         border: `1px solid ${color}18`,
         borderRadius: 2,
       }}
@@ -89,7 +112,9 @@ function ActionCard({ item, index }) {
       className="p-8 relative overflow-hidden group gold-sheen"
       style={{
         border: `1px solid ${item.color}20`,
-        background: 'rgba(237,232,220,0.02)',
+        // Near-opaque for the same reason as StatItem: floating mascot
+        // art must not show through the card and muddy the text.
+        background: 'rgba(11,10,8,0.96)',
         borderRadius: 2,
       }}
     >
@@ -140,7 +165,20 @@ const ACTION_CARDS = [
 ]
 
 export function GoalsSection() {
+  // Stats are derived from the same data the partner and team sections
+  // render, so the counts can never drift from the lists on the page.
+  const statsReady = PARTNERSHIPS.length > 0 && TEAM.length > 0
+  const stats = [
+    { value: `${PARTNERSHIPS.length}+`, label: 'Partner Communities', color: 'var(--cream)' },
+    { value: `${TEAM.length}`, label: 'Team Members', color: 'var(--gold)' },
+    { value: '∞', label: 'Connections Made', color: 'var(--cream-muted)' },
+    { value: '1', label: 'Vision', color: 'var(--gold)' },
+  ]
+  const contactUrl = sanitizeUrl(SITE_DATA.contactUrl)
+  const discordAccessUrl = sanitizeUrl(SITE_DATA.discordAccessUrl)
+
   return (
+    <MotionConfig reducedMotion="user">
     <section
       id="connect"
       className="relative py-24 md:py-36 px-4 overflow-hidden"
@@ -162,8 +200,8 @@ export function GoalsSection() {
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            viewport={viewportOnce}
+            transition={{ duration: 0.6, ease: luxuryEase }}
             className="tag-gold inline-flex mb-8">
             OUR MISSION
           </motion.div>
@@ -179,8 +217,8 @@ export function GoalsSection() {
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, delay: 0.8 }}
+            viewport={viewportOnce}
+            transition={{ duration: 0.7, delay: 0.8, ease: luxuryEase }}
             className="font-['Josefin_Sans'] text-base max-w-2xl mx-auto mt-8"
             style={{ color: 'var(--text-muted)', lineHeight: 1.85, fontWeight: 300 }}
           >
@@ -188,12 +226,13 @@ export function GoalsSection() {
           </motion.p>
         </div>
 
-        {/* Stats — 3D tilt cards */}
+        {/* Stats — counts derived from the partner and team data */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
-          <StatItem value="9+" label="Partner Communities" color="var(--cream)" index={0} />
-          <StatItem value="10" label="Team Members" color="var(--gold)" index={1} />
-          <StatItem value="∞" label="Connections Made" color="var(--cream-muted)" index={2} />
-          <StatItem value="1" label="Vision" color="var(--gold)" index={3} />
+          {statsReady
+            ? stats.map((stat, i) => (
+                <StatItem key={stat.label} value={stat.value} label={stat.label} color={stat.color} index={i} />
+              ))
+            : stats.map((stat, i) => <StatSkeleton key={stat.label} index={i} />)}
         </div>
 
         {/* Action cards — full 3D tilt */}
@@ -207,8 +246,8 @@ export function GoalsSection() {
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.2, duration: 0.6 }}
+          viewport={viewportOnce}
+          transition={{ delay: 0.2, duration: 0.6, ease: luxuryEase }}
           className="mt-24 p-[1px] rounded-3xl relative overflow-hidden"
           style={{ background: 'linear-gradient(90deg, rgba(237,232,220,0.1), rgba(201,169,110,0.3), rgba(237,232,220,0.1))' }}
         >
@@ -223,8 +262,9 @@ export function GoalsSection() {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
+                {contactUrl && (
                 <motion.a
-                  href={SITE_DATA.contactUrl}
+                  href={contactUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   whileHover={{ scale: 1.05 }}
@@ -242,8 +282,10 @@ export function GoalsSection() {
                   </svg>
                   CONTACT JASICH
                 </motion.a>
+                )}
+                {discordAccessUrl && (
                 <motion.a
-                  href={SITE_DATA.discordAccessUrl}
+                  href={discordAccessUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   whileHover={{ scale: 1.03 }}
@@ -257,6 +299,7 @@ export function GoalsSection() {
                 >
                   {SITE_DATA.discordLabel}
                 </motion.a>
+                )}
               </div>
             </div>
             
@@ -272,5 +315,6 @@ export function GoalsSection() {
         </motion.div>
       </div>
     </section>
+    </MotionConfig>
   )
 }
