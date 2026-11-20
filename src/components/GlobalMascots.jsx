@@ -1,12 +1,20 @@
 import { useEffect } from 'react'
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { luxuryEase } from '../lib/motion'
 
+// Soft cinematic shadow under the gold glow. The black part stays light:
+// a heavy black drop shadow would read as a sticker edge on the dark theme.
+const MASCOT_SHADOW =
+  'drop-shadow(0 0 34px rgba(201,169,110,0.32)) drop-shadow(0 16px 30px rgba(0,0,0,0.35))'
+
 export function GlobalMascots() {
+  const reducedMotion = usePrefersReducedMotion()
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
 
   useEffect(() => {
+    if (reducedMotion) return undefined
     const handleMouseMove = (e) => {
       const xPct = (e.clientX / window.innerWidth) - 0.5
       const yPct = (e.clientY / window.innerHeight) - 0.5
@@ -16,7 +24,7 @@ export function GlobalMascots() {
 
     window.addEventListener('mousemove', handleMouseMove)
     return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [mouseX, mouseY])
+  }, [mouseX, mouseY, reducedMotion])
 
   const springConfig = { damping: 20, stiffness: 110, mass: 0.85 }
   const smoothX = useSpring(mouseX, springConfig)
@@ -35,8 +43,8 @@ export function GlobalMascots() {
   return (
     <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden" style={{ perspective: 1400 }}>
       <motion.div
-        className="absolute top-24 -left-10 md:left-0 opacity-[0.34] md:opacity-[0.52] w-52 md:w-64 xl:w-80"
-        style={{
+        className="absolute top-24 -left-10 md:left-0 w-52 md:w-64 xl:w-80"
+        style={reducedMotion ? { transformStyle: 'preserve-3d' } : {
           x: gmX,
           y: gmY,
           rotateX: gmRotateX,
@@ -48,21 +56,21 @@ export function GlobalMascots() {
         transition={{ duration: 1.2, ease: luxuryEase }}
       >
         <motion.div
-          animate={{ y: [-10, 10], scale: [1, 1.04, 1] }}
-          transition={{ duration: 6.2, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+          animate={reducedMotion ? { y: 0 } : { y: [-10, 10], scale: [1, 1.04, 1] }}
+          transition={{ duration: 6.2, repeat: reducedMotion ? 0 : Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
         >
           <img
             src="/mascot-gm-transparent.png"
             alt=""
-            className="w-full h-auto"
-            style={{ filter: 'drop-shadow(0 0 34px rgba(201,169,110,0.32)) drop-shadow(0 22px 32px rgba(0,0,0,0.55))' }}
+            className="w-full h-auto opacity-[0.34] md:opacity-[0.52]"
+            style={{ filter: MASCOT_SHADOW }}
           />
         </motion.div>
       </motion.div>
 
       <motion.div
-        className="absolute -bottom-10 -right-10 md:right-0 opacity-[0.34] md:opacity-[0.52] w-52 md:w-64 xl:w-80"
-        style={{
+        className="absolute -bottom-10 -right-10 md:right-0 w-52 md:w-64 xl:w-80"
+        style={reducedMotion ? { transformStyle: 'preserve-3d' } : {
           x: cmX,
           y: cmY,
           rotateX: cmRotateX,
@@ -74,14 +82,14 @@ export function GlobalMascots() {
         transition={{ duration: 1.3, delay: 0.12, ease: luxuryEase }}
       >
         <motion.div
-          animate={{ y: [10, -10], scale: [1, 1.045, 1] }}
-          transition={{ duration: 7.1, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+          animate={reducedMotion ? { y: 0 } : { y: [10, -10], scale: [1, 1.045, 1] }}
+          transition={{ duration: 7.1, repeat: reducedMotion ? 0 : Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
         >
           <img
             src="/mascot-cm-transparent.png"
             alt=""
-            className="w-full h-auto"
-            style={{ filter: 'drop-shadow(0 0 34px rgba(201,169,110,0.32)) drop-shadow(0 22px 32px rgba(0,0,0,0.55))' }}
+            className="w-full h-auto opacity-[0.34] md:opacity-[0.52]"
+            style={{ filter: MASCOT_SHADOW }}
           />
         </motion.div>
       </motion.div>

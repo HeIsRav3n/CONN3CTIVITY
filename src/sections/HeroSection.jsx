@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { motion, useScroll, useTransform, useSpring } from 'framer-motion'
+import { motion, MotionConfig, useScroll, useTransform } from 'framer-motion'
 import { GoldPrism } from '../components/three/GoldPrism'
 import { HandshakeConnect } from '../components/HandshakeConnect'
 import { luxuryEase } from '../lib/motion'
@@ -7,19 +7,6 @@ import { useCountUp } from '../hooks/useCountUp'
 import { fetchStats, statusLabel, statusColor } from '../lib/api'
 import { useLiveQuery } from '../hooks/useLiveQuery'
 import serverInsights from '../data/serverInsights.json'
-
-// ─── Scroll Progress Bar ──────────────────────────────────────────────────────
-function ScrollProgressBar({ progress }) {
-  return (
-    <motion.div
-      className="fixed top-0 left-0 right-0 h-[2px] z-[100] origin-left"
-      style={{
-        scaleX: progress,
-        background: 'linear-gradient(90deg, #C9A96E, #EDE8DC)',
-      }}
-    />
-  )
-}
 
 // ─── Animated Letter ──────────────────────────────────────────────────────────
 function AnimatedLetter({ char, index }) {
@@ -162,18 +149,17 @@ export function HeroSection({ onThreeClick }) {
   const containerRef = useRef(null)
 
   const { scrollYProgress } = useScroll()
-  const smoothProgress = useSpring(scrollYProgress, { damping: 30, stiffness: 100 })
 
   const tagWords = ['SEARCH', 'FIND', 'CONN3CT']
 
+  // Parallax stays bounded: heroY clamps at -120px and the canvas scale at
+  // 1.12, so the hero can never drift or blow up on long pages.
   const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -120])
   const heroOpacity = useTransform(scrollYProgress, [0, 0.35], [1, 0])
   const canvasScale = useTransform(scrollYProgress, [0, 0.4], [1, 1.12])
 
   return (
-    <>
-      <ScrollProgressBar progress={smoothProgress} />
-
+    <MotionConfig reducedMotion="user">
       <section
         id="home"
         ref={containerRef}
@@ -191,7 +177,7 @@ export function HeroSection({ onThreeClick }) {
         </motion.div>
 
         <motion.div
-          className="pointer-events-none absolute left-[-8%] top-[18%] z-[1] hidden h-[min(52vw,420px)] w-[min(52vw,420px)] opacity-80 lg:block"
+          className="pointer-events-none absolute left-[-8%] top-[18%] z-[1] hidden h-[min(44vw,360px)] w-[min(44vw,360px)] opacity-70 xl:block"
           style={{ scale: canvasScale }}
           aria-hidden="true"
         >
@@ -257,11 +243,11 @@ export function HeroSection({ onThreeClick }) {
         >
           {/* Brand title — Venn logo split: CONN | 3 | CTIVITY */}
           <div
-            className="mb-6 flex items-center justify-center flex-wrap"
+            className="mb-6 flex items-center justify-center flex-nowrap"
             style={{
               fontFamily: "'Josefin Sans', sans-serif",
               fontWeight: 100,
-              fontSize: 'clamp(1.55rem, 7vw, 7.5rem)',
+              fontSize: 'clamp(1.35rem, 7vw, 7.5rem)',
               letterSpacing: 'clamp(0.05em, 0.9vw, 0.28em)',
               textTransform: 'uppercase',
               color: '#EDE8DC',
@@ -368,7 +354,7 @@ export function HeroSection({ onThreeClick }) {
           >
             <motion.a
               href="#map"
-              className="gold-sheen"
+              className="gold-sheen w-full max-w-[320px] justify-center sm:w-auto"
               whileHover={{
                 scale: 1.04,
                 boxShadow: '0 0 40px rgba(201,169,110,0.35)',
@@ -399,6 +385,7 @@ export function HeroSection({ onThreeClick }) {
 
             <motion.a
               href="#connect"
+              className="w-full max-w-[320px] justify-center sm:w-auto"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               style={{
@@ -430,6 +417,6 @@ export function HeroSection({ onThreeClick }) {
 
         <ScrollCue />
       </section>
-    </>
+    </MotionConfig>
   )
 }

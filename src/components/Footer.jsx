@@ -13,14 +13,14 @@ const NAV = [
 export function Footer() {
   return (
     <footer
-      className="relative py-16 px-4 overflow-hidden"
+      className="relative py-12 md:py-16 px-4 overflow-hidden"
       style={{
         borderTop: '1px solid rgba(255,255,255,0.05)',
         background: 'rgba(2,2,8,0.97)',
       }}
     >
       <div className="max-w-6xl mx-auto relative z-10">
-        <div className="grid md:grid-cols-3 gap-12 mb-12">
+        <div className="grid md:grid-cols-3 gap-8 md:gap-12 mb-8 md:mb-12">
 
           {/* Brand */}
           <div>
@@ -45,7 +45,7 @@ export function Footer() {
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.18em] uppercase leading-relaxed"
+              className="font-['Josefin_Sans'] text-xs tracking-[0.18em] uppercase leading-relaxed"
               style={{ color: 'rgba(237,232,220,0.35)' }}
             >
               Search · Find · Conn3ct
@@ -58,7 +58,7 @@ export function Footer() {
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
-              className="font-['Josefin_Sans'] text-[0.6rem] tracking-[0.35em] uppercase mb-6"
+              className="font-['Josefin_Sans'] text-xs tracking-[0.35em] uppercase mb-4 md:mb-6"
               style={{ color: 'rgba(237,232,220,0.3)' }}
             >
               Navigate
@@ -72,7 +72,7 @@ export function Footer() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.06 }}
-                  className="font-['Josefin_Sans'] text-[0.65rem] tracking-[0.18em] uppercase w-fit"
+                  className="font-['Josefin_Sans'] text-xs tracking-[0.18em] uppercase w-fit py-2"
                   style={{ color: 'rgba(237,232,220,0.45)', textDecoration: 'none' }}
                   whileHover={{ color: '#C9A96E', x: 4 }}
                 >
@@ -88,7 +88,7 @@ export function Footer() {
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
-              className="font-['Josefin_Sans'] text-[0.6rem] tracking-[0.35em] uppercase mb-6"
+              className="font-['Josefin_Sans'] text-xs tracking-[0.35em] uppercase mb-4 md:mb-6"
               style={{ color: 'rgba(237,232,220,0.3)' }}
             >
               Connect
@@ -101,7 +101,7 @@ export function Footer() {
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
                 viewport={{ once: true }}
-                className="flex items-center gap-3 font-['Josefin_Sans'] text-[0.65rem] tracking-[0.18em] uppercase w-fit"
+                className="flex items-center gap-3 font-['Josefin_Sans'] text-xs tracking-[0.18em] uppercase w-fit py-1.5"
                 style={{ color: 'rgba(237,232,220,0.45)', textDecoration: 'none' }}
                 whileHover={{ color: '#C9A96E' }}
               >
@@ -119,7 +119,7 @@ export function Footer() {
                 whileInView={{ opacity: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.1 }}
-                className="flex items-center gap-3 font-['Josefin_Sans'] text-[0.65rem] tracking-[0.18em] uppercase w-fit"
+                className="flex items-center gap-3 font-['Josefin_Sans'] text-xs tracking-[0.18em] uppercase w-fit py-1.5"
                 style={{ color: 'rgba(237,232,220,0.45)', textDecoration: 'none' }}
                 whileHover={{ color: '#5865F2' }}
               >
@@ -134,14 +134,14 @@ export function Footer() {
 
         {/* Bottom bar */}
         <div
-          className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4"
+          className="pt-6 md:pt-8 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4"
           style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
         >
           <motion.p
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="font-['Josefin_Sans'] text-[0.55rem] tracking-[0.2em] uppercase"
+            className="font-['Josefin_Sans'] text-xs tracking-[0.2em] uppercase"
             style={{ color: 'rgba(237,232,220,0.22)' }}
           >
             © {new Date().getFullYear()} CONN3CTIVITY
@@ -151,7 +151,7 @@ export function Footer() {
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="font-['Josefin_Sans'] text-[0.55rem] tracking-[0.35em] uppercase"
+            className="font-['Josefin_Sans'] text-xs tracking-[0.35em] uppercase"
             style={{ color: 'rgba(201,169,110,0.35)' }}
           >
             SEARCH FIND CONN3CT

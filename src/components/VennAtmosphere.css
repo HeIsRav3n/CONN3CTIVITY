@@ -25,6 +25,9 @@
 
 /* ── Left circle: spins CW around its own center (285, 250) ── */
 .venn-group-left {
+  /* transform-box keeps the px origin relative to the SVG viewBox in
+     Safari and Firefox, which otherwise resolve it differently. */
+  transform-box: view-box;
   transform-origin: 285px 250px;
   animation:
     venn-spin-cw   22s linear     infinite,
@@ -33,6 +36,7 @@
 
 /* ── Right circle: spins CCW around its own center (615, 250) ── */
 .venn-group-right {
+  transform-box: view-box;
   transform-origin: 615px 250px;
   animation:
     venn-spin-ccw  27s linear     infinite,
@@ -42,12 +46,14 @@
 
 /* ── Orbiting particle on the left circle ── */
 .venn-particle-1 {
+  transform-box: view-box;
   transform-origin: 285px 250px;
   animation: venn-spin-cw 8s linear infinite;
 }
 
 /* ── Orbiting particle on the right circle ── */
 .venn-particle-2 {
+  transform-box: view-box;
   transform-origin: 615px 250px;
   animation: venn-spin-ccw 11s linear infinite;
 }

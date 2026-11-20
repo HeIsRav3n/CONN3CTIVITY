@@ -12,7 +12,6 @@ function MascotCard({ name, role, desc, img, color, delay }) {
 
   return (
     <motion.div
-      ref={tilt.ref}
       initial={{ opacity: 0, y: 28, filter: 'blur(10px)' }}
       whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       viewport={viewportOnce}

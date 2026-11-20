@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, userAvatarSrc } from '../lib/supabase';
+import { twitterProfileUrl, telegramProfileUrl } from '../lib/sanitizeUrl';
 
 function normalizeCommunities(value) {
   let list = [];
@@ -207,17 +208,28 @@ export function ProfileModal({ isOpen, onClose, user }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, onClose])
 
-  if (!isOpen || !user) return null;
-
+  // The open check lives INSIDE AnimatePresence below (not as an early
+  // return): returning null here would unmount AnimatePresence the moment
+  // the modal closes, so its exit animation would never play.
   const saveLabel =
     saveState === 'saving' ? 'Saving…'
     : saveState === 'saved' ? 'Saved'
     : saveState === 'error' ? 'Save failed'
-    : 'Autosave on';
+    : 'Autosave on'
+
+  // Social links go through the shared allowlist: a handle becomes its
+  // canonical profile URL, anything else (a pasted full URL, a
+  // javascript: or data: string, garbage) yields no link at all.
+  const twitterUrl = twitterProfileUrl(profileData.twitter)
+  const telegramUrl = telegramProfileUrl(profileData.telegram)
+  const twitterHandle = profileData.twitter.trim().replace(/^@/, '')
+  const telegramHandle = profileData.telegram.trim().replace(/^@/, '')
 
   return (
     <AnimatePresence>
+      {isOpen && user && (
       <div
+        key="profile-modal"
         className="fixed inset-0 z-[100] flex items-center justify-center p-4"
         role="dialog"
         aria-modal="true"
@@ -413,28 +425,36 @@ export function ProfileModal({ isOpen, onClose, user }) {
                       </p>
                     </div>
 
-                    {(profileData.twitter || profileData.telegram) && (
+                    {(twitterHandle || telegramHandle) && (
                       <div className="flex flex-wrap gap-2">
-                        {profileData.twitter && (
+                        {twitterUrl ? (
                           <a
-                            href={`https://x.com/${profileData.twitter.replace('@', '')}`}
+                            href={twitterUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[#EDE8DC]/70 text-xs font-['Josefin_Sans'] hover:border-[#C9A96E]/40 transition-colors"
                           >
-                            @{profileData.twitter.replace('@', '')}
+                            @{twitterHandle}
                           </a>
-                        )}
-                        {profileData.telegram && (
+                        ) : twitterHandle ? (
+                          <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[#EDE8DC]/40 text-xs font-['Josefin_Sans']">
+                            @{twitterHandle}
+                          </span>
+                        ) : null}
+                        {telegramUrl ? (
                           <a
-                            href={`https://t.me/${profileData.telegram.replace('@', '')}`}
+                            href={telegramUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[#EDE8DC]/70 text-xs font-['Josefin_Sans'] hover:border-[#C9A96E]/40 transition-colors"
                           >
-                            TG {profileData.telegram}
+                            TG {telegramHandle}
                           </a>
-                        )}
+                        ) : telegramHandle ? (
+                          <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-sm text-[#EDE8DC]/40 text-xs font-['Josefin_Sans']">
+                            TG {telegramHandle}
+                          </span>
+                        ) : null}
                       </div>
                     )}
 
@@ -474,6 +494,7 @@ export function ProfileModal({ isOpen, onClose, user }) {
           </button>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
 }
