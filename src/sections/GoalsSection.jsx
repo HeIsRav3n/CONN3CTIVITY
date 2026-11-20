@@ -63,7 +63,11 @@ function StatItem({ value, label, color, index }) {
       transition={{ delay: index * 0.1 + 0.3, duration: 0.5, ease: luxuryEase }}
       className="text-center p-6"
       style={{
-        background: 'rgba(237,232,220,0.02)',
+        // Near-opaque: the fixed GlobalMascots layer shows through the
+        // old 2% tint and the CM eagle read as covering the "1 Vision"
+        // card. The card must be solid enough to keep its text readable
+        // wherever the floating mascots drift behind it.
+        background: 'rgba(11,10,8,0.96)',
         border: `1px solid ${color}18`,
         borderRadius: 2,
       }}
@@ -108,7 +112,9 @@ function ActionCard({ item, index }) {
       className="p-8 relative overflow-hidden group gold-sheen"
       style={{
         border: `1px solid ${item.color}20`,
-        background: 'rgba(237,232,220,0.02)',
+        // Near-opaque for the same reason as StatItem: floating mascot
+        // art must not show through the card and muddy the text.
+        background: 'rgba(11,10,8,0.96)',
         borderRadius: 2,
       }}
     >

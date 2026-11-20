@@ -40,7 +40,11 @@ function ScammerCard({ item, index, onView }) {
             <span className="font-orbitron text-[0.6rem] tracking-[0.2em] text-red-500/60 uppercase">Threat Level: High</span>
           </div>
 
-          <h3 className="font-orbitron font-bold text-lg mb-3 leading-tight text-cream group-hover:text-red-400 transition-colors">
+          <h3
+            className="font-orbitron font-bold text-lg mb-3 leading-tight text-cream group-hover:text-red-400 transition-colors"
+            title={item.title}
+            style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+          >
             {item.title}
           </h3>
 

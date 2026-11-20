@@ -545,7 +545,13 @@ export function MapSection() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: '100%' }}
                 transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-                className="absolute inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-[20px] md:inset-x-auto md:bottom-6 md:right-6 md:w-[320px] md:max-h-[calc(100%-3rem)] md:rounded-[20px]"
+                // Desktop: anchor to the TOP-right of the map container,
+                // not the bottom — the container's bottom can sit below
+                // the viewport fold, leaving the card's lower half
+                // unreachable. The map's top is in view whenever a node
+                // is selected, so top-anchoring keeps the whole card
+                // visible; the height is also clamped to the viewport.
+                className="absolute inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-[20px] md:inset-x-auto md:top-6 md:bottom-auto md:right-6 md:w-[320px] md:max-h-[min(calc(100%-3rem),calc(100dvh-7rem))] md:rounded-[20px]"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
               >
                 <div

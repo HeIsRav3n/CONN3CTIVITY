@@ -45,7 +45,7 @@ function ScrollCue() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 2.5, duration: 1 }}
-      className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
     >
       <span style={{
         fontFamily: "'Josefin Sans', sans-serif",
@@ -59,7 +59,7 @@ function ScrollCue() {
         transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
         style={{
           width: 1,
-          height: 40,
+          height: 28,
           background: 'linear-gradient(180deg, rgba(201,169,110,0.6), transparent)',
         }}
       />
@@ -163,7 +163,7 @@ export function HeroSection({ onThreeClick }) {
       <section
         id="home"
         ref={containerRef}
-        className="relative min-h-screen overflow-hidden flex items-center justify-center"
+        className="relative min-h-screen overflow-hidden flex items-center justify-center pb-24"
         style={{
           background: `
             radial-gradient(ellipse 120% 80% at 50% -10%, rgba(201,169,110,0.12) 0%, transparent 55%),
@@ -177,11 +177,49 @@ export function HeroSection({ onThreeClick }) {
         </motion.div>
 
         <motion.div
-          className="pointer-events-none absolute left-[-8%] top-[18%] z-[1] hidden h-[min(44vw,360px)] w-[min(44vw,360px)] opacity-70 xl:block"
+          className="pointer-events-none absolute left-[2%] top-[18%] z-[1] hidden h-[min(36vw,320px)] w-[min(36vw,320px)] opacity-90 xl:block"
           style={{ scale: canvasScale }}
           aria-hidden="true"
         >
           <GoldPrism className="h-full w-full" />
+        </motion.div>
+
+        {/* ── Hero mascots — in-section, above the hero background.
+            The fixed GlobalMascots layer sits behind <main> (z-10), so the
+            hero's opaque background hides it here; these two flank the
+            stats bar at the bottom corners so the mascots are actually
+            visible in the hero, as planned. ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.9, duration: 0.9, ease: luxuryEase }}
+          className="pointer-events-none absolute bottom-[6%] left-[2%] z-[3] hidden w-[min(18vw,240px)] xl:block"
+          aria-hidden="true"
+        >
+          <motion.img
+            src="/mascot-gm-transparent.png"
+            alt=""
+            className="h-auto w-full"
+            style={{ filter: 'drop-shadow(0 0 34px rgba(201,169,110,0.32)) drop-shadow(0 16px 30px rgba(0,0,0,0.35))' }}
+            animate={{ y: [-8, 8] }}
+            transition={{ duration: 6.2, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 2.0, duration: 0.9, ease: luxuryEase }}
+          className="pointer-events-none absolute bottom-[6%] right-[2%] z-[3] hidden w-[min(15vw,200px)] xl:block"
+          aria-hidden="true"
+        >
+          <motion.img
+            src="/mascot-cm-transparent.png"
+            alt=""
+            className="h-auto w-full"
+            style={{ filter: 'drop-shadow(0 0 34px rgba(201,169,110,0.32)) drop-shadow(0 16px 30px rgba(0,0,0,0.35))' }}
+            animate={{ y: [8, -8] }}
+            transition={{ duration: 7.1, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+          />
         </motion.div>
 
         {/* ── TOP mask — hides particles behind the navbar ── */}

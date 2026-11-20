@@ -244,7 +244,12 @@ export function RadialBubbleMap({
       rectAt: 0,
       lastInteract: prev?.lastInteract || performance.now(),
       idleFrames: 0,
-      asleep: false,
+      // Preserve the sleep flag across membership changes: the render
+      // loop only stops when it sets asleep, so a fresh state that
+      // resets it to false while no frame is pending leaves wake() a
+      // no-op and the loop permanently dead. Keeping the flag lets the
+      // wake() call at the end of this effect restart it.
+      asleep: prev?.asleep ?? false,
       maxSp: 0,
       cam: prev?.cam || { x: 0, y: 0, zoom: 1 },
       hoverId: prev?.hoverId || null,
@@ -349,11 +354,20 @@ export function RadialBubbleMap({
 
     const step = (now) => {
       if (!running) return
+      // Re-schedule FIRST, as the pre-Phase-2 loop did: this frame is the
+      // only thing keeping the chain alive, so every return below must
+      // cancel it explicitly. Phase 2 dropped this line and never
+      // re-scheduled anywhere in step, so the loop ran exactly once per
+      // wake and the canvas froze blank whenever that one frame fired
+      // while the map was off-screen (or was consumed by a membership
+      // change). No return below may silently end the loop.
+      raf = requestAnimationFrame(step)
       const s = stateRef.current
       if (!s) return
       // Hidden or scrolled away: stop scheduling instead of spinning forever.
       if (!activeRef.current || document.hidden) {
         s.asleep = true
+        cancelAnimationFrame(raf)
         return
       }
 
@@ -586,6 +600,7 @@ export function RadialBubbleMap({
         s.idleFrames = (s.idleFrames || 0) + 1
         if (s.idleFrames > 45) {
           s.asleep = true
+          cancelAnimationFrame(raf)
           return
         }
       } else {
