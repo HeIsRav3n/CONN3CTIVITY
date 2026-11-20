@@ -351,7 +351,7 @@ export function MapSection() {
           >
             {isTouch
               ? 'Drag to pan · Pinch to zoom · Tap a bubble to view a profile'
-              : 'Drag to pan · Scroll to zoom · Shift+drag to stretch · Double-click to reset'}
+              : 'Drag to pan · Ctrl+scroll to zoom · Shift+drag to stretch · Double-click to reset'}
           </p>
 
           <div className="relative max-w-md mx-auto" data-map-search>

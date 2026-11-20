@@ -39,33 +39,39 @@ function CinematicField() {
 }
 
 // ─── Scroll Cue ───────────────────────────────────────────────────────────────
+// Rendered at full opacity from first paint — NO entrance fade. The previous
+// version had `initial={{ opacity: 0 }} animate={{ opacity: 1 }}` with a
+// 2.5s delay + 1s fade, so any screenshot taken in the first ~3.5s after
+// load caught the cue mid-fade: #C9A96E at opacity ~0.3 over #0B0A08 blends
+// to ~#443A27, ~1.9:1, i.e. faint dark grey, not gold. The 8.8:1 figure from
+// the polish round was only the colour-pair ratio, not the rendered
+// opacity at screenshot time. The text is also bigger and heavier now:
+// the old 0.6rem weight-300 Josefin Sans (body inherits font-weight 300)
+// has ~1px hairline strokes that antialias away on a dark background even
+// at full opacity. Solid #C9A96E, weight 600, 0.75rem, no opacity < 1.
 function ScrollCue() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 2.5, duration: 1 }}
-      className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-    >
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
       <span style={{
         fontFamily: "'Josefin Sans', sans-serif",
-        fontSize: '0.6rem',
-        letterSpacing: '0.4em',
-        // Brand gold on the near-black hero (#C9A96E on #0B0A08, 8.8:1):
-        // the old rgba(237,232,220,0.3) was ~2:1 and barely legible.
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        letterSpacing: '0.32em',
         color: '#C9A96E',
         textTransform: 'uppercase',
+        textShadow: '0 0 14px rgba(201,169,110,0.45), 0 1px 2px rgba(0,0,0,0.9)',
+        whiteSpace: 'nowrap',
       }}>SCROLL TO EXPLORE</span>
       <motion.div
         animate={{ y: [0, 10, 0] }}
         transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
         style={{
-          width: 1,
-          height: 28,
-          background: 'linear-gradient(180deg, rgba(201,169,110,0.6), transparent)',
+          width: 2,
+          height: 32,
+          background: 'linear-gradient(180deg, #C9A96E, rgba(201,169,110,0))',
         }}
       />
-    </motion.div>
+    </div>
   )
 }
 

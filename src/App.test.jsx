@@ -55,4 +55,19 @@ describe('App Component', () => {
     const { container } = render(<App />);
     expect(container).toBeTruthy();
   });
+
+  it('scroll cue is legible from first paint (no delayed fade-in)', () => {
+    // Live preview defect (PR #2, 2026-11-20): the cue faded in from
+    // opacity 0 after a 2.5s delay, so live screenshots caught it
+    // mid-fade as faint dark grey despite the gold colour measuring
+    // 8.8:1. It must render at full opacity immediately, in solid gold,
+    // at a weight/size whose strokes survive antialiasing.
+    const { getByText } = render(<App />);
+    const cue = getByText('SCROLL TO EXPLORE');
+    expect(cue.style.color).toBe('rgb(201, 169, 110)');
+    expect(cue.style.fontWeight).toBe('600');
+    expect(cue.style.fontSize).toBe('0.75rem');
+    expect(cue.style.opacity).toBe('');
+    expect(cue.parentElement.style.opacity).toBe('');
+  });
 });

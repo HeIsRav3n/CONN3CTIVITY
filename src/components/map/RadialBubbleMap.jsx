@@ -617,7 +617,8 @@ export function RadialBubbleMap({
     }
   }, [width, height])
 
-  // Input: left-drag = PAN (always). Shift-drag = stretch. Wheel = zoom.
+  // Input: left-drag = PAN (always). Shift-drag = stretch.
+  // Wheel = page scroll; Ctrl/Cmd+wheel (incl. trackpad pinch) = zoom.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return undefined
@@ -791,13 +792,25 @@ export function RadialBubbleMap({
         return
       }
       const moved = s.pointer.moved
+      // Capture before clearing: down is set false below, and the tap
+      // gate below must know whether this gesture started on the canvas.
+      const wasDown = s.pointer.down
       s.pointer.down = false
       s.pointer.mode = null
       s.pinch = null
       canvas.style.cursor = 'grab'
       try { canvas.releasePointerCapture(e.pointerId) } catch { /* ignore */ }
 
-      if (!moved) {
+      // Tap-to-select only counts when the gesture STARTED on the canvas
+      // (pointer.down is set in onPointerDown, which only listens on the
+      // canvas). This handler listens on window, so without the gate a
+      // click on any HTML control layered over the map — Reset, zoom,
+      // the profile card, the search box — hit-tested the canvas point
+      // underneath it and silently re-selected whatever bubble happened
+      // to sit there. That is how clicking Reset changed the open profile
+      // from one member to another: the button never touches selection,
+      // but the stray tap-select did.
+      if (!moved && wasDown) {
         const w = toWorld(e.clientX, e.clientY)
         const hit = hitTest(w.x, w.y)
         if (hit?.isHub) propsRef.current.onHubClick?.()
@@ -818,21 +831,19 @@ export function RadialBubbleMap({
       canvas.style.cursor = 'grab'
     }
 
+    // Wheel over the map must NOT trap page scrolling. A plain wheel
+    // scroll moves the page (no preventDefault, so the browser scrolls
+    // natively and Lenis keeps working). Zoom is only on Ctrl/Cmd+wheel
+    // — that is also what trackpad pinch-to-zoom sends (wheel events
+    // with ctrlKey), so pinch still zooms. The old code preventDefaulted
+    // every wheel event and zoomed, so the map swallowed page scrolls.
     const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return
       const s = stateRef.current
       if (!s) return
       wakeRef.current?.()
       e.preventDefault()
       e.stopPropagation()
-      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation()
-
-      // Two-finger pan on trackpads
-      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.2) {
-        const z = s.cam.zoom || 1
-        s.cam.x += e.deltaX / z
-        s.cam.y += e.deltaY / z
-        return
-      }
 
       const rect = getRect()
       const sx = e.clientX - rect.left
@@ -900,7 +911,7 @@ export function RadialBubbleMap({
   return (
     <canvas
       ref={canvasRef}
-      aria-label="Conn3ction map. Drag to pan, pinch or scroll to zoom, tap a bubble to view a profile."
+      aria-label="Conn3ction map. Drag to pan, pinch or Ctrl+scroll to zoom, tap a bubble to view a profile."
       style={{
         width: '100%',
         height: '100%',

@@ -175,4 +175,55 @@ describe('RadialBubbleMap render loop', () => {
     expect(ctx.calls.arc.length).toBeGreaterThan(arcsAfterFirstPaint)
     expect(rafQueue.length, 'woken loop did not keep scheduling').toBe(1)
   })
+
+  it('plain wheel scrolls the page (not captured) and Ctrl+wheel zooms the map', () => {
+    // Live preview defect (PR #2, 2026-11-20): every wheel event over the
+    // canvas was preventDefaulted and zoomed the map, so the page could
+    // not be scrolled past it. Plain wheel must reach the browser;
+    // Ctrl/Cmd+wheel (what trackpad pinch sends) is the zoom gesture.
+    const { container } = render(
+      <RadialBubbleMap members={makeMembers(5)} width={800} height={600} active />,
+    )
+    const canvas = container.querySelector('canvas')
+
+    const plain = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true })
+    canvas.dispatchEvent(plain)
+    expect(plain.defaultPrevented, 'plain wheel must not be captured — the page has to scroll').toBe(false)
+
+    const ctrl = new WheelEvent('wheel', { deltaY: -120, ctrlKey: true, cancelable: true, bubbles: true })
+    canvas.dispatchEvent(ctrl)
+    expect(ctrl.defaultPrevented, 'Ctrl+wheel must be captured to zoom the map').toBe(true)
+  })
+
+  it('a click on an overlay control does not re-select a member', () => {
+    // Live preview defect (PR #2, 2026-11-20): clicking Reset changed the
+    // open profile from one member to another. The tap-select handler
+    // listened on window and hit-tested every pointerup, including clicks
+    // on the HTML controls layered over the canvas (Reset, zoom, profile
+    // card), so it selected whatever bubble sat under the button.
+    // Tap-select must only fire when the gesture started on the canvas.
+    const onSelect = vi.fn()
+    const onHubClick = vi.fn()
+    const { container } = render(
+      <RadialBubbleMap
+        members={makeMembers(5)}
+        width={800}
+        height={600}
+        active
+        onSelect={onSelect}
+        onHubClick={onHubClick}
+      />,
+    )
+    const canvas = container.querySelector('canvas')
+
+    // Pointerdown on a control (not the canvas), pointerup over the hub.
+    window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 400, clientY: 300 }))
+    expect(onHubClick, 'pointerup without a canvas pointerdown must not select').not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+
+    // A genuine tap on the canvas still selects the hub.
+    canvas.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 400, clientY: 300 }))
+    window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 400, clientY: 300 }))
+    expect(onHubClick, 'a real tap on the hub must still select it').toHaveBeenCalledTimes(1)
+  })
 })
