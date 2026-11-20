@@ -195,6 +195,31 @@ describe('RadialBubbleMap render loop', () => {
     expect(ctrl.defaultPrevented, 'Ctrl+wheel must be captured to zoom the map').toBe(true)
   })
 
+  it('never dispatches a map scroll lock on pointer enter/leave', () => {
+    // Live preview defect (PR #2, 2026-11-20): on mouse pointerenter the
+    // canvas dispatched conn3ctivity:map-scroll-lock and App paused Lenis
+    // (lenis.stop()). A stopped Lenis still intercepts every wheel event
+    // and preventDefaults it while scrolling nothing, so plain wheel over
+    // the map did nothing at all — the page sat still and the map did not
+    // zoom — even though the canvas wheel handler itself let plain wheel
+    // through. The lock is also unnecessary: Lenis already ignores
+    // ctrlKey wheel events, so it never fights the map zoom. The map must
+    // never ask for a scroll lock again.
+    const onLock = vi.fn()
+    window.addEventListener('conn3ctivity:map-scroll-lock', onLock)
+    try {
+      const { container } = render(
+        <RadialBubbleMap members={makeMembers(5)} width={800} height={600} active />,
+      )
+      const canvas = container.querySelector('canvas')
+      canvas.dispatchEvent(new MouseEvent('pointerenter', { bubbles: false }))
+      canvas.dispatchEvent(new MouseEvent('pointerleave', { bubbles: false }))
+      expect(onLock, 'the map must never dispatch a scroll lock').not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener('conn3ctivity:map-scroll-lock', onLock)
+    }
+  })
+
   it('a click on an overlay control does not re-select a member', () => {
     // Live preview defect (PR #2, 2026-11-20): clicking Reset changed the
     // open profile from one member to another. The tap-select handler

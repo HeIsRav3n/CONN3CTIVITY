@@ -867,14 +867,20 @@ export function RadialBubbleMap({
 
     const onContextMenu = (e) => e.preventDefault()
 
-    const lockScroll = (lock) => {
-      window.dispatchEvent(new CustomEvent('conn3ctivity:map-scroll-lock', { detail: lock }))
-    }
-    // Scroll lock is a mouse-only concern (it pauses Lenis on desktop).
-    // Touch scrolling must never be locked: the page scrolls natively.
-    const onEnter = (e) => { if (e.pointerType === 'mouse') lockScroll(true) }
+    // NOTE: there is deliberately NO scroll lock here. An earlier version
+    // paused Lenis while the pointer was over the map
+    // (conn3ctivity:map-scroll-lock -> lenis.stop()), which trapped page
+    // scrolling: a stopped Lenis still intercepts every wheel event and
+    // preventDefaults it while scrolling nothing (lenis 1.3.26
+    // onVirtualScroll: `if (this.isStopped || this.isLocked) {
+    // event.preventDefault(); return; }`). Plain wheel over the canvas
+    // did nothing at all — the page sat still and the map did not zoom —
+    // reproduced headlessly and live (PR #2, 2026-11-20). The lock is
+    // also unnecessary now: the canvas only zooms on Ctrl/Cmd+wheel,
+    // and Lenis already returns early on ctrlKey wheel events, so Lenis
+    // never fights the map zoom. Plain wheel just reaches Lenis, which
+    // smooth-scrolls the page natively.
     const onLeave = () => {
-      lockScroll(false)
       const s = stateRef.current
       if (s) {
         s.hoverId = null
@@ -891,11 +897,9 @@ export function RadialBubbleMap({
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('dblclick', onDbl)
     canvas.addEventListener('contextmenu', onContextMenu)
-    canvas.addEventListener('pointerenter', onEnter)
     canvas.addEventListener('pointerleave', onLeave)
 
     return () => {
-      lockScroll(false)
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
@@ -903,7 +907,6 @@ export function RadialBubbleMap({
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('dblclick', onDbl)
       canvas.removeEventListener('contextmenu', onContextMenu)
-      canvas.removeEventListener('pointerenter', onEnter)
       canvas.removeEventListener('pointerleave', onLeave)
     }
   }, [toWorld, width, height])
