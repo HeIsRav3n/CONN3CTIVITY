@@ -477,7 +477,12 @@ export function MapSection() {
             <span style={{ color: 'rgba(201,169,110,0.45)' }}>live map</span>
           </div>
 
-          <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5">
+          {/* Zoom / reset controls. On mobile they stay top-right (the
+              profile card is a bottom sheet there, so nothing overlaps).
+              On desktop the profile card anchors top-right, so the
+              controls move to bottom-right — both stay clickable at once
+              while a profile is open. */}
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5 md:top-auto md:bottom-4">
             <button
               type="button"
               title="Zoom in"

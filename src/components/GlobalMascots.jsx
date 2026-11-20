@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { luxuryEase } from '../lib/motion'
@@ -12,6 +12,24 @@ export function GlobalMascots() {
   const reducedMotion = usePrefersReducedMotion()
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
+
+  // The mascots are a fixed layer behind <main> (z-1 under z-10), so in the
+  // Mission section the near-opaque stat/action cards render on top of the
+  // CM eagle and slice its left side with a hard dark rectangle edge. The
+  // PNG itself is truly transparent (corners alpha 0) — the rectangle is
+  // the card edge cutting across the eagle. Fade the whole fixed layer out
+  // while #connect is in view instead of letting the cards cut the art.
+  const [inMission, setInMission] = useState(false)
+  useEffect(() => {
+    const target = document.getElementById('connect')
+    if (!target || typeof IntersectionObserver === 'undefined') return undefined
+    const io = new IntersectionObserver(
+      ([entry]) => setInMission(entry.isIntersecting && entry.intersectionRatio >= 0.15),
+      { threshold: [0, 0.15, 0.4] },
+    )
+    io.observe(target)
+    return () => io.disconnect()
+  }, [])
 
   useEffect(() => {
     if (reducedMotion) return undefined
@@ -41,7 +59,12 @@ export function GlobalMascots() {
   const cmRotateX = useTransform(smoothY, [-0.5, 0.5], [-12, 12])
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden" style={{ perspective: 1400 }}>
+    <motion.div
+      className="fixed inset-0 pointer-events-none z-[1] overflow-hidden"
+      style={{ perspective: 1400 }}
+      animate={{ opacity: inMission ? 0 : 1 }}
+      transition={{ duration: 0.6, ease: 'easeInOut' }}
+    >
       <motion.div
         className="absolute top-24 -left-10 md:left-0 w-52 md:w-64 xl:w-80"
         style={reducedMotion ? { transformStyle: 'preserve-3d' } : {
@@ -93,6 +116,6 @@ export function GlobalMascots() {
           />
         </motion.div>
       </motion.div>
-    </div>
+    </motion.div>
   )
 }

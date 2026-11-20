@@ -1,4 +1,4 @@
-import { useState, useMemo, lazy, Suspense } from 'react'
+import { useState, useMemo, lazy, Suspense, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import scammers from '../data/scammers.json'
 
@@ -7,6 +7,30 @@ import scammers from '../data/scammers.json'
 const InvestigationModal = lazy(() =>
   import('./DetectivityModal').then((m) => ({ default: m.InvestigationModal })),
 )
+
+// Threat titles are slash-joined handles ("Metafriends/Moriusa/VeeFriends/
+// Jirasan Fake CM"). They must wrap ONLY after a slash: overflow-wrap:
+// anywhere splits mid-word ("VEEFRI/ENDS"), which reads as a typo. Each
+// slash segment is a nowrap unit and a <wbr /> after every "/" is the only
+// break opportunity, so words are never split.
+function ThreatTitle({ title }) {
+  const segments = String(title || '').split('/')
+  return (
+    <>
+      {segments.map((segment, i) => (
+        <Fragment key={`${segment}-${i}`}>
+          <span style={{ whiteSpace: 'nowrap' }}>{segment}</span>
+          {i < segments.length - 1 && (
+            <>
+              {'/'}
+              <wbr />
+            </>
+          )}
+        </Fragment>
+      ))}
+    </>
+  )
+}
 
 function ScammerCard({ item, index, onView }) {
   return (
@@ -43,9 +67,9 @@ function ScammerCard({ item, index, onView }) {
           <h3
             className="font-orbitron font-bold text-lg mb-3 leading-tight text-cream group-hover:text-red-400 transition-colors"
             title={item.title}
-            style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+            style={{ overflowWrap: 'normal', wordBreak: 'normal', hyphens: 'none' }}
           >
-            {item.title}
+            <ThreatTitle title={item.title} />
           </h3>
 
           <p className="font-space text-xs text-cream/40 line-clamp-2 mb-4 leading-relaxed">

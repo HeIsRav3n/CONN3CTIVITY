@@ -49,9 +49,11 @@ function ScrollCue() {
     >
       <span style={{
         fontFamily: "'Josefin Sans', sans-serif",
-        fontSize: '0.55rem',
+        fontSize: '0.6rem',
         letterSpacing: '0.4em',
-        color: 'rgba(237,232,220,0.3)',
+        // Brand gold on the near-black hero (#C9A96E on #0B0A08, 8.8:1):
+        // the old rgba(237,232,220,0.3) was ~2:1 and barely legible.
+        color: '#C9A96E',
         textTransform: 'uppercase',
       }}>SCROLL TO EXPLORE</span>
       <motion.div

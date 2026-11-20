@@ -8,20 +8,52 @@ import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion'
 const GOLD = '#C9A96E'
 const CREAM = '#EDE8DC'
 
+// One distinct gold tone per face, so adjacent faces never read as one
+// flat gradient: pale gold, brand gold, mid gold, dark bronze. The
+// tetrahedron is non-indexed (4 faces x 3 vertices), so vertex i belongs
+// to face floor(i / 3).
+const FACE_TONES = ['#F6DFA8', '#C9A96E', '#8A6D3B', '#E3B96A']
+
 function FacetedTetrahedron({ spinning = true }) {
   const meshRef = useRef()
   const geometry = useMemo(() => new THREE.TetrahedronGeometry(1.18, 0), [])
+  const edges = useMemo(() => new THREE.EdgesGeometry(geometry, 1), [geometry])
 
-  useEffect(() => () => geometry.dispose(), [geometry])
+  // Per-face vertex colours: the single material colour would wash the
+  // faces together under the environment map, which is why the prism read
+  // as one flat triangle. Distinct tones per face restore the facets.
+  const faceColors = useMemo(() => {
+    const count = geometry.attributes.position.count
+    const colors = new Float32Array(count * 3)
+    const tone = new THREE.Color()
+    for (let i = 0; i < count; i++) {
+      tone.set(FACE_TONES[Math.floor(i / 3) % FACE_TONES.length])
+      colors[i * 3] = tone.r
+      colors[i * 3 + 1] = tone.g
+      colors[i * 3 + 2] = tone.b
+    }
+    return new THREE.BufferAttribute(colors, 3)
+  }, [geometry])
+
+  useEffect(() => {
+    geometry.setAttribute('color', faceColors)
+    return () => {
+      geometry.dispose()
+      edges.dispose()
+    }
+  }, [geometry, edges, faceColors])
 
   useFrame((state, delta) => {
     const mesh = meshRef.current
     if (!mesh) return
     if (spinning) {
-      mesh.rotation.y += delta * 0.28
+      // ~0.85 rad/s: a full turn in ~7s, so the facets are obvious within
+      // a few seconds of looking. The old 0.28 rad/s took ~22s per turn,
+      // which is why it read as a static flat triangle.
+      mesh.rotation.y += delta * 0.85
       const t = state.clock.elapsedTime
-      mesh.rotation.x = 0.52 + Math.sin(t * 0.35) * 0.08
-      mesh.rotation.z = 0.18 + Math.cos(t * 0.22) * 0.05
+      mesh.rotation.x = 0.52 + Math.sin(t * 0.6) * 0.12
+      mesh.rotation.z = 0.18 + Math.cos(t * 0.45) * 0.08
       // frameloop="demand" only renders on invalidate, so keep the loop
       // alive while the prism is spinning. When it stops spinning the
       // canvas settles after a single frame.
@@ -32,17 +64,23 @@ function FacetedTetrahedron({ spinning = true }) {
   return (
     <mesh ref={meshRef} geometry={geometry} frustumCulled={false}>
       <meshPhysicalMaterial
-        color={GOLD}
-        metalness={1}
-        roughness={0.16}
+        color="#ffffff"
+        vertexColors
+        metalness={0.85}
+        roughness={0.22}
         reflectivity={1}
         clearcoat={0.7}
         clearcoatRoughness={0.08}
-        envMapIntensity={1.35}
+        envMapIntensity={0.9}
         ior={1.7}
         flatShading
         toneMapped
       />
+      {/* Visible facet edges: a cream line along every tetrahedron edge,
+          so the facets read even where two faces catch similar light. */}
+      <lineSegments geometry={edges}>
+        <lineBasicMaterial color="#FDF6E3" transparent opacity={0.85} toneMapped={false} />
+      </lineSegments>
     </mesh>
   )
 }
